@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+.env
+
+# Node
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.pdf
+papers/
+chapters/
+final/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
