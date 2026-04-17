@@ -16,6 +16,7 @@ NEEDS_CLAUDE=false
 NEEDS_PYTHON=false
 NEEDS_SKILL=false
 NEEDS_PROJECTS=false
+NEEDS_CONSENSUS=false
 
 # 1. Claude Code CLI 확인
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -87,12 +88,46 @@ else
 fi
 echo ""
 
+# 5. Consensus MCP 확인
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "5️⃣  Consensus MCP 확인"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+if command -v claude &> /dev/null; then
+    if claude mcp list 2>/dev/null | grep -q "consensus.*Connected"; then
+        echo "✅ Consensus MCP 이미 연결됨"
+        echo "   ⏭️  설정 건너뜀"
+    elif claude mcp list 2>/dev/null | grep -q "consensus"; then
+        echo "⚠️  Consensus MCP 설정됨 (연결 끊김 — 재인증 필요)"
+        echo ""
+        echo "   👉 Claude Code 실행 후 재인증하세요:"
+        echo "      claude"
+        echo "      > /mcp"
+        echo "      → consensus 선택 → Authenticate"
+    else
+        echo "❌ Consensus MCP 미설정"
+        NEEDS_CONSENSUS=true
+    fi
+else
+    echo "⏭️  Claude Code 설치 후 설정 예정"
+    NEEDS_CONSENSUS=true
+fi
+echo ""
+
 # 모든 것이 설치되어 있으면 종료
 if [ "$NEEDS_CLAUDE" = false ] && [ "$NEEDS_PYTHON" = false ] && \
-   [ "$NEEDS_SKILL" = false ] && [ "$NEEDS_PROJECTS" = false ]; then
+   [ "$NEEDS_SKILL" = false ] && [ "$NEEDS_PROJECTS" = false ] && \
+   [ "$NEEDS_CONSENSUS" = false ]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "✨ 모든 것이 이미 설치되어 있습니다!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "💡 Consensus 로그인 확인:"
+    echo "   비로그인 시 검색당 최대 3개 논문만 반환됩니다."
+    echo "   아직 인증하지 않았다면:"
+    echo "   1) https://consensus.app/sign-up/?utm_source=claude_code&auth=claude_code 에서 가입"
+    echo "   2) claude 실행 후 /mcp → consensus → Authenticate"
     echo ""
     echo "🎯 바로 사용 가능합니다:"
     echo "   claude"
@@ -172,22 +207,53 @@ if [ "$NEEDS_PROJECTS" = true ]; then
     echo ""
 fi
 
-# Consensus MCP 설정
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📡 Consensus MCP 설정 (선택사항)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-read -p "Consensus MCP를 설정하시겠습니까? (y/n): " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if claude mcp add-json consensus '{"type":"http","url":"https://mcp.consensus.app/mcp"}' 2>/dev/null; then
-        echo "✅ Consensus MCP 설정 완료"
+# Consensus MCP 설정 (필수)
+if [ "$NEEDS_CONSENSUS" = true ]; then
+    echo "📡 Consensus MCP 설정 중..."
+    if command -v claude &> /dev/null; then
+        if claude mcp add-json consensus '{"type":"http","url":"https://mcp.consensus.app/mcp"}' 2>/dev/null; then
+            echo "✅ Consensus MCP 설정 완료"
+        else
+            echo "⚠️  자동 설정 실패. 수동으로 설정하세요:"
+            echo "   claude mcp add-json consensus '{\"type\":\"http\",\"url\":\"https://mcp.consensus.app/mcp\"}'"
+        fi
     else
-        echo "⚠️  나중에 Claude에서 설정하세요"
+        echo "⚠️  Claude Code 설치 후 아래 명령어로 설정하세요:"
+        echo "   claude mcp add-json consensus '{\"type\":\"http\",\"url\":\"https://mcp.consensus.app/mcp\"}'"
+    fi
+    echo ""
+fi
+
+# Consensus 계정 로그인 안내 (필수)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔐 Consensus 계정 로그인 (필수)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "⚠️  비로그인 상태에서는 검색당 최대 3개 논문만 반환됩니다."
+echo "   무료 계정 연결 시 검색당 10-20개 결과를 받을 수 있습니다."
+echo ""
+echo "1️⃣  무료 가입 (브라우저):"
+echo "   https://consensus.app/sign-up/?utm_source=claude_code&auth=claude_code"
+echo ""
+echo "2️⃣  Claude Code 실행 후 아래 명령어로 인증:"
+echo "   claude"
+echo "   > /mcp"
+echo "   → consensus 선택 → Authenticate"
+echo ""
+read -p "지금 브라우저에서 가입 페이지를 여시겠습니까? (y/n): " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if command -v open &> /dev/null; then
+        open "https://consensus.app/sign-up/?utm_source=claude_code&auth=claude_code"
+        echo "✅ 브라우저를 열었습니다. 가입 후 Claude Code에서 /mcp 로 인증하세요."
+    elif command -v xdg-open &> /dev/null; then
+        xdg-open "https://consensus.app/sign-up/?utm_source=claude_code&auth=claude_code"
+        echo "✅ 브라우저를 열었습니다. 가입 후 Claude Code에서 /mcp 로 인증하세요."
+    else
+        echo "⚠️  브라우저를 자동으로 열 수 없습니다. 위 URL을 직접 방문하세요."
     fi
 else
-    echo "⏭️  건너뜀"
+    echo "⏭️  나중에 위 URL에서 가입하고 /mcp 로 인증하세요."
 fi
 echo ""
 
@@ -197,8 +263,9 @@ echo "✅ 설치 완료!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "🎯 다음 단계:"
-echo "   claude"
-echo '   > "test-project 프로젝트 만들어줘"'
+echo "   1. claude 실행"
+echo "   2. /mcp 로 Consensus 인증 (위 안내 참조)"
+echo '   3. "test-project 프로젝트 만들어줘"'
 echo ""
 echo "🎉 즐거운 연구 되세요!"
 echo ""

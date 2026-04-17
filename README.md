@@ -1,224 +1,187 @@
 # Research Agent System
 
-AI-powered academic research project management for Claude Code.
+학술 과제·논문 작성을 위한 **5축 냉정 평가 기반 AI 연구 관리 시스템**.
+Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위로 분석해 자동으로 Consensus 논문 검색 → 초안 생성 → 수정 → 최종 완성까지 관리합니다.
 
-## 🚀 Quick Install
+---
+
+## 🧭 이게 어떤 시스템인가
+
+학부~박사 과정 학생·연구자가 에세이·리포트·저널 투고 논문을 쓸 때 가장 어려운 지점을 자동화합니다:
+
+- **"모든 주장에 레퍼런스를 달아야 한다"** — 문장 단위로 주장을 추출해 자동으로 Consensus 검색 키워드를 생성
+- **"내 논문이 심사자 눈에 어떻게 보이는가?"** — Top-tier 저널 심사 엄격도로 **5축 냉정 평가** 제공
+- **"어디부터 고쳐야 하나?"** — 평가 결과를 바탕으로 **만점 달성 작업 지시서** 자동 생성
+- **"인용을 실제로 정확히 했는가?"** — 인용마다 원문 PDF와 대조해 over-claim·misattribution 탐지
+
+### 5축 평가 기준
+
+| 축 | 이름 | 핵심 질문 |
+|---|------|----------|
+| 1 | 논문 레퍼런스 충실도 | Coverage · Accuracy · Authority · Balance |
+| 2 | 논리 전개 완성도 | Argument chain · Transition · Thesis alignment · Scope |
+| 3 | 반박/강화 논리 | Steelman · Falsifiability · Limitations · Reviewer attack |
+| 4 | 독창성·기여도 | "So What?" · Novelty positioning · Contribution layer · Implications |
+| 5 | 구성개념 정의 정밀도 | Definition · Operationalization · Boundary · Categorical/Dimensional |
+
+### 9개 서브 에이전트
+
+**평가**: flow-evaluator, claim-extractor, originality-evaluator, concept-clarity-evaluator
+**생성·수정**: writing-architect, citation-auditor, paper-analyst
+**보조**: gap-finder, methodology-advisor, peer-reviewer
+
+---
+
+## 🚀 설치
+
+### 사전 준비
+
+- macOS / Linux
+- Node.js (Claude Code 설치용)
+- Python 3.8+
+- Claude Code 계정 (Anthropic API 접근)
+- [Consensus](https://consensus.app) 무료 계정 (논문 검색용 — 미로그인 시 검색당 3개만 반환)
+
+### 자동 설치
 
 ```bash
-# 1. Clone
-git clone https://github.com/YOUR_USERNAME/research-agent.git ~/Documents/research-agent
+git clone https://github.com/SteveKim0513/research-agent-system.git ~/Documents/research-agent
 cd ~/Documents/research-agent
-
-# 2. 자동 설치 (권한 상관없이)
 bash install.sh
+```
 
-# 완료!
+`install.sh`가 자동으로 확인·설치:
+- ✅ Claude Code CLI
+- ✅ Python 패키지 (PyPDF2)
+- ✅ Skill 심볼릭 링크 (`~/.claude/skills/user/research-agent` → `./skills`)
+- ✅ `projects/` 폴더
+- ✅ Consensus MCP 등록 (`claude mcp add-json consensus ...`)
+- ✅ Consensus 로그인 안내 (브라우저 자동 오픈)
+
+**이미 설치된 항목은 자동으로 건너뜁니다.**
+
+### Consensus 인증 (필수)
+
+설치 후 Claude Code 실행하여:
+```
+claude
+> /mcp
+→ consensus 선택 → Authenticate → 브라우저에서 로그인
 ```
 
 ---
 
-## 📦 설치 내용
-
-자동으로 확인하고 설치:
-- ✅ Claude Code (CLI)
-- ✅ Python 패키지 (PyPDF2)
-- ✅ Skill 링크
-- ✅ Projects 폴더
-- ✅ Consensus MCP (선택)
-
-**이미 설치된 것은 자동으로 건너뜁니다!**
-
----
-
-## 🎯 사용법
-
-### 1. 프로젝트 생성
+## ⚡ 빠른 시작 (30초)
 
 ```bash
+cd ~/Documents/research-agent
 claude
 ```
 
 Claude에서:
 ```
-"literature-review 프로젝트 만들어줘"
+> "my-essay 프로젝트 만들어줘"
 ```
 
-**결과**:
+그다음 `projects/my-essay/flow.md`를 열어 자유 줄글로 연구 방향을 작성하고:
 ```
-projects/literature-review/
-├── papers/
-│   ├── collected/      (메타데이터 처리 완료)
-│   ├── candidates/     (선택한 논문, 처리 대기)
-│   └── analyzed/       (🤖 에이전트 분석 리포트)
-├── FLOW-TEMPLATE.md   (가이드 - 수정 금지)
-├── flow.md            (작성용 - 이 파일을 수정)
-├── chapters/
-└── final/
+> "평가해줘"      ← 5축 평가 + 작업지시서 생성
+> "작업 시작해줘" ← HUNT 과제 자동 Consensus 검색
+> "새 논문 처리해줘" ← PDF 처리 + 심층 분석
+> "초안 작성해줘" ← writing-architect가 구조 설계 → 초안
 ```
 
-### 2. Flow 작성
-
-```bash
-nano projects/literature-review/flow.md
-```
-
-과제 구조 작성:
-```markdown
-## Section 1: Introduction
-**필요 레퍼런스**: 
-- 주제: `transformer attention`
-- 최소: 3개
-```
-
-### 3. 논문 검색
-
-```
-"작업 시작해줘"
-```
-→ Consensus로 논문 검색 + `papers/consensus-results.md`에 결과 저장 (클릭 가능한 링크 포함)
-
-### 4. 논문 다운로드 후 처리
-
-`consensus-results.md`의 링크에서 PDF 다운로드 → `papers/candidates/`에 저장
-
-```
-"새 논문 처리해줘"
-```
-→ 메타데이터 추출 & `collected/` 이동 + 🤖 **paper-analyst가 자동 심층 분석**
-
-### 5. 초안 작성
-
-```
-"초안 작성해줘"
-```
-→ 🤖 **writing-architect가 논증 구조 설계** → 사용자 확인 → 초안 작성
-
-### 6. 챕터 수정
-
-```
-"Chapter 2 수정해줘: Linear attention 부분 확장"
-```
-→ 수정 + 일관성 체크 + 🤖 **citation-auditor가 인용 감사**
-
-### 7. 추가 에이전트 명령 (선택)
-
-```
-"gap 분석해줘"           → 🤖 연구 Gap 탐색
-"방법론 추천해줘"         → 🤖 3가지 방법론 비교
-"리뷰 체크해줘"           → 🤖 심사자 시뮬레이션
-```
+**상세 가이드는 [MANUAL.md](./MANUAL.md) 참고.**
 
 ---
 
-## 📁 프로젝트 구조
+## 📁 시스템 구성
 
 ```
 research-agent/
 ├── skills/
-│   ├── SKILL.md              (메인 스킬)
-│   └── agents/               (서브 에이전트 6개)
+│   ├── SKILL.md              (메인 스킬 정의)
+│   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
+│   └── agents/               (9개 서브 에이전트)
+│       ├── flow-evaluator.md
+│       ├── claim-extractor.md
+│       ├── originality-evaluator.md
+│       ├── concept-clarity-evaluator.md
 │       ├── paper-analyst.md
 │       ├── writing-architect.md
 │       ├── citation-auditor.md
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md
 │       └── peer-reviewer.md
-├── scripts/                   (시스템)
-└── projects/                  (사용자 작업 — gitignore)
-    └── {project-name}/
+├── scripts/                   (메타데이터 추출 등 시스템 스크립트)
+├── projects/                  (사용자 작업 공간 — gitignore)
+│   └── {project-name}/
+│       ├── flow.md
+│       ├── evaluations/       (latest/ + archive/)
+│       ├── papers/            (candidates/ + collected/ + analyzed/)
+│       ├── chapters/
+│       └── final/
+├── install.sh
+├── README.md                  (이 파일)
+└── MANUAL.md                  (사용자 매뉴얼)
 ```
 
 ---
 
-## 💡 주요 명령어
+## 🎯 핵심 명령어 요약
 
-| 명령어 | 설명 | 에이전트 |
-|--------|------|----------|
-| `"[이름] 프로젝트 만들어줘"` | 새 프로젝트 생성 | - |
-| `"작업 시작해줘"` | Flow 분석 & Consensus 검색 | - |
-| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst |
-| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect |
-| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor |
-| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder |
-| `"방법론 추천해줘"` | 방법론 제안/검증 | 🤖 methodology-advisor |
-| `"리뷰 체크해줘"` | 심사 시뮬레이션/대응 | 🤖 peer-reviewer |
+| 명령어 | 동작 |
+|--------|------|
+| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 |
+| 🎯 `"평가해줘"` | 5축 냉정 평가 + 작업지시서 |
+| 🔍 `"레퍼런스 점검해줘"` | 축 1 전용 경량 재평가 |
+| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow 보강 제안 |
+| `"작업 시작해줘"` | work-plan.md HUNT → Consensus 자동 검색 |
+| `"새 논문 처리해줘"` | PDF 처리 + paper-analyst 분석 |
+| `"초안 작성해줘"` | writing-architect 초안 생성 |
+| `"Chapter X 수정해줘: ..."` | 수정 + citation-auditor 감사 |
+| `"리뷰 체크해줘"` | peer-reviewer 심사 시뮬레이션 |
 
----
-
-## 🔧 Requirements
-
-- macOS / Linux
-- Claude Code (CLI)
-- Python 3.8+
-- PyPDF2
-
-**모두 install.sh가 자동 설치합니다!**
+전체 명령어·사용 흐름은 [MANUAL.md](./MANUAL.md) 참고.
 
 ---
 
-## 🆘 문제 해결
+## 🆘 빠른 문제 해결
 
-### "claude: command not found"
-
-Claude Code CLI가 설치 안 됨:
+**`claude: command not found`**
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
 
-### Skill이 인식 안 됨
-
+**스킬이 인식 안 됨**
 ```bash
 rm ~/.claude/skills/user/research-agent
 bash install.sh
 ```
 
-### PyPDF2 에러
+**Consensus MCP 연결 끊김**
+```bash
+claude
+> /mcp → consensus 선택 → Authenticate
+```
 
+**PyPDF2 오류**
 ```bash
 pip3 install pypdf2 --break-system-packages
 ```
 
----
-
-## 📝 다른 컴퓨터에서
-
-```bash
-# 1. Clone
-git clone https://github.com/YOU/research-agent.git ~/Documents/research-agent
-cd ~/Documents/research-agent
-
-# 2. 자동 설치
-bash install.sh
-
-# 완료!
-```
-
-**3분이면 끝!** 🚀
+자세한 트러블슈팅은 [MANUAL.md § 트러블슈팅](./MANUAL.md#-트러블슈팅) 참고.
 
 ---
 
-## 🌟 Features
+## 📋 Requirements
 
-- ✅ 프로젝트 자동 생성
-- ✅ Consensus 논문 검색
-- ✅ PDF 메타데이터 자동 추출
-- ✅ Flow 기반 초안 생성
-- ✅ 챕터 수정 시 자동 일관성 체크
-- ✅ Word 문서 자동 생성
-- ✅ 스마트 설치 (이미 설치된 것 건너뜀)
-
-## 🤖 Sub-Agent System
-
-연구자 노하우를 담은 6개 전문 에이전트:
-
-| 에이전트 | 역할 | 호출 |
-|----------|------|------|
-| **paper-analyst** | 논문 심층 분석 (3줄 요약 + 관련성 점수 + 활용 방안) | 자동 |
-| **writing-architect** | 논증 구조 설계 → 확인 → 초안 작성 | 자동 |
-| **citation-auditor** | 인용 정확성·형식·분포 검증 | 자동 |
-| **gap-finder** | 방법론/응용/데이터 Gap 탐색 + 난이도·임팩트 점수 | 수동 |
-| **methodology-advisor** | 방법론 추천(3가지 비교) 또는 선택된 방법론 검증 | 수동 |
-| **peer-reviewer** | 심사자 시뮬레이션 또는 실제 리뷰 대응 전략 | 수동 |
+- macOS / Linux
+- Claude Code CLI (설치 스크립트가 자동 설치)
+- Python 3.8+
+- PyPDF2
+- Node.js (npm 경유 Claude Code 설치 시)
+- Consensus 계정 (무료 — 검색 결과 확장)
 
 ---
 

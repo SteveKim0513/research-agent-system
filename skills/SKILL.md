@@ -7,18 +7,50 @@ description: "Academic research project management with AI agents. Creates proje
 
 이 스킬은 research-agent 폴더 안의 projects/ 디렉토리에서 작동합니다.
 
+## 전체 작업 흐름 (5축 평가 기반)
+
+```
+[프로젝트 생성 + flow.md 작성]
+   ↓
+[🎯 평가해줘] ← 5축 냉정 평가 + 작업 계획서 생성 (핵심 진입점)
+   ↓
+┌──────────┬──────────┬──────────┬──────────┐
+│ 📚 리서치 │ ✍️ 1차작성 │ 🔧 수정   │ ✅ 최종  │
+│ Stage 1  │ Stage 2  │ Stage 3  │ Stage 4  │
+└──────────┴──────────┴──────────┴──────────┘
+   ↑ 각 단계 완료 후 [🎯 평가해줘] 재실행하여 진척 확인
+```
+
+**핵심 원칙**: flow.md가 완성되면 반드시 `평가해줘`를 먼저 실행한다. 평가에서 나온 **work-plan.md**가 이후 4단계(리서치→1차작성→수정→최종)의 작업 순서를 결정한다.
+
+## 5축 평가 기준
+
+flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100점 만점 (하위 기준 각 25점).
+
+| 축 | 이름 | 핵심 질문 | 전문 에이전트 |
+|---|------|----------|-------------|
+| **1** | 논문 레퍼런스 충실도 | Coverage + Accuracy + Authority + Balance | citation-auditor |
+| **2** | 논리 전개 완성도 | Argument chain + Transition + Thesis alignment + Scope closure | writing-architect |
+| **3** | 반박/강화 논리 | Steelman + Falsifiability + Limitations + Reviewer attack surface | peer-reviewer |
+| **4** | 독창성·기여도 | "So What?" + Novelty positioning + Contribution layer + Implications | **originality-evaluator** |
+| **5** | 구성개념 정의 정밀도 | Definition + Operationalization + Boundary + Categorical/Dimensional | **concept-clarity-evaluator** |
+
 ## 서브 에이전트 시스템
 
-이 스킬은 6개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 9개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
-| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (Step 5) | 자동 |
-| **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (Step 6) | 자동 |
-| **citation-auditor** | `skills/agents/citation-auditor.md` | "챕터 수정" (Step 7) | 자동 |
+| **flow-evaluator** 🎯 | `skills/agents/flow-evaluator.md` | "평가해줘" / "flow 평가" / "원고 평가" | 자동 (평가 진입점) |
+| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md의 문장 단위 주장 추출 (flow-evaluator가 자동 호출) | 자동 |
+| **originality-evaluator** | `skills/agents/originality-evaluator.md` | 축 4 심층 평가 (flow-evaluator가 자동 호출) | 자동/수동 |
+| **concept-clarity-evaluator** | `skills/agents/concept-clarity-evaluator.md` | 축 5 심층 평가 (flow-evaluator가 자동 호출) | 자동/수동 |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" | 자동 |
+| **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" | 자동 |
+| **citation-auditor** | `skills/agents/citation-auditor.md` | "챕터 수정", FINAL 단계 full-pass | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" | 수동 |
-| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" | 수동 |
+| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘", FINAL 단계 | 수동/자동 |
 
 ### 에이전트 호출 방법
 
@@ -56,24 +88,40 @@ mkdir -p projects/{PROJECT_NAME}/chapters
 mkdir -p projects/{PROJECT_NAME}/final
 ```
 
+### 단계 2b: evaluations 폴더 구조 생성
+
+```bash
+mkdir -p projects/{PROJECT_NAME}/evaluations/latest
+mkdir -p projects/{PROJECT_NAME}/evaluations/archive
+```
+
+**경로 규약**:
+- 모든 평가 산출물은 `projects/{PROJECT_NAME}/evaluations/latest/`에 저장 (덮어쓰기)
+- 매 평가 실행 시 실행 직전의 latest/를 `archive/{NNN}-{YYYY-MM-DD}-{stage}/`로 스냅샷 복사
+- 모든 하위 명령(`작업 시작해줘` 등)은 `evaluations/latest/`를 참조
+
 ### 단계 3: FLOW-TEMPLATE.md (가이드) 및 flow.md (작성용) 생성
 
-projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 생성하세요. FLOW-TEMPLATE.md는 참고용 가이드 원본, flow.md는 사용자가 직접 수정합니다. 두 파일 모두 보이는 파일이며 점(.)으로 시작하지 않습니다.
+projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 생성하세요.
 
-**FLOW-TEMPLATE.md의 원본은 `skills/FLOW-TEMPLATE.md`에 보관되어 있습니다.** 프로젝트 생성 시 이 파일을 읽어서 `projects/{PROJECT_NAME}/FLOW-TEMPLATE.md`와 `projects/{PROJECT_NAME}/flow.md`에 복사하세요. 이 범용 템플릿에는 두 가지 트랙이 포함되어 있습니다:
+- **FLOW-TEMPLATE.md**: `skills/FLOW-TEMPLATE.md`의 내용을 복사. 줄글(prose) 작성 가이드.
+- **flow.md**: **빈 파일** 또는 메타데이터 골격만 있는 파일로 생성:
+  ```markdown
+  # [과제명]
 
-- **Track A: 이론적·개념적 에세이** — 기존 개념 비판, 새 프레임워크 제안
-  - Introduction → Literature Review → Theoretical Framework → Core Argument → Counterarguments → Implications → Conclusion
-- **Track B: 경험적 연구 (IMRaD)** — 데이터 수집 → 분석 → 결과 해석
-  - Introduction → Literature Review → Methodology → Results → Discussion & Conclusion
+  과제명: 
+  코스: 
+  마감: YYYY-MM-DD
+  분량: 
+  인용 스타일: APA
 
-두 트랙 모두 다음 구조를 각 섹션에 포함합니다:
-1. **핵심 앵커**: 연구 질문 (RQ) + 핵심 주장 (Thesis) — 모든 섹션이 이것에 답해야 함
-2. **하위 질문**: "이 섹션이 답하는 질문은?" — 섹션의 존재 이유
-3. **논증 설계**: 주장 → 근거 → 반론 → 다음 섹션 연결 — 섹션 간 논리 흐름
-4. **핵심 레퍼런스 테이블**: 논문 + 뒷받침할 주장 — 논문-주장 매핑
+  ---
 
-flow.md는 FLOW-TEMPLATE.md를 복사한 뒤 사용자가 해당 트랙을 선택하고 내용을 채웁니다.
+  (여기에 줄글로 자유롭게 작성. 연구 질문과 핵심 주장은 반드시 한 문장씩 명시.
+   작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "평가해줘" 입력.)
+  ```
+
+**작성 방식**: 사용자가 자유 줄글(prose)로 작성하면 `평가해줘` 단계에서 claim-extractor가 문장 단위로 자동 분석합니다. 구조적 템플릿을 강요하지 않습니다.
 
 ### 단계 4: .paper-metadata.json 생성
 
@@ -103,16 +151,164 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            │   ├── collected/      (메타데이터 처리 완료된 논문)
            │   ├── candidates/     (선택한 논문, 처리 대기)
            │   └── analyzed/       (에이전트 분석 리포트)
+           ├── evaluations/
+           │   ├── latest/         (최신 평가 산출물 — 명령이 참조)
+           │   └── archive/        (과거 평가 스냅샷)
            ├── FLOW-TEMPLATE.md   (가이드 - 수정하지 마세요)
            ├── flow.md            (실제 작성용 - 이 파일을 수정하세요)
            ├── chapters/
            └── final/
 
 👉 다음 단계:
-   1. projects/{PROJECT_NAME}/flow.md 파일을 열어서 과제 구조 작성
-      (FLOW-TEMPLATE.md는 참고용으로 두고, flow.md만 수정)
-   2. "작업 시작해줘" 입력
+   1. projects/{PROJECT_NAME}/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
+      - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
+      - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
+      - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
+   2. "평가해줘" 입력 → claim-extractor(문장 단위 주장 추출) + 5축 냉정 평가 실행
+      - 생성 파일: evaluation.md, work-plan.md, claim-extraction.md
+   3. "작업 시작해줘" 입력 → work-plan.md의 HUNT 과제로 Consensus 자동 검색
+   4. "새 논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
+   5. "평가해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
 ```
+
+---
+
+## 🎯 5축 평가 (flow-evaluator)
+
+사용자가 "평가해줘", "flow 평가해줘", "원고 평가해줘", "5축 평가", "점수 매겨줘" 등을 말하면:
+
+### 단계 1: 평가 대상 판별
+
+현재 프로젝트의 상태에 따라 자동으로 평가 단계를 판별:
+
+- `flow.md`만 존재 + `chapters/` 비어있음 → **flow 단계 평가**
+- `chapters/*.md` 존재 + `final/complete-draft.md` 없음 → **v1-draft 단계 평가**
+- `final/complete-draft.md` 존재 + 수정 기록 있음 → **revised 단계 평가**
+- 사용자가 "최종 평가" 명시 → **final 단계 평가**
+
+사용자가 특정 파일을 지정한 경우 (예: "Chapter 2 평가해줘") 해당 파일만 평가.
+
+### 단계 2: prose 여부 사전 판별 + claim-extractor 선행 호출
+
+평가 대상이 `flow.md`이고 **줄글(prose) 형태**(체크박스·구조 테이블 없이 자연어 문장 위주)이면:
+
+1. `skills/agents/claim-extractor.md` 파일을 읽는다
+2. Agent 도구로 claim-extractor를 먼저 호출:
+   - 전달: flow.md 전체 + papers/consensus-results.md + papers/analyzed/*.md + claim-extractor.md 지침
+   - 수행: 문장 ID 부여 → 5종 분류 → 기존 pool 매칭 → UNMATCHED 건에 대한 HUNT 과제 생성
+   - 저장: `projects/{PROJECT_NAME}/claim-extraction.md`
+
+평가 대상이 이미 작성된 원고(`chapters/*.md`, `final/*.md`)인 경우에도 동일하게 claim-extractor를 선행 호출 (문장 단위 인용 누락 감사용).
+
+### 단계 3: 🤖 flow-evaluator 오케스트레이터 호출
+
+1. `skills/agents/flow-evaluator.md` 파일을 읽는다
+2. 다음을 수집하여 Agent 도구 prompt에 포함:
+   - 평가 대상 파일 전체 내용
+   - `flow.md` (기준 문서)
+   - `claim-extraction.md` (단계 2 결과, prose flow인 경우)
+   - `papers/consensus-results.md` (레퍼런스 pool)
+   - `papers/analyzed/*.md` (논문 분석)
+   - `papers/collected/` 파일 목록
+   - 현재 평가 단계 (flow / v1-draft / revised / final)
+3. Agent 도구로 flow-evaluator를 실행한다:
+   - 수행: Phase 0 구조 추론(prose인 경우) → 5축 독립 평가 → 축 간 상호작용 점검 → 축별 작업 계획서 (HUNT 과제 포함)
+4. **축 4 심층 평가**가 필요하면 originality-evaluator를 병렬 호출 (flow-evaluator가 판단)
+5. **축 5 심층 평가**가 필요하면 concept-clarity-evaluator를 병렬 호출 (flow-evaluator가 판단)
+
+### 단계 3: 결과 저장 — evaluations/latest/ + archive 스냅샷
+
+#### 3-a. Archive 스냅샷 (이전 평가 보존)
+
+평가 **실행 직전**에 `evaluations/latest/`가 비어있지 않으면:
+
+```bash
+# 다음 순번 계산 (기존 archive 개수 + 1)
+N=$(ls projects/{PROJECT_NAME}/evaluations/archive 2>/dev/null | wc -l)
+NEXT=$(printf "%03d" $((N+1)))
+DATE=$(date +%Y-%m-%d)
+STAGE="{flow|v1-draft|revised|final}"  # 평가 단계
+
+# 스냅샷 폴더 생성 후 latest/ 내용을 복사
+mkdir -p projects/{PROJECT_NAME}/evaluations/archive/${NEXT}-${DATE}-${STAGE}
+cp -r projects/{PROJECT_NAME}/evaluations/latest/* \
+      projects/{PROJECT_NAME}/evaluations/archive/${NEXT}-${DATE}-${STAGE}/
+```
+
+#### 3-b. 신규 평가 산출물을 latest/에 저장
+
+- `projects/{PROJECT_NAME}/evaluations/latest/evaluation.md` — 5축 점수 + 감점 사유
+- `projects/{PROJECT_NAME}/evaluations/latest/work-plan.md` — 작업 계획서 (HUNT 체크박스 포함)
+- `projects/{PROJECT_NAME}/evaluations/latest/claim-extraction.md` — 문장 단위 주장 테이블 (prose flow인 경우)
+- `projects/{PROJECT_NAME}/evaluations/latest/originality-report.md` — 축 4 심층 (선택)
+- `projects/{PROJECT_NAME}/evaluations/latest/concept-clarity-report.md` — 축 5 심층 (선택)
+
+#### 3-c. Delta 추적
+
+두 번째 이후 평가일 경우 `evaluation.md` 상단에 **직전 archive 스냅샷과의 비교**를 명시:
+
+```markdown
+## 📈 Delta (vs archive/002-2026-04-22-after-draft-v1)
+| 축 | 이전 | 현재 | 변화 |
+|---|------|------|------|
+| 1 | 52 | 84 | +32 🟢 |
+| 2 | 68 | 69 | +1 |
+| ... |
+```
+
+### 단계 4: 사용자 보고
+
+```
+🎯 5축 평가 완료
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 종합: XX/500 (평균 XX/100)
+평가 단계: [flow / v1-draft / revised / final]
+심사 판정 (가상): [Reject / Major / Minor / Accept]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+| 축 | 이름 | 점수 | 등급 |
+|---|------|------|------|
+| 1 | 레퍼런스 충실도 | XX/100 | X |
+| 2 | 논리 전개 완성도 | XX/100 | X |
+| 3 | 반박/강화 논리 | XX/100 | X |
+| 4 | 독창성·기여도 | XX/100 | X |
+| 5 | 구성개념 정의 정밀도 | XX/100 | X |
+
+🔴 P1-Critical (축 간 상호작용 문제): N건
+🟡 P2-High: N건
+🟢 P3-Medium: N건
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 작업 계획서: work-plan.md
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 Stage 1 (리서치): {N}개 작업 — 예상 회복 +{X}
+✍️ Stage 2 (1차 작성): {N}개 작업 — 예상 회복 +{X}
+🔧 Stage 3 (수정): {N}개 작업 — 예상 회복 +{X}
+✅ Stage 4 (최종): {N}개 작업 — 예상 회복 +{X}
+
+💾 저장:
+   ✓ projects/{PROJECT_NAME}/evaluation.md
+   ✓ projects/{PROJECT_NAME}/work-plan.md
+   ✓ projects/{PROJECT_NAME}/originality-report.md (축 4 심층)
+   ✓ projects/{PROJECT_NAME}/concept-clarity-report.md (축 5 심층)
+
+👉 다음 단계:
+   1. work-plan.md 검토
+   2. Stage 1부터 순차 진행:
+      - "작업 시작해줘" → Consensus 검색 (리서치)
+      - "새 논문 처리해줘" → PDF 처리
+      - "초안 작성해줘" → Stage 2
+      - "Chapter X 수정해줘" → Stage 3
+   3. 각 Stage 완료 후 다시 "평가해줘" → 점수 변화 확인
+```
+
+### 단계 5: 반복 평가 규칙
+
+- **각 Stage 완료 시 자동 재평가**: 사용자가 다음 단계로 넘어가기 전에 "평가해줘"를 권장
+- **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시, `evaluation.md`에 이전 점수 대비 변화(+X, −X)를 함께 표시
+- **목표 달성 확인**: 각 축이 90점 이상이면 🟢, 70-89점이면 🟡, 70점 미만이면 🔴
 
 ---
 
@@ -192,22 +388,37 @@ mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NA
 
 ---
 
-## Consensus 검색 (작업 시작)
+## Consensus 검색 (작업 시작) — work-plan.md 기반 자동 실행
 
-사용자가 "작업 시작해줘", "논문 검색해줘", "필요한 논문 찾아줘" 등을 말하면:
+사용자가 "작업 시작해줘", "논문 검색해줘", "HUNT 실행" 등을 말하면:
 
-### 단계 1: 현재 프로젝트의 flow.md 읽기
+### 단계 1: 선행 조건 확인
 
-```bash
-cat projects/{PROJECT_NAME}/flow.md
-```
+1. `projects/{PROJECT_NAME}/evaluations/latest/work-plan.md` 존재 여부 확인
+   - 없으면: "먼저 `평가해줘`를 실행하여 work-plan.md를 생성하세요"로 안내 후 중단
+2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **모든 `[HUNT-NNN]` 블록**을 파싱
+3. 이미 완료된 HUNT는 체크박스(`- [x]`)로 표시되어 있으므로 건너뛰고, 미완료 체크박스(`- [ ]`)만 수집
 
-각 섹션의 "필요한 레퍼런스" 주제를 추출하세요.
+### 단계 2: HUNT 과제를 Consensus MCP에 투입
 
-### 단계 2: Consensus MCP로 검색
+각 미완료 HUNT 과제마다:
 
-각 섹션의 검색 키워드로 Consensus를 검색하세요. 
-각 키워드당 최소 5-10개의 결과를 가져오세요.
+1. **검색 키워드 리스트를 순차 실행**:
+   - 각 키워드에 대해 `mcp__consensus__search` 호출
+   - **MCP 지시에 따라 배치당 최대 3개 쿼리 병렬 실행** 후 대기 (rate limit 회피)
+   - Rate limit 에러 시 30초 대기 후 재시도
+
+2. **결과 누적**:
+   - 각 HUNT 결과를 `papers/consensus-results.md`에 **누적 저장** (기존 내용 유지, 새 섹션 추가)
+   - 각 결과에 출처 HUNT ID 태그 (예: `## [HUNT-001] S004 — EF 측정 혼입 요인`)
+
+3. **claim-extraction.md 매칭 상태 갱신** (`evaluations/latest/claim-extraction.md`):
+   - 해당 문장의 MATCHED 상태를 ✅로 변경
+   - 찾은 대표 논문 2-3편을 인용 후보로 기록
+
+4. **work-plan.md 진척 갱신** (`evaluations/latest/work-plan.md`):
+   - 완료된 HUNT는 `- [x]` 체크
+   - 찾은 논문이 기대 프로필에 못 미치면 `⚠️ 재검색 필요` 주석 추가
 
 ### 단계 3: 결과를 papers/consensus-results.md 파일에 저장
 
@@ -272,11 +483,118 @@ cat projects/{PROJECT_NAME}/flow.md
 
 💾 검색 결과 저장됨: projects/{PROJECT_NAME}/papers/consensus-results.md
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 HUNT 실행 요약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 완료 HUNT: {N}개
+⚠️  재검색 권장: {N}개
+📄 신규 확보 후보 논문: {N}편
+🔄 claim-extraction.md 매칭 갱신: {N}건
+
 👉 다음 단계:
    1. papers/consensus-results.md 파일의 링크에서 필요한 논문을 다운로드
    2. 다운로드한 PDF를 projects/{PROJECT_NAME}/papers/candidates/ 폴더에 저장
-   3. "새 논문 처리해줘" 입력
+   3. "새 논문 처리해줘" 입력 → paper-analyst 자동 분석
+   4. 완료 후 "평가해줘" 재실행 → 축 1 점수 변화 확인
 ```
+
+### 단계 5: 다음 단계 권장 (현실적 분기)
+
+HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
+
+```
+📚 Stage 1 리서치 완료
+
+축 1 점수는 새 논문 확보로 상승할 것으로 기대되지만, 축 2·3·4·5는 flow.md 텍스트가
+그대로이므로 전체 5축을 재평가해도 변화는 미미합니다.
+
+다음 중 선택:
+
+  [A] "레퍼런스 점검해줘"  → 축 1만 빠르게 재평가 (권장, 가벼움)
+  [B] "flow 업데이트해줘"  → 새 논문 반영하여 flow.md 보강 제안
+                            (이 후 "평가해줘" 시 축 3·4도 유의미하게 움직임)
+  [C] "초안 작성해줘"      → Stage 2로 바로 진입 (flow가 이미 충분하다면)
+```
+
+---
+
+## 🔍 레퍼런스 점검 (축 1 경량 재평가)
+
+사용자가 "레퍼런스 점검해줘", "축 1 재평가", "reference check" 등을 말하면:
+
+### 단계 1: 축 1 전용 평가
+
+1. `evaluations/latest/claim-extraction.md`의 MATCHED/UNMATCHED 현황 재계산
+2. 각 MATCHED 건의 인용 매핑이 paper-analyst 분석과 정합하는지 sampling 검증 (accuracy)
+3. 새 논문을 반영한 **축 1의 4개 하위 기준만** 재채점 (Coverage, Accuracy, Authority, Balance)
+
+### 단계 2: 저장 (경량, archive 스냅샷 없음)
+
+- `evaluations/latest/evaluation.md`의 축 1 점수 블록만 갱신
+- `evaluations/latest/work-plan.md`의 Stage 1 섹션 체크 상태 반영
+- 축 2-5 점수는 **변경하지 않음**
+
+### 단계 3: 보고
+
+```
+🔍 레퍼런스 점검 완료 (축 1 전용)
+
+축 1 레퍼런스 충실도: 52 → 84 (+32 🟢)
+  ├─ 1-1 Coverage: 40 → 92 (+52)
+  ├─ 1-2 Accuracy: 65 → 88 (+23)
+  ├─ 1-3 Authority: 60 → 82 (+22)
+  └─ 1-4 Balance: 43 → 74 (+31)
+
+⚠️ 잔존 이슈:
+  - [HUNT-007] S055에 대한 매칭 논문이 기대 프로필 미달 → 재검색 권장
+  - [HUNT-012] S089의 MATCHED 논문 3편 중 1편이 원문 확인 결과 over-claim
+
+👉 다음 단계:
+   - 잔존 이슈 해소 후 "flow 업데이트해줘"
+   - 또는 "초안 작성해줘"로 Stage 2 진입
+   - 축 2-5 전체 재평가는 Stage 2 초안 완료 후 권장
+```
+
+---
+
+## 📝 flow 업데이트 (새 논문 반영 보강)
+
+사용자가 "flow 업데이트해줘", "flow 보강", "새 논문 반영해서 flow 고쳐줘" 등을 말하면:
+
+### 단계 1: 새로 확보된 논문 집계
+
+1. `papers/analyzed/` 중 flow.md 작성 시점 이후 추가된 분석 리포트를 식별
+2. `claim-extraction.md`에서 UNMATCHED → MATCHED로 전환된 문장 목록 수집
+
+### 단계 2: 🤖 writing-architect 경량 호출 (flow-refinement 모드)
+
+1. `skills/agents/writing-architect.md` 읽기
+2. Agent로 flow.md + 신규 analyzed/*.md 전달
+3. 수행: 축 3(반론 보강), 축 4(Delta 명확화)를 실제로 움직일 수 있는 **문단 단위 수정 제안**을 생성. 단, flow.md는 **직접 수정하지 않고** diff 형태로 사용자에게 보고.
+
+### 단계 3: 사용자 확인
+
+```
+📝 flow.md 업데이트 제안
+
+📌 축 3 보강 제안 (Steelman):
+  현재: "latent variable 접근으로 순수 EF를 추출할 수 있다는 주장도 있다."
+  제안: "Friedman & Miyake (2017)는 latent variable로 순수 EF 추출 가능성을
+       제시했으나, 최근 Löffler et al. (2024)는 drift-diffusion 분석에서
+       공통 요인이 정보 흡수 속도에 완전히 환원됨을 보였다."
+  변화: 반론의 steelman 강도 ↑ + 재반박 근거 추가
+
+📌 축 4 보강 제안 (Novelty Delta):
+  [...]
+
+👉 이 제안들을 flow.md에 반영할까요? [전체 수락 / 개별 선택 / 거부]
+```
+
+### 단계 4: 반영 후 권장 사항
+
+사용자가 수락하면 flow.md를 갱신하고, **전체 5축 재평가 권장** (이제는 의미 있는 변화 예상).
+
+---
 
 ---
 
@@ -568,15 +886,81 @@ Reviewer 3 (실용주의자): Accept with Minor
 
 ---
 
+## 독창성 심층 평가 (축 4, 단독 호출)
+
+사용자가 "독창성 평가해줘", "contribution 평가", "novelty 확인해줘" 등을 말하면:
+
+1. `skills/agents/originality-evaluator.md` 파일을 읽는다
+2. 현재 프로젝트의 평가 대상(flow.md 또는 초안) + `papers/analyzed/*.md` + `papers/consensus-results.md`를 전달하여 Agent 실행
+3. 결과를 `projects/{PROJECT_NAME}/originality-report.md`에 저장
+
+**주요 출력**: Novelty Delta Map (선행 연구 3편 대비 차별점 테이블) + "So What?" 명시 여부 + 심사자 예상 공격.
+
+---
+
+## 구성개념 정의 정밀도 심층 평가 (축 5, 단독 호출)
+
+사용자가 "정의 정밀도 평가해줘", "개념 평가", "construct clarity" 등을 말하면:
+
+1. `skills/agents/concept-clarity-evaluator.md` 파일을 읽는다
+2. 현재 프로젝트의 평가 대상을 전달하여 Agent 실행
+3. 결과를 `projects/{PROJECT_NAME}/concept-clarity-report.md`에 저장
+
+**주요 출력**: 핵심 구성개념 정의 감사 테이블 + 의미 drift 탐지 + 범주/차원 선택 근거 감사.
+
+---
+
 ## 전체 명령어 요약
 
-| 명령어 | 동작 | 에이전트 |
-|--------|------|----------|
-| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 | - |
-| `"작업 시작해줘"` | Consensus 검색 → consensus-results.md | - |
-| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst (자동) |
-| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (자동) |
-| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor (자동) |
-| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder |
-| `"방법론 추천/검증해줘"` | 방법론 제안 또는 검증 | 🤖 methodology-advisor |
-| `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer |
+| 명령어 | 동작 | 에이전트 | Stage |
+|--------|------|----------|-------|
+| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 | - | 0 |
+| 🎯 `"평가해줘"` | **5축 냉정 평가 + 작업계획서** (archive 스냅샷 자동) | 🤖 flow-evaluator (+ claim-extractor + originality + concept-clarity) | flow / v1 / revised / final |
+| 🔍 `"레퍼런스 점검해줘"` | **축 1 경량 재평가** (빠름, archive 없음) | flow-evaluator (axis-1 mode) | Stage 1 직후 |
+| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 writing-architect (refinement) | Stage 1 직후 |
+| `"작업 시작해줘"` | work-plan.md HUNT → Consensus 자동 검색 | - | 1 리서치 |
+| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst (자동) | 1 리서치 |
+| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (자동) | 2 1차작성 |
+| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor (자동) | 3 수정 |
+| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder | 리서치 보조 |
+| `"방법론 추천/검증해줘"` | 방법론 제안 또는 검증 | 🤖 methodology-advisor | 리서치/수정 보조 |
+| `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer | 4 최종 |
+| `"독창성 평가해줘"` | 축 4 심층 평가 (단독 호출) | 🤖 originality-evaluator | 모든 단계 |
+| `"정의 정밀도 평가해줘"` | 축 5 심층 평가 (단독 호출) | 🤖 concept-clarity-evaluator | 모든 단계 |
+
+**권장 흐름 (줄글 prose flow 기준, 재평가 시점 최적화)**:
+```
+프로젝트 생성 → flow.md 자유 줄글 작성
+  → 🎯 평가해줘 (1차 전체)
+     ├── claim-extractor → evaluations/latest/claim-extraction.md
+     ├── flow-evaluator → evaluations/latest/evaluation.md
+     ├── 작업 계획서 → evaluations/latest/work-plan.md (HUNT 체크박스)
+     └── 이전 평가 있으면 → evaluations/archive/001-{date}-flow/ 스냅샷
+
+  → [Stage 1 리서치]
+     ├── 작업 시작해줘 → HUNT 자동 검색 → consensus-results.md 누적
+     ├── (사용자) PDF 다운로드 → candidates/
+     └── 새 논문 처리해줘 → paper-analyst 자동 분석
+
+  → 🔍 레퍼런스 점검해줘 (축 1 전용, 경량)
+     └── 축 1만 빠르게 채점, archive 스냅샷 생성 안 함
+
+  → (선택) 📝 flow 업데이트해줘 → 새 논문 반영한 보강 제안
+
+  → [Stage 2] 초안 작성해줘 → writing-architect 구조 설계 → 확인 → 초안
+  → 🎯 평가해줘 (2차 전체) — 축 1~5 모두 유의미하게 움직임
+     └── archive/002-{date}-v1-draft/ 스냅샷
+
+  → [Stage 3] Chapter X 수정해줘 (반복) → citation-auditor 자동 감사
+  → 🎯 평가해줘 (3차 전체)
+     └── archive/003-{date}-revised/ 스냅샷
+
+  → [Stage 4] 리뷰 체크해줘 → peer-reviewer 심사 시뮬레이션
+  → 🎯 평가해줘 (최종) — 목표 점수 달성 확인
+     └── archive/004-{date}-final/ 스냅샷
+```
+
+**핵심 변경점**:
+- Stage 1 직후에는 **경량 "레퍼런스 점검"**만 권장 (축 1 외 다른 축은 flow.md 미변경이면 움직이지 않으므로 전체 평가는 낭비)
+- 전체 5축 재평가는 **실질적 변화(flow 업데이트 or 초안 작성 or 수정) 이후**에만 실행
+- 각 전체 평가마다 `archive/` 스냅샷이 자동 생성되어 delta 추적 가능
