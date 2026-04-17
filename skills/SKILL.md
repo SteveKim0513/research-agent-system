@@ -58,84 +58,22 @@ mkdir -p projects/{PROJECT_NAME}/final
 
 ### 단계 3: FLOW-TEMPLATE.md (가이드) 및 flow.md (작성용) 생성
 
-projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 모두 동일한 내용으로 생성하세요. FLOW-TEMPLATE.md는 참고용 가이드로 원본 그대로 유지하고, flow.md는 사용자가 직접 수정하여 사용합니다. 두 파일 모두 보이는 파일이며 점(.)으로 시작하지 않습니다:
+projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 생성하세요. FLOW-TEMPLATE.md는 참고용 가이드 원본, flow.md는 사용자가 직접 수정합니다. 두 파일 모두 보이는 파일이며 점(.)으로 시작하지 않습니다.
 
-```markdown
-# Assignment Flow
+**FLOW-TEMPLATE.md의 원본은 `skills/FLOW-TEMPLATE.md`에 보관되어 있습니다.** 프로젝트 생성 시 이 파일을 읽어서 `projects/{PROJECT_NAME}/FLOW-TEMPLATE.md`와 `projects/{PROJECT_NAME}/flow.md`에 복사하세요. 이 범용 템플릿에는 두 가지 트랙이 포함되어 있습니다:
 
-## 메타데이터
-- **과제명**: [과제 제목을 입력하세요]
-- **코스**: [과목명]
-- **마감일**: YYYY-MM-DD
-- **예상 길이**: [단어 수] words
-- **인용 스타일**: APA
+- **Track A: 이론적·개념적 에세이** — 기존 개념 비판, 새 프레임워크 제안
+  - Introduction → Literature Review → Theoretical Framework → Core Argument → Counterarguments → Implications → Conclusion
+- **Track B: 경험적 연구 (IMRaD)** — 데이터 수집 → 분석 → 결과 해석
+  - Introduction → Literature Review → Methodology → Results → Discussion & Conclusion
 
-## 전체 구조
+두 트랙 모두 다음 구조를 각 섹션에 포함합니다:
+1. **핵심 앵커**: 연구 질문 (RQ) + 핵심 주장 (Thesis) — 모든 섹션이 이것에 답해야 함
+2. **하위 질문**: "이 섹션이 답하는 질문은?" — 섹션의 존재 이유
+3. **논증 설계**: 주장 → 근거 → 반론 → 다음 섹션 연결 — 섹션 간 논리 흐름
+4. **핵심 레퍼런스 테이블**: 논문 + 뒷받침할 주장 — 논문-주장 매핑
 
-### Section 1: Introduction
-**목표**:
-- [ ] 연구 주제 소개
-- [ ] 문제 제기
-- [ ] 연구 질문 명확화
-
-**필요한 레퍼런스**:
-- 주제: `[검색 키워드 입력]`
-- 최소 논문 수: 3
-
-**예상 길이**: ~500 words
-
----
-
-### Section 2: Background
-**목표**:
-- [ ] 관련 연구 정리
-- [ ] 이론적 배경 설명
-- [ ] 주요 개념 정의
-
-**필요한 레퍼런스**:
-- 주제: `[검색 키워드 입력]`
-- 최소 논문 수: 5
-
-**예상 길이**: ~1000 words
-
----
-
-### Section 3: Methodology
-**목표**:
-- [ ] 연구 방법 설명
-- [ ] 데이터 설명
-- [ ] 분석 방법
-
-**필요한 레퍼런스**:
-- 주제: `[검색 키워드 입력]`
-- 최소 논문 수: 3
-
-**예상 길이**: ~800 words
-
----
-
-### Section 4: Analysis
-**목표**:
-- [ ] 결과 제시
-- [ ] 분석 및 해석
-
-**필요한 레퍼런스**:
-- 주제: `[검색 키워드 입력]`
-- 최소 논문 수: 2
-
-**예상 길이**: ~1000 words
-
----
-
-### Section 5: Conclusion
-**목표**:
-- [ ] 핵심 결과 요약
-- [ ] 연구 기여도
-- [ ] 한계점
-- [ ] 향후 연구 방향
-
-**예상 길이**: ~400 words
-```
+flow.md는 FLOW-TEMPLATE.md를 복사한 뒤 사용자가 해당 트랙을 선택하고 내용을 채웁니다.
 
 ### 단계 4: .paper-metadata.json 생성
 
