@@ -48,7 +48,8 @@ Claude에서:
 projects/literature-review/
 ├── papers/
 │   ├── collected/      (메타데이터 처리 완료)
-│   └── candidates/     (선택한 논문, 처리 대기)
+│   ├── candidates/     (선택한 논문, 처리 대기)
+│   └── analyzed/       (🤖 에이전트 분석 리포트)
 ├── FLOW-TEMPLATE.md   (가이드 - 수정 금지)
 ├── flow.md            (작성용 - 이 파일을 수정)
 ├── chapters/
@@ -83,21 +84,29 @@ nano projects/literature-review/flow.md
 ```
 "새 논문 처리해줘"
 ```
-→ 메타데이터 추출 & `collected/`로 이동
+→ 메타데이터 추출 & `collected/` 이동 + 🤖 **paper-analyst가 자동 심층 분석**
 
 ### 5. 초안 작성
 
 ```
 "초안 작성해줘"
 ```
-→ Flow 기반 챕터 생성
+→ 🤖 **writing-architect가 논증 구조 설계** → 사용자 확인 → 초안 작성
 
 ### 6. 챕터 수정
 
 ```
 "Chapter 2 수정해줘: Linear attention 부분 확장"
 ```
-→ 수정 + 자동 일관성 체크
+→ 수정 + 일관성 체크 + 🤖 **citation-auditor가 인용 감사**
+
+### 7. 추가 에이전트 명령 (선택)
+
+```
+"gap 분석해줘"           → 🤖 연구 Gap 탐색
+"방법론 추천해줘"         → 🤖 3가지 방법론 비교
+"리뷰 체크해줘"           → 🤖 심사자 시뮬레이션
+```
 
 ---
 
@@ -105,26 +114,34 @@ nano projects/literature-review/flow.md
 
 ```
 research-agent/
-├── skills/              (시스템)
-├── scripts/             (시스템)
-├── templates/           (시스템)
-└── projects/            (사용자 작업)
-    ├── literature-review/
-    ├── methodology/
-    └── thesis/
+├── skills/
+│   ├── SKILL.md              (메인 스킬)
+│   └── agents/               (서브 에이전트 6개)
+│       ├── paper-analyst.md
+│       ├── writing-architect.md
+│       ├── citation-auditor.md
+│       ├── gap-finder.md
+│       ├── methodology-advisor.md
+│       └── peer-reviewer.md
+├── scripts/                   (시스템)
+└── projects/                  (사용자 작업 — gitignore)
+    └── {project-name}/
 ```
 
 ---
 
 ## 💡 주요 명령어
 
-| 명령어 | 설명 |
-|--------|------|
-| `"[이름] 프로젝트 만들어줘"` | 새 프로젝트 생성 |
-| `"작업 시작해줘"` | Flow 분석 & Consensus 검색 |
-| `"새 논문 처리해줘"` | candidates PDF 처리 |
-| `"초안 작성해줘"` | Flow 기반 초안 생성 |
-| `"Chapter X 수정해줘: [내용]"` | 챕터 수정 + 일관성 체크 |
+| 명령어 | 설명 | 에이전트 |
+|--------|------|----------|
+| `"[이름] 프로젝트 만들어줘"` | 새 프로젝트 생성 | - |
+| `"작업 시작해줘"` | Flow 분석 & Consensus 검색 | - |
+| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst |
+| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect |
+| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor |
+| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder |
+| `"방법론 추천해줘"` | 방법론 제안/검증 | 🤖 methodology-advisor |
+| `"리뷰 체크해줘"` | 심사 시뮬레이션/대응 | 🤖 peer-reviewer |
 
 ---
 
@@ -189,6 +206,19 @@ bash install.sh
 - ✅ 챕터 수정 시 자동 일관성 체크
 - ✅ Word 문서 자동 생성
 - ✅ 스마트 설치 (이미 설치된 것 건너뜀)
+
+## 🤖 Sub-Agent System
+
+연구자 노하우를 담은 6개 전문 에이전트:
+
+| 에이전트 | 역할 | 호출 |
+|----------|------|------|
+| **paper-analyst** | 논문 심층 분석 (3줄 요약 + 관련성 점수 + 활용 방안) | 자동 |
+| **writing-architect** | 논증 구조 설계 → 확인 → 초안 작성 | 자동 |
+| **citation-auditor** | 인용 정확성·형식·분포 검증 | 자동 |
+| **gap-finder** | 방법론/응용/데이터 Gap 탐색 + 난이도·임팩트 점수 | 수동 |
+| **methodology-advisor** | 방법론 추천(3가지 비교) 또는 선택된 방법론 검증 | 수동 |
+| **peer-reviewer** | 심사자 시뮬레이션 또는 실제 리뷰 대응 전략 | 수동 |
 
 ---
 

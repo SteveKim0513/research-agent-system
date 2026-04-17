@@ -7,6 +7,31 @@ description: "Academic research project management with AI agents. Creates proje
 
 이 스킬은 research-agent 폴더 안의 projects/ 디렉토리에서 작동합니다.
 
+## 서브 에이전트 시스템
+
+이 스킬은 6개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+
+| 에이전트 | 파일 | 호출 시점 | 방식 |
+|----------|------|-----------|------|
+| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (Step 5) | 자동 |
+| **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (Step 6) | 자동 |
+| **citation-auditor** | `skills/agents/citation-auditor.md` | "챕터 수정" (Step 7) | 자동 |
+| **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" | 수동 |
+| **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" | 수동 |
+| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" | 수동 |
+
+### 에이전트 호출 방법
+
+서브 에이전트를 호출할 때는 Agent 도구를 사용하세요:
+
+1. 해당 에이전트 파일(`skills/agents/{agent-name}.md`)을 Read 도구로 읽기
+2. 에이전트 프롬프트에 다음을 포함:
+   - 에이전트 파일의 전체 내용 (노하우 + 출력 형식)
+   - 현재 프로젝트의 flow.md 내용
+   - 처리할 대상 파일 경로
+3. Agent 도구로 실행 (독립된 컨텍스트에서 작업)
+4. 결과를 지정된 파일에 저장
+
 ## 프로젝트 생성
 
 사용자가 "프로젝트 만들어줘", "[이름] 프로젝트 생성", "[이름] 과제 만들어줘" 등을 말하면:
@@ -26,6 +51,7 @@ mkdir -p projects
 ```bash
 mkdir -p projects/{PROJECT_NAME}/papers/collected
 mkdir -p projects/{PROJECT_NAME}/papers/candidates
+mkdir -p projects/{PROJECT_NAME}/papers/analyzed
 mkdir -p projects/{PROJECT_NAME}/chapters
 mkdir -p projects/{PROJECT_NAME}/final
 ```
@@ -137,7 +163,8 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
        └── {PROJECT_NAME}/
            ├── papers/
            │   ├── collected/      (메타데이터 처리 완료된 논문)
-           │   └── candidates/     (선택한 논문, 처리 대기)
+           │   ├── candidates/     (선택한 논문, 처리 대기)
+           │   └── analyzed/       (에이전트 분석 리포트)
            ├── FLOW-TEMPLATE.md   (가이드 - 수정하지 마세요)
            ├── flow.md            (실제 작성용 - 이 파일을 수정하세요)
            ├── chapters/
@@ -186,7 +213,20 @@ python scripts/extract_metadata.py projects/{PROJECT_NAME}/papers/candidates/{FI
 mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NAME}/papers/collected/
 ```
 
-### 단계 4: 결과 보고
+### 단계 4: 🤖 paper-analyst 에이전트 자동 호출
+
+각 PDF 처리 후 **자동으로** paper-analyst 서브 에이전트를 호출하여 심층 분석을 수행한다.
+
+1. `skills/agents/paper-analyst.md` 파일을 읽는다
+2. 현재 프로젝트의 `flow.md`를 읽는다
+3. 각 PDF에 대해 Agent 도구로 paper-analyst를 실행한다:
+   - 에이전트에게 전달: PDF 파일 경로 + flow.md 내용 + paper-analyst.md의 전체 지침
+   - 에이전트가 수행: 논문 읽기 → 3줄 요약, 핵심 기여, 한계, 관련성 점수, 활용 방안 분석
+4. 분석 결과를 `papers/analyzed/{파일명}-analysis.md`에 저장한다
+
+**여러 논문이 있을 경우 병렬로 에이전트를 호출**하여 효율적으로 처리한다.
+
+### 단계 5: 결과 보고
 
 처리된 모든 논문에 대해 다음과 같이 보고하세요:
 
@@ -197,17 +237,19 @@ mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NA
    제목: Attention is All You Need
    저자: Vaswani et al.
    페이지: 15
-   → projects/{PROJECT_NAME}/papers/collected/로 이동 완료
+   → papers/collected/로 이동 완료
+
+   🤖 paper-analyst 분석:
+   ├── 3줄 요약: Transformer 아키텍처를 제안...
+   ├── 관련성: ⭐⭐⭐⭐⭐ (5/5)
+   ├── 활용: Section 1 (Introduction), Section 2 (Background)
+   └── 분석 파일: papers/analyzed/Smith_2023_Attention-analysis.md
 
 📄 Brown_2020_GPT3.pdf
-   제목: Language Models are Few-Shot Learners
-   저자: Brown et al.
-   페이지: 75
-   → projects/{PROJECT_NAME}/papers/collected/로 이동 완료
+   [같은 형식]
 
 💾 .paper-metadata.json 업데이트 완료
-
-📊 현재 보유 논문: {TOTAL}개
+📊 현재 보유 논문: {TOTAL}개 | 분석 완료: {ANALYZED}개
 ```
 
 ---
@@ -309,18 +351,47 @@ cat projects/{PROJECT_NAME}/flow.md
 1. **현재 프로젝트의 flow.md 읽기**
 2. **현재 프로젝트의 .paper-metadata.json 읽기**
 3. **papers/collected/ 폴더의 논문 목록 확인**
+4. **papers/analyzed/ 폴더의 분석 리포트 확인** (paper-analyst 결과)
 
-### 단계 2: 각 섹션별로 작성
+### 단계 2: 🤖 writing-architect 에이전트 호출 — Phase 1: 논증 구조 설계
 
-flow.md의 각 섹션에 대해 순차적으로:
+1. `skills/agents/writing-architect.md` 파일을 읽는다
+2. Agent 도구로 writing-architect를 실행한다:
+   - 전달: flow.md + 모든 analyzed/*.md 파일 + writing-architect.md 지침
+   - 수행: 각 섹션의 논증 구조(주장→근거→반박→재반박) 설계
+3. 설계된 구조를 **사용자에게 보여주고 확인을 받는다**:
 
-1. **섹션 목표 확인**
-2. **관련 논문 선택**
-3. **논문 내용을 바탕으로 작성**
-4. **적절한 인용 포함**
-5. **목표 단어 수에 맞춰 작성**
+```
+✍️ 논증 구조 설계 완료
 
-### 단계 3: 파일 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📖 Section 1: Introduction (4 문단)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+문단 1: [연구 배경 — 넓은 맥락 설정]
+  └── 근거: Smith (2023), Lee (2024)
+문단 2: [문제 제기 — 기존 접근의 한계]
+  └── 근거: Park (2022)
+문단 3: [연구 Gap — 왜 이 연구가 필요한지]
+  └── 근거: gap-analysis 결과 활용
+문단 4: [연구 목적 — 본 연구의 방향]
+
+[다른 섹션도 같은 형식...]
+
+👉 이 구조로 진행할까요? 수정이 필요하면 말씀해주세요.
+```
+
+4. **사용자가 승인하면** Phase 2로 진행
+5. **수정 요청 시** 구조를 수정하고 다시 확인
+
+### 단계 3: 🤖 writing-architect 에이전트 — Phase 2: 초안 작성
+
+사용자 승인 후 writing-architect 에이전트가 구조에 따라 초안을 작성한다:
+
+1. 각 섹션별로 순차 작성 (Topic Sentence First → Evidence → Analysis → Transition)
+2. 종합(Synthesis) 위주 서술 (논문별 요약 나열 금지)
+3. 인용 강도를 근거 수준에 맞게 조절 (suggests/indicates/demonstrates)
+
+### 단계 4: 파일 저장
 
 각 섹션을 개별 파일로 저장:
 
@@ -337,14 +408,14 @@ projects/{PROJECT_NAME}/chapters/05-conclusion.md
 projects/{PROJECT_NAME}/final/complete-draft.md
 ```
 
-### 단계 4: DOCX 생성
+### 단계 5: DOCX 생성
 
 docx skill을 사용하여 Word 문서 생성:
 ```bash
 projects/{PROJECT_NAME}/final/complete-draft.docx
 ```
 
-### 단계 5: 결과 보고
+### 단계 6: 결과 보고
 
 ```
 ✅ 초안 작성 완료!
@@ -395,10 +466,19 @@ cat projects/{PROJECT_NAME}/chapters/0{X}-*.md
 
 1. **Flow 목표 달성 확인**
 2. **이전/다음 챕터와의 연결 확인**
-3. **인용 적절성 확인**
-4. **중복 내용 확인**
+3. **중복 내용 확인**
 
-### 단계 5: 통합 결과 보고
+### 단계 5: 🤖 citation-auditor 에이전트 자동 호출
+
+일관성 체크와 함께 **자동으로** citation-auditor 서브 에이전트를 호출한다.
+
+1. `skills/agents/citation-auditor.md` 파일을 읽는다
+2. Agent 도구로 citation-auditor를 실행한다:
+   - 전달: 수정된 챕터 내용 + papers/collected/의 원문 PDF + papers/analyzed/의 분석 리포트 + citation-auditor.md 지침
+   - 수행: 인용 내용 정확성 검증, APA 형식 체크, 인용 분포 분석
+3. 감사 결과를 보고에 포함한다
+
+### 단계 6: 통합 결과 보고
 
 ```
 ✅ Chapter {X} 수정 완료
@@ -412,7 +492,153 @@ cat projects/{PROJECT_NAME}/chapters/0{X}-*.md
 
 ✅ Flow 목표 달성도: 100%
 ✅ 챕터 간 연결: 자연스러움
-✅ 인용 적절성: 양호
+✅ 중복 내용: 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 인용 감사 결과 (citation-auditor):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 인용 요약: 총 {N}개
+   ✅ 정확: {N}개
+   ⚠️ 수정 필요: {N}개
+   ❌ 검증 불가: {N}개
+
+🔴 즉시 수정 필요:
+   - Ch{X} p.{Y}: "Smith는 X를 증명" → 원문은 상관관계만 보고
+     💡 수정: "Smith (2023) found a correlation between..."
+
+🟡 권장:
+   - APA 형식 오류 {N}건
+   - Section {N} 인용 부족 (현재 {N}개, 권장 {N}개 이상)
 
 💯 전체 평가: A (94/100)
 ```
+
+---
+
+## Gap 분석 (수동 호출)
+
+사용자가 "gap 분석해줘", "연구 gap 찾아줘", "뭐가 안 다뤄졌어?" 등을 말하면:
+
+### 단계 1: 🤖 gap-finder 에이전트 호출
+
+1. `skills/agents/gap-finder.md` 파일을 읽는다
+2. 현재 프로젝트의 `flow.md`와 `papers/analyzed/` 전체를 읽는다
+3. Agent 도구로 gap-finder를 실행한다:
+   - 전달: flow.md + 모든 analyzed/*.md + gap-finder.md 지침
+   - 수행: 방법론/응용/데이터/이론/시간 Gap 5종 탐색
+4. 결과를 `projects/{PROJECT_NAME}/gaps-analysis.md`에 저장한다
+
+### 단계 2: 결과 보고
+
+```
+🔍 연구 Gap 분석 완료
+
+📊 발견된 Gap: {N}개
+
+| # | 유형 | Gap | 난이도 | 임팩트 |
+|---|------|-----|--------|--------|
+| 1 | 방법론 | [설명] | 🟢 낮음 | ⭐⭐⭐⭐⭐ |
+| 2 | 응용 | [설명] | 🟡 중간 | ⭐⭐⭐⭐ |
+| 3 | 데이터 | [설명] | 🔴 높음 | ⭐⭐⭐ |
+
+⭐ 최우선 추천: Gap 1 — [이유]
+
+💾 상세 분석: projects/{PROJECT_NAME}/gaps-analysis.md
+```
+
+---
+
+## 방법론 추천/검증 (수동 호출)
+
+사용자가 "방법론 추천해줘", "어떻게 접근해야 해?", "방법론 검증해줘" 등을 말하면:
+
+### 단계 1: 모드 판별
+
+- **Advisor 모드**: "추천", "어떻게", "방법 제안" 등 → 사전 추천
+- **Critic 모드**: "검증", "괜찮아?", "체크" 등 → 사후 검증
+
+### 단계 2: 🤖 methodology-advisor 에이전트 호출
+
+1. `skills/agents/methodology-advisor.md` 파일을 읽는다
+2. Agent 도구로 methodology-advisor를 실행한다:
+   - Advisor: flow.md + analyzed/*.md + 연구 질문 전달 → 3가지 방법론 비교 표 생성
+   - Critic: flow.md + 해당 챕터(chapters/03-methodology.md) 전달 → 타당성/신뢰성/윤리 검증
+3. 결과를 화면에 보고한다
+
+### 단계 3: 결과 보고 (Advisor 예시)
+
+```
+🧪 방법론 추천 결과
+
+연구 질문 유형: [설명적/탐색적/...]
+
+| 기준 | 방법 1 | 방법 2 | 방법 3 |
+|------|--------|--------|--------|
+| 방법 | [이름] | [이름] | [이름] |
+| 난이도 | 🟢 | 🟡 | 🔴 |
+| 소요 시간 | 2주 | 4주 | 8주 |
+| 임팩트 | 중간 | 높음 | 매우 높음 |
+
+⭐ 추천: 방법 1 — [현실적 이유]
+```
+
+---
+
+## 리뷰 체크/답변 (수동 호출)
+
+사용자가 "리뷰 체크해줘", "심사 시뮬레이션", "리뷰 답변 도와줘" 등을 말하면:
+
+### 단계 1: 모드 판별
+
+- **Mode A (시뮬레이션)**: "리뷰 체크", "심사 시뮬레이션", "제출 전 체크" → 사전 심사
+- **Mode B (대응)**: "리뷰 답변", "리뷰 분석", 리뷰 텍스트 붙여넣기 → 사후 대응
+
+### 단계 2: 🤖 peer-reviewer 에이전트 호출
+
+1. `skills/agents/peer-reviewer.md` 파일을 읽는다
+2. Agent 도구로 peer-reviewer를 실행한다:
+   - Mode A: final/complete-draft.md + papers/analyzed/ 전달 → 가상 심사자 2~3명 시뮬레이션
+   - Mode B: 사용자가 붙여넣은 리뷰 텍스트 + 원고 전달 → 이슈 분류 + 답변 전략 + 초안
+3. 결과를 화면에 보고한다
+
+### 단계 3: 결과 보고 (Mode A 예시)
+
+```
+💬 사전 심사 시뮬레이션 결과
+
+📋 종합 판정: Minor Revision
+
+Reviewer 1 (방법론): Minor Revision
+   🔴 [Major] 표본 크기 정당화 부족 → 검정력 분석 추가 필요
+   🟡 [Minor] 변수 측정 방법 불명확
+
+Reviewer 2 (분야 전문가): Major Revision
+   🔴 [Major] 핵심 선행연구 Johnson (2022) 누락
+   🟡 [Minor] 이론적 프레임워크 보강 필요
+
+Reviewer 3 (실용주의자): Accept with Minor
+   🟡 [Minor] Conclusion에서 실무적 함의 보강
+
+🔴 반드시 수정 (2건):
+   1. 표본 크기 정당화 → Section 3에 power analysis 추가
+   2. Johnson (2022) → Background에 통합
+
+🟡 수정 권장 (3건):
+   [...]
+```
+
+---
+
+## 전체 명령어 요약
+
+| 명령어 | 동작 | 에이전트 |
+|--------|------|----------|
+| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 | - |
+| `"작업 시작해줘"` | Consensus 검색 → consensus-results.md | - |
+| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst (자동) |
+| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (자동) |
+| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor (자동) |
+| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder |
+| `"방법론 추천/검증해줘"` | 방법론 제안 또는 검증 | 🤖 methodology-advisor |
+| `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer |
