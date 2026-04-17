@@ -12,10 +12,11 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 2. [전체 User Journey](#-전체-user-journey)
 3. [5축 평가 기준 상세](#-5축-평가-기준-상세)
 4. [서브 에이전트 시스템](#-서브-에이전트-시스템)
-5. [파일 구조와 역할](#-파일-구조와-역할)
-6. [명령어 레퍼런스](#-명령어-레퍼런스)
-7. [작성 팁](#-작성-팁)
-8. [트러블슈팅](#-트러블슈팅)
+5. [Sync 아키텍처](#-sync-아키텍처)
+6. [파일 구조와 역할](#-파일-구조와-역할)
+7. [명령어 레퍼런스](#-명령어-레퍼런스)
+8. [작성 팁](#-작성-팁)
+9. [트러블슈팅](#-트러블슈팅)
 
 ---
 
@@ -42,6 +43,16 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 ### 왜 재평가 루프인가
 
 한 번의 평가는 의미 없습니다. 연구 글쓰기는 **"작성 → 평가 → 수정 → 재평가"** 의 반복입니다. 이 시스템은 매 평가 시 `archive/` 스냅샷을 보존해 **점수 delta를 추적**하고, 어느 수정이 어느 축을 몇 점 올렸는지 정량적으로 확인할 수 있게 합니다.
+
+### 왜 Sync 아키텍처인가
+
+연구 글쓰기에서 가장 자주 발생하는 "조용한 오류"는 아티팩트 간 불일치입니다:
+- 논문을 삭제했는데 초안에 여전히 그 인용이 남아 있음 (dangling citation)
+- flow의 논리 흐름을 바꿨는데 기존 논문 분석이 옛 각도만 담음 (stale analysis)
+- 챕터를 수정했는데 최종 통합본이 구버전 (out-of-date final)
+- 초안이 특정 논문 v1 기반인데 v2로 재분석됐으나 초안은 갱신 안 됨
+
+이 시스템은 `.sync-state.json`으로 **모든 아티팩트의 해시·버전·의존성을 추적**하고, 명령 시작 시 자동으로 stale 감지, 명령 완료 후 자동으로 상태 갱신합니다. [§ Sync 아키텍처](#-sync-아키텍처)에서 상세 설명.
 
 ---
 
@@ -409,6 +420,158 @@ peer-reviewer Mode B:
 
 ---
 
+## 🔄 Sync 아키텍처
+
+### 핵심 파일: `.sync-state.json`
+
+프로젝트 루트에 생성되며 모든 아티팩트의 해시·버전·의존성을 추적:
+
+```json
+{
+  "schema_version": "1.0",
+  "project_name": "CDEA",
+  "updated_at": "2026-04-18T10:30:00",
+  "flow_md": { "hash": "abc123", "mtime": "..." },
+  "papers": {
+    "Kroupin_2025.pdf": {
+      "pdf_hash": "def456",
+      "analyzed_version": "v2",
+      "analyzed_flow_hash_at": "abc123",
+      "analyzed_updated_at": "..."
+    }
+  },
+  "chapters": {
+    "01-introduction.md": {
+      "hash": "...",
+      "flow_hash_at_write": "abc123",
+      "papers_used": { "Kroupin_2025.pdf": "v2" },
+      "written_at": "..."
+    }
+  },
+  "evaluations": {
+    "flow_hash_at_run": "abc123",
+    "chapter_hashes_at_run": {...},
+    "ran_at": "..."
+  },
+  "final": {
+    "chapter_hashes_at_build": {...},
+    "built_at": "..."
+  }
+}
+```
+
+### 의존성 그래프 (invalidation rules)
+
+어떤 이벤트가 어떤 아티팩트를 stale로 만드는지:
+
+```
+flow.md 변경
+  ↓ invalidates
+  ├─ analyzed/*.md        → 🔄 REANALYZE 권장
+  ├─ claim-extraction.md  → 재생성 필요
+  ├─ work-plan.md         → 재생성 필요
+  ├─ evaluation.md        → 재채점 필요
+  └─ chapters/*.md        → sync 경고
+
+papers/collected/ 추가
+  ↓ invalidates
+  ├─ claim-extraction.md  → MATCHED 재계산
+  ├─ work-plan.md         → HUNT 완료 체크
+  └─ evaluation.md        → 축 1 재채점 권장
+
+papers/collected/ 삭제
+  ↓ invalidates
+  ├─ claim-extraction.md  → MATCHED → UNMATCHED 역전환
+  ├─ chapters/*.md        → dangling citation 탐지
+  └─ evaluation.md        → 축 1 감점
+
+analyzed/*.md 버전 업 (v1 → v2)
+  ↓ invalidates
+  └─ chapters/*.md (해당 논문 사용 챕터)  → "새 분석 반영" 권장
+
+chapters/0N.md 수정
+  ↓ invalidates
+  ├─ final/complete-draft.*  → 재통합 필요
+  └─ evaluation.md           → 재채점 권장
+```
+
+### Sync 점검 자동화
+
+모든 주요 명령은 다음 패턴으로 sync와 상호작용합니다:
+
+**시작 시 (stale gate)**:
+```bash
+python3 scripts/sync_state.py check {PROJECT}
+```
+- stale 이슈 없으면 → 진행
+- 중대 이슈 (dangling citation, 삭제된 논문) 있으면 → 사용자 확인 후 진행 또는 중단
+
+**완료 시 (상태 갱신)**:
+```bash
+python3 scripts/sync_state.py update-{artifact} {PROJECT} [filename]
+```
+- flow.md 수정 → `update-flow`
+- 논문 분석 완료 → `update-paper`
+- 챕터 작성/수정 → `update-chapter`
+- 평가 실행 → `update-evaluation`
+- 최종 통합 → `update-final`
+- 논문 제거 → `remove-paper`
+
+### sync_state.py CLI
+
+```bash
+# 초기화
+python3 scripts/sync_state.py init {project}
+
+# 점검 (stale 리스트를 JSON으로 반환)
+python3 scripts/sync_state.py check {project}
+
+# 개별 갱신
+python3 scripts/sync_state.py update-flow {project}
+python3 scripts/sync_state.py update-paper {project} <filename.pdf>
+python3 scripts/sync_state.py update-chapter {project} <filename.md>
+python3 scripts/sync_state.py update-evaluation {project}
+python3 scripts/sync_state.py update-final {project}
+python3 scripts/sync_state.py remove-paper {project} <filename.pdf>
+```
+
+### Stale 유형
+
+| kind | 의미 | 권장 해결 |
+|------|------|----------|
+| `flow_changed` | flow.md 해시 불일치 | `"논문 재분석해줘"` 후 `"평가해줘"` |
+| `paper_added_untracked` | collected/에 미추적 논문 | `"새 논문 처리해줘"` |
+| `paper_removed` | 추적 중이던 논문이 collected/에서 사라짐 | `"논문 제거해줘: {파일}"` |
+| `chapter_paper_version_drift` | 챕터가 구버전 논문 분석 기반 | `"Chapter X 수정해줘: 새 분석 반영"` |
+| `chapter_flow_drift` | 챕터가 구 flow.md 기반 | `"Chapter X 수정해줘"` |
+| `final_stale` | final/* 가 chapters 현재 상태와 불일치 | `"최종 통합해줘"` |
+| `evaluation_stale` | evaluation이 현재 flow/chapters와 불일치 | `"평가해줘"` |
+
+### 편의 명령
+
+**언제든지 상태 점검**:
+```
+> "sync 확인해줘"
+```
+
+현재 모든 아티팩트의 정합 상태를 점검하고 순차 해결 가이드를 제시.
+
+**안전한 논문 제거**:
+```
+> "논문 제거해줘: Zelazo_2022.pdf"
+```
+- `collected/` → `archived/`로 이동 (복구 가능)
+- 해당 논문 사용 챕터의 dangling citation 자동 탐지
+- 수정 필요 챕터 리스트 제공
+
+**최종 통합 재빌드**:
+```
+> "최종 통합해줘"
+```
+chapters/*.md → final/complete-draft.md + .docx 재생성.
+
+---
+
 ## 📁 파일 구조와 역할
 
 ### 사용자가 작성·관리하는 파일
@@ -423,18 +586,21 @@ peer-reviewer Mode B:
 | 파일 | 생성 시점 | 역할 |
 |------|----------|------|
 | `FLOW-TEMPLATE.md` | 프로젝트 생성 시 | 줄글 작성 가이드 (수정 금지) |
+| `.sync-state.json` | 프로젝트 생성 시 | **아티팩트 의존성·버전 추적** (sync 아키텍처의 핵심) |
 | `evaluations/latest/evaluation.md` | "평가해줘" | 5축 점수 + 감점 사유 + delta |
-| `evaluations/latest/work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (HUNT 체크박스 포함) |
-| `evaluations/latest/claim-extraction.md` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 |
+| `evaluations/latest/work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
+| `evaluations/latest/claim-extraction.md` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `evaluations/latest/originality-report.md` | "평가해줘" (선택) | 축 4 심층, Novelty Delta Map |
 | `evaluations/latest/concept-clarity-report.md` | "평가해줘" (선택) | 축 5 심층, 정의 감사 테이블 |
 | `evaluations/archive/{NNN}-{date}-{stage}/` | 매 평가 실행 직전 | 이전 평가 스냅샷 (delta 추적용) |
 | `papers/consensus-results.md` | "작업 시작해줘" | HUNT 검색 결과 누적 |
 | `papers/collected/*.pdf` | "새 논문 처리해줘" | 처리 완료 PDF |
-| `papers/analyzed/*.md` | "새 논문 처리해줘" | paper-analyst 심층 분석 |
+| `papers/analyzed/*.md` | "새 논문 처리해줘" / "논문 재분석해줘" | paper-analyst 심층 분석 (v1, v2, ... append) |
+| `papers/archived/` | "논문 제거해줘" | 제거된 PDF 보관 (복구 가능) |
+| `papers/archived/analyzed/` | "논문 제거해줘" | 제거된 논문의 분석 리포트 보관 |
 | `chapters/0N-*.md` | "초안 작성해줘" | 섹션별 초안 |
-| `final/complete-draft.md` | "초안 작성해줘" | 통합본 |
-| `final/complete-draft.docx` | "초안 작성해줘" | Word 문서 |
+| `final/complete-draft.md` | "초안 작성해줘" / "최종 통합해줘" | 통합본 |
+| `final/complete-draft.docx` | "초안 작성해줘" / "최종 통합해줘" | Word 문서 |
 | `.paper-metadata.json` | "새 논문 처리해줘" | 논문 메타데이터 DB |
 | `gaps-analysis.md` | "gap 분석해줘" | Gap 탐색 결과 |
 
@@ -461,8 +627,10 @@ peer-reviewer Mode B:
 
 | 명령 | 동작 |
 |------|------|
-| `"작업 시작해줘"` | work-plan.md의 HUNT 체크박스를 Consensus에 순차 투입 |
-| `"새 논문 처리해줘"` | candidates/의 PDF 메타데이터 추출 + paper-analyst 분석 |
+| `"작업 시작해줘"` | work-plan.md의 🔄 REANALYZE 먼저 → 🔍 HUNT를 Consensus에 순차 투입 |
+| `"새 논문 처리해줘"` | candidates/의 PDF 메타데이터 추출 + paper-analyst Mode A 분석 + sync 갱신 |
+| 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (paper-analyst Mode B, v2 append) |
+| 🗑 `"논문 제거해줘: {파일}"` | archived/로 안전 이동 + dangling citation 자동 탐지 |
 | 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 (축 3·4 강화) |
 
 ### 작성·수정 (Stage 2-3)
@@ -476,8 +644,17 @@ peer-reviewer Mode B:
 
 | 명령 | 동작 |
 |------|------|
+| 📦 `"최종 통합해줘"` | chapters/*.md 병합 + docx 재생성 + sync 갱신 |
 | `"리뷰 체크해줘"` | peer-reviewer Mode A — 가상 심사 시뮬레이션 |
 | `"리뷰 답변 도와줘: [리뷰 전문]"` | peer-reviewer Mode B — 답변 전략 + 초안 |
+
+### Sync 관리 (언제든)
+
+| 명령 | 동작 |
+|------|------|
+| 🔄 `"sync 확인해줘"` | 모든 아티팩트 간 정합성 점검 + 순차 해결 가이드 |
+| 🔄 `"논문 재분석해줘"` | flow 변경 시 기존 PDF 재스캔 |
+| 🗑 `"논문 제거해줘: {파일}"` | 안전 제거 + 전파 처리 |
 
 ### 보조
 
@@ -487,33 +664,47 @@ peer-reviewer Mode B:
 | `"방법론 추천해줘"` | 3가지 방법론 비교 표 |
 | `"방법론 검증해줘"` | 선택한 방법론 타당성 심사 |
 
-### 권장 흐름 전체도
+### 권장 흐름 전체도 (sync 통합)
 
 ```
-프로젝트 생성
+프로젝트 생성 → .sync-state.json 초기화
   → flow.md 자유 줄글 작성
-  → 🎯 평가해줘 (1차 전체)
-     └── archive/001-{date}-flow/ 스냅샷
+  → 🎯 평가해줘 (1차)
+     ├── sync 체크 (시작 gate)
+     ├── claim-extractor → INTERNAL / EXTERNAL 분류
+     ├── flow-evaluator → 5축 평가
+     ├── work-plan.md: 🔄 REANALYZE + 🔍 HUNT
+     └── archive/001-{date}-flow/
 
   → [Stage 1]
-     ├── 작업 시작해줘 (HUNT 자동 검색)
+     ├── 작업 시작해줘
+     │   ├── 🔄 REANALYZE 먼저 (내부 재활용 우선)
+     │   └── 🔍 HUNT (Consensus 신규 검색)
      ├── PDF 다운로드 (사용자)
-     └── 새 논문 처리해줘 (paper-analyst 분석)
+     └── 새 논문 처리해줘 (paper-analyst Mode A + sync 갱신)
 
   → 🔍 레퍼런스 점검해줘 (축 1 경량)
-  → (선택) 📝 flow 업데이트해줘
+  → (선택) 📝 flow 업데이트해줘 (writing-architect Mode C)
 
   → [Stage 2] 초안 작성해줘
-  → 🎯 평가해줘 (2차)
-     └── archive/002-{date}-v1-draft/
+     ├── analyzed/*.md 섹션별 인용 다발 우선
+     ├── 부족 시 on-demand PDF 접근
+     └── sync 갱신 (각 챕터)
 
-  → [Stage 3] Chapter X 수정해줘 (반복)
-  → 🎯 평가해줘 (3차)
-     └── archive/003-{date}-revised/
+  → 🎯 평가해줘 (2차) → archive/002-{date}-v1-draft/
 
-  → [Stage 4] 리뷰 체크해줘
-  → 🎯 평가해줘 (최종)
-     └── archive/004-{date}-final/
+  → [Stage 3] Chapter X 수정해줘 (반복, citation-auditor PDF 감사)
+  → 🎯 평가해줘 (3차) → archive/003-{date}-revised/
+
+  → [Stage 4]
+     ├── 📦 최종 통합해줘 (final/* 재빌드)
+     ├── 리뷰 체크해줘 (peer-reviewer)
+     └── 🎯 평가해줘 (최종) → archive/004-{date}-final/
+
+언제든 병행:
+  🔄 sync 확인해줘 (상태 점검)
+  🔄 논문 재분석해줘 (flow 각도 변경 반영)
+  🗑 논문 제거해줘: {파일} (안전 제거 + 전파)
 ```
 
 ---
@@ -607,6 +798,35 @@ flow-evaluator는 Top-tier 저널 엄격도로 설정되어 있습니다. 만약
 
 **"projects/ 폴더가 git에 올라간다"**
 `.gitignore`에 `projects/`가 등록되어 있어야 합니다. 기본 설치로 자동 설정됩니다.
+
+### Sync 관련
+
+**"sync 확인해줘 결과가 이상하다"**
+`.sync-state.json`이 손상되었을 가능성. 수동으로 복구:
+```bash
+# 프로젝트의 현재 상태를 기준으로 재초기화
+python3 scripts/sync_state.py init {프로젝트명}
+# 이후 기존 analyzed, chapters에 대해 update-* 명령을 한 번씩 실행
+```
+
+**"dangling citation 경고가 떴다"**
+삭제된 논문(archived/로 이동)을 챕터가 여전히 인용 중. `"Chapter X 수정해줘: {삭제된 저자} 인용 제거 또는 대체"`로 수정하세요.
+
+**"챕터가 구버전 논문 분석 기반이라고 경고"**
+flow 변경 후 `"논문 재분석해줘"`를 돌려 v2가 생겼는데 챕터는 v1 기반. `"Chapter X 수정해줘: 새 분석 반영"`으로 업데이트.
+
+**"final 파일이 stale이라고 뜬다"**
+챕터 수정 후 통합본 재빌드 필요. `"최종 통합해줘"` 실행.
+
+**"논문을 실수로 제거했다"**
+`papers/archived/`에서 `collected/`로 파일 복구:
+```bash
+mv projects/{프로젝트}/papers/archived/{파일}.pdf \
+   projects/{프로젝트}/papers/collected/
+mv projects/{프로젝트}/papers/archived/analyzed/{파일}-analysis.md \
+   projects/{프로젝트}/papers/analyzed/
+python3 scripts/sync_state.py update-paper {프로젝트} {파일}.pdf
+```
 
 ---
 

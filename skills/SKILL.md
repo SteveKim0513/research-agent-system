@@ -100,6 +100,14 @@ mkdir -p projects/{PROJECT_NAME}/evaluations/archive
 - 매 평가 실행 시 실행 직전의 latest/를 `archive/{NNN}-{YYYY-MM-DD}-{stage}/`로 스냅샷 복사
 - 모든 하위 명령(`작업 시작해줘` 등)은 `evaluations/latest/`를 참조
 
+### 단계 2c: .sync-state.json 초기화
+
+```bash
+python3 scripts/sync_state.py init {PROJECT_NAME}
+```
+
+이 파일은 flow.md·papers·chapters·evaluations·final 간 의존성을 추적하여 아티팩트가 조용히 어긋나는 것을 방지한다. 모든 주요 명령이 실행 전 `check`, 실행 후 `update-*`로 이 파일을 갱신한다.
+
 ### 단계 3: FLOW-TEMPLATE.md (가이드) 및 flow.md (작성용) 생성
 
 projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 생성하세요.
@@ -360,6 +368,16 @@ mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NA
 
 **여러 논문이 있을 경우 병렬로 에이전트를 호출**하여 효율적으로 처리한다.
 
+### 단계 4b: Sync 상태 갱신
+
+각 PDF 분석 완료 후 반드시 실행:
+
+```bash
+python3 scripts/sync_state.py update-paper {PROJECT_NAME} {파일명}.pdf
+```
+
+이는 `.sync-state.json`의 papers 엔트리에 pdf_hash, analyzed_version, analyzed_flow_hash_at, analyzed_updated_at을 기록한다. 재분석(Mode B)일 경우 analyzed_version이 자동으로 v2, v3... 순으로 증가한다.
+
 ### 단계 5: 결과 보고
 
 처리된 모든 논문에 대해 다음과 같이 보고하세요:
@@ -396,10 +414,25 @@ mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NA
 
 1. `projects/{PROJECT_NAME}/evaluations/latest/work-plan.md` 존재 여부 확인
    - 없으면: "먼저 `평가해줘`를 실행하여 work-plan.md를 생성하세요"로 안내 후 중단
-2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **모든 `[HUNT-NNN]` 블록**을 파싱
-3. 이미 완료된 HUNT는 체크박스(`- [x]`)로 표시되어 있으므로 건너뛰고, 미완료 체크박스(`- [ ]`)만 수집
+2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **두 종류 작업**을 파싱:
+   - `[REANALYZE-NNN]` 블록 — 기존 PDF 재분석 과제
+   - `[HUNT-NNN]` 블록 — Consensus 신규 검색 과제
+3. 미완료 체크박스(`- [ ]`)만 수집
 
-### 단계 2: HUNT 과제를 Consensus MCP에 투입
+### 단계 2a: REANALYZE 작업 먼저 실행 (내부 재활용 우선)
+
+각 미완료 REANALYZE 과제마다:
+
+1. 해당 논문의 `papers/analyzed/{파일명}-analysis.md` 읽기 (v1 존재 확인)
+2. `skills/agents/paper-analyst.md` 읽기
+3. Agent 도구로 paper-analyst를 **Mode B**로 호출:
+   - 전달: PDF 경로 + 현재 flow.md + 기존 analyzed/*.md + 재분석 각도 지시
+   - 수행: PDF 재스캔 → analyzed/*.md에 `## [v2 — {date}] 재분석: {각도}` append
+4. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
+5. `claim-extraction.md`에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
+6. `work-plan.md`의 REANALYZE 체크박스를 `- [x]`로 갱신
+
+### 단계 2b: HUNT 과제를 Consensus MCP에 투입
 
 각 미완료 HUNT 과제마다:
 
@@ -716,6 +749,14 @@ cat projects/{PROJECT_NAME}/chapters/0{X}-*.md
 
 파일에 수정된 내용을 저장하세요.
 
+### 단계 3b: Sync 갱신
+
+```bash
+python3 scripts/sync_state.py update-chapter {PROJECT_NAME} 0{X}-{name}.md
+```
+
+이는 해당 챕터의 현재 해시, flow_hash_at_write, papers_used(현재 사용 중인 논문 버전 매핑)을 `.sync-state.json`에 기록한다. 이후 "최종 통합해줘" 단계에서 final/*의 stale 판정 기준이 됨.
+
 ### 단계 4: 자동 일관성 체크
 
 **수정 직후 자동으로 다음을 확인하세요:**
@@ -886,6 +927,243 @@ Reviewer 3 (실용주의자): Accept with Minor
 
 ---
 
+## 🔄 Sync 확인 (sync 확인해줘)
+
+사용자가 "sync 확인해줘", "sync 점검", "상태 확인해줘", "stale 체크" 등을 말하면:
+
+### 단계 1: sync_state.py check 실행
+
+```bash
+python3 scripts/sync_state.py check {PROJECT_NAME}
+```
+
+출력 JSON에서 `stales` 배열을 파싱하여 사람이 읽을 수 있는 형태로 변환.
+
+### 단계 2: 사용자 보고
+
+```
+🔄 Sync 점검 결과
+
+✅ 전체 동기화 상태 양호 (또는)
+
+⚠️ Stale 감지: {N}건
+
+1. [flow_changed] flow.md가 변경됨 (hash 불일치)
+   영향: analyzed/*.md 일부 구버전, evaluations/latest/ 재생성 필요
+   권장 조치: "논문 재분석해줘" 후 "평가해줘"
+
+2. [paper_removed] Zelazo_2022.pdf가 collected/에서 제거됨
+   영향: Chapter 2, 4에 dangling citation 3건
+   권장 조치: "논문 제거해줘: Zelazo_2022.pdf"
+
+3. [chapter_paper_version_drift] 챕터 2건이 구버전 논문 분석 기반
+   영향: Chapter 3 (Kroupin v1 기반, 현재 v2), Chapter 4 (Zelazo v1 기반, 현재 v2)
+   권장 조치: "Chapter 3 수정해줘: 새 분석 반영", "Chapter 4 수정해줘: ..."
+
+4. [final_stale] final/complete-draft.* 가 chapters 현재 상태와 불일치
+   권장 조치: "최종 통합해줘"
+```
+
+### 단계 3: 자동 해결 옵션 제공
+
+stale 항목이 3개 이상이면:
+```
+다수의 stale 감지 → 순차 해결 가이드:
+  1단계: "논문 재분석해줘" (flow 변경 전파)
+  2단계: "평가해줘" (평가 재생성)
+  3단계: "Chapter X 수정해줘" (챕터 동기화)
+  4단계: "최종 통합해줘" (final 재빌드)
+```
+
+---
+
+## 🗑 논문 제거 (논문 제거해줘)
+
+사용자가 "논문 제거해줘: {파일명}", "Kroupin_2025 논문 빼줘", "논문 {파일명} 삭제해줘" 등을 말하면:
+
+### 단계 1: 대상 확인
+
+1. `papers/collected/{파일명}.pdf` 존재 확인 — 없으면 중단
+2. `.sync-state.json`의 papers 엔트리 존재 확인
+3. 해당 논문을 인용하는 챕터 탐지 (dangling 후보):
+   ```bash
+   python3 scripts/sync_state.py check {PROJECT_NAME}
+   ```
+   의 `dangling_in_chapters` 필드 활용
+
+### 단계 2: 사용자 확인
+
+```
+🗑 논문 제거 전 확인
+
+대상: Zelazo_2022.pdf
+영향:
+  - papers/collected/에서 archived/로 이동
+  - papers/analyzed/Zelazo_2022-analysis.md를 archived/analyzed/로 이동
+  - .paper-metadata.json 엔트리 제거
+  - claim-extraction.md에서 관련 MATCHED 3건이 UNMATCHED-EXTERNAL로 전환
+  - Chapter 2, Chapter 4에 dangling citation 가능성 (사후 citation-auditor로 확인 권장)
+
+진행할까요? [예 / 아니오]
+```
+
+### 단계 3: 안전 이동 (archived 폴더로)
+
+사용자 승인 시:
+
+```bash
+mkdir -p projects/{PROJECT_NAME}/papers/archived
+mkdir -p projects/{PROJECT_NAME}/papers/archived/analyzed
+mv projects/{PROJECT_NAME}/papers/collected/{파일명}.pdf \
+   projects/{PROJECT_NAME}/papers/archived/
+mv projects/{PROJECT_NAME}/papers/analyzed/{파일명}-analysis.md \
+   projects/{PROJECT_NAME}/papers/archived/analyzed/ 2>/dev/null || true
+```
+
+### 단계 4: 메타데이터·sync 갱신
+
+1. `.paper-metadata.json`에서 해당 엔트리 제거
+2. `python3 scripts/sync_state.py remove-paper {PROJECT} {파일명}` 실행
+3. `claim-extraction.md`에서 해당 논문을 인용하던 MATCHED 문장을 UNMATCHED-EXTERNAL 또는 UNMATCHED-INTERNAL(다른 PDF로 대체 가능 여부 판별)로 재분류
+
+### 단계 5: dangling 경고 + 수정 가이드
+
+```
+✅ 논문 제거 완료: Zelazo_2022.pdf → archived/
+
+⚠️ Dangling citation 감지:
+  - Chapter 2 p.3: "Zelazo (2022) argues..."
+  - Chapter 2 p.5: "(Zelazo, 2022)"
+  - Chapter 4 p.2: "Zelazo (2022) demonstrated..."
+
+권장 조치:
+  "Chapter 2 수정해줘: Zelazo (2022) 인용을 Doebel (2020)으로 대체 또는 제거"
+  "Chapter 4 수정해줘: Zelazo (2022) 인용 재검토"
+
+이후 "평가해줘" 실행하여 축 1 점수 변화 확인.
+```
+
+---
+
+## 📦 최종 통합 (최종 통합해줘)
+
+사용자가 "최종 통합해줘", "final 재빌드", "docx 재생성", "chapter 합쳐줘" 등을 말하면:
+
+### 단계 1: 전제 조건 확인
+
+1. `chapters/*.md` 파일이 존재하는지 확인 — 없으면 "먼저 초안 작성해줘"로 안내
+2. `scripts/sync_state.py check`로 챕터 간 inconsistency 사전 탐지
+
+### 단계 2: chapters 병합 → complete-draft.md
+
+`chapters/`의 모든 `*.md` 파일을 번호순으로 병합하여 `final/complete-draft.md` 생성:
+
+```bash
+cat projects/{PROJECT_NAME}/chapters/*.md \
+  > projects/{PROJECT_NAME}/final/complete-draft.md
+```
+
+필요 시 섹션 구분자(`---`) 삽입.
+
+### 단계 3: docx 생성
+
+docx skill 또는 pandoc을 사용하여 `final/complete-draft.docx` 생성.
+
+### 단계 4: Sync 갱신
+
+```bash
+python3 scripts/sync_state.py update-final {PROJECT_NAME}
+```
+
+### 단계 5: 보고
+
+```
+✅ 최종 통합 완료
+
+📄 생성:
+   - final/complete-draft.md ({N} words)
+   - final/complete-draft.docx
+
+📊 포함 챕터:
+   - 01-introduction.md
+   - 02-background.md
+   - 03-analysis.md
+   - 04-conclusion.md
+
+💾 sync 상태 갱신 완료
+
+👉 다음 단계:
+   - "리뷰 체크해줘" → peer-reviewer 심사 시뮬레이션
+   - "평가해줘" → 최종 5축 평가
+```
+
+---
+
+## 🔄 논문 재분석 (논문 재분석해줘)
+
+사용자가 "논문 재분석해줘", "paper 재분석", "Zelazo 논문 다시 분석", "모든 논문 재스캔" 등을 말하면:
+
+### 단계 1: 대상 선정
+
+사용자 입력에 따라:
+- "{파일명} 논문 재분석해줘" → 지정된 논문만
+- "논문 재분석해줘" (지정 없음) → `work-plan.md`의 `[REANALYZE-NNN]` 블록 또는 `.sync-state.json`의 `analyzed_flow_hash_at` != 현재 flow_hash인 모든 논문
+
+### 단계 2: paper-analyst Mode B 호출
+
+각 대상 PDF마다:
+
+1. `skills/agents/paper-analyst.md` 읽기
+2. Agent 도구로 paper-analyst를 **Mode B**로 호출:
+   - 전달: PDF 경로 + **현재 flow.md** + 기존 analyzed/*.md + 재분석 각도 (work-plan.md의 REANALYZE 블록이 있으면 그 지시, 없으면 flow 변경 전반)
+   - 수행: PDF 재스캔 → analyzed/*.md에 `## [v{N+1}] 재분석: {각도}` append (v1 내용은 절대 수정/삭제 금지)
+3. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
+
+### 단계 3: claim-extraction 반영
+
+`claim-extraction.md`에서 UNMATCHED-INTERNAL이었던 문장들을 재확인:
+- 재분석 결과 새 v{N+1}에 해당 주장이 커버되었으면 → MATCHED로 전환
+- 여전히 커버 못하면 → UNMATCHED-EXTERNAL로 재분류 (HUNT 필요)
+
+### 단계 4: 챕터 sync 경고
+
+이미 `chapters/*.md`가 존재하고 `.sync-state.json`의 `chapters[x].papers_used[파일명]` 버전이 구버전이면:
+
+```
+⚠️ 챕터 sync 경고
+
+다음 챕터가 재분석 전 버전(v1)의 논문 분석을 기반으로 작성됨:
+  - Chapter 3: Kroupin_2025 v1 → 현재 v2
+  - Chapter 4: Zelazo_2022 v1 → 현재 v2
+
+새 분석 반영을 위해 수정 권장:
+  "Chapter 3 수정해줘: Kroupin v2 새 인용 다발 반영"
+  "Chapter 4 수정해줘: Zelazo v2 반영"
+```
+
+### 단계 5: 보고
+
+```
+✅ 논문 재분석 완료: {N}편
+
+📄 버전 갱신:
+   - Kroupin_2025.pdf: v1 → v2 (+ Section 4 pretend play 각도 추가)
+   - Zelazo_2022.pdf: v1 → v2 (+ hot EF 보편성 수치 추가)
+
+🔄 claim-extraction.md 반영:
+   - UNMATCHED-INTERNAL {N}건 → MATCHED 전환
+   - 잔존 UNMATCHED-INTERNAL: {N}건 (추가 재분석 또는 HUNT 필요)
+
+⚠️ 챕터 sync 경고: {N}건 (위 참조)
+
+👉 다음 단계:
+   - "Chapter X 수정해줘: 새 분석 반영"
+   - 모든 sync 확인: "sync 확인해줘"
+   - 평가 갱신: "평가해줘"
+```
+
+---
+
 ## 독창성 심층 평가 (축 4, 단독 호출)
 
 사용자가 "독창성 평가해줘", "contribution 평가", "novelty 확인해줘" 등을 말하면:
@@ -914,50 +1192,69 @@ Reviewer 3 (실용주의자): Accept with Minor
 
 | 명령어 | 동작 | 에이전트 | Stage |
 |--------|------|----------|-------|
-| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 | - | 0 |
-| 🎯 `"평가해줘"` | **5축 냉정 평가 + 작업계획서** (archive 스냅샷 자동) | 🤖 flow-evaluator (+ claim-extractor + originality + concept-clarity) | flow / v1 / revised / final |
+| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 (+ .sync-state.json 초기화) | - | 0 |
+| 🎯 `"평가해줘"` | **5축 냉정 평가 + 작업계획서** (sync 체크 → archive 스냅샷 → 평가) | 🤖 flow-evaluator (+ claim-extractor + originality + concept-clarity) | flow / v1 / revised / final |
 | 🔍 `"레퍼런스 점검해줘"` | **축 1 경량 재평가** (빠름, archive 없음) | flow-evaluator (axis-1 mode) | Stage 1 직후 |
-| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 writing-architect (refinement) | Stage 1 직후 |
-| `"작업 시작해줘"` | work-plan.md HUNT → Consensus 자동 검색 | - | 1 리서치 |
-| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 | 🤖 paper-analyst (자동) | 1 리서치 |
-| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (자동) | 2 1차작성 |
-| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 | 🤖 citation-auditor (자동) | 3 수정 |
+| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 writing-architect (Mode C) | Stage 1 직후 |
+| `"작업 시작해줘"` | work-plan.md REANALYZE 먼저 → HUNT → Consensus 자동 검색 | 🤖 paper-analyst (Mode B) + MCP | 1 리서치 |
+| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 (v1) + sync 갱신 | 🤖 paper-analyst (Mode A, 자동) | 1 리서치 |
+| 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (v2 append) | 🤖 paper-analyst (Mode B, 자동) | 모든 단계 |
+| 🗑 `"논문 제거해줘: {파일}"` | 안전 archived 이동 + dangling citation 경고 | - | 모든 단계 |
+| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (Mode A, 자동) | 2 1차작성 |
+| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 + sync 갱신 | 🤖 writing-architect (Mode B) + citation-auditor | 3 수정 |
+| 📦 `"최종 통합해줘"` | chapters 병합 + docx 재빌드 + sync 갱신 | - | 4 최종 |
+| 🔄 `"sync 확인해줘"` | 아티팩트 간 동기화 상태 점검 + 해결 가이드 | sync_state.py | 모든 단계 |
 | `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder | 리서치 보조 |
 | `"방법론 추천/검증해줘"` | 방법론 제안 또는 검증 | 🤖 methodology-advisor | 리서치/수정 보조 |
 | `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer | 4 최종 |
 | `"독창성 평가해줘"` | 축 4 심층 평가 (단독 호출) | 🤖 originality-evaluator | 모든 단계 |
 | `"정의 정밀도 평가해줘"` | 축 5 심층 평가 (단독 호출) | 🤖 concept-clarity-evaluator | 모든 단계 |
 
-**권장 흐름 (줄글 prose flow 기준, 재평가 시점 최적화)**:
+**주요 명령 실행 시 자동 sync 동작**:
+- `"평가해줘"` / `"작업 시작해줘"` 등 주요 명령 **시작 시** → `sync_state.py check` → stale 이슈 사용자 보고 (중대 이슈 시 중단 옵션)
+- 각 명령 **완료 후** → `sync_state.py update-*` → 해당 아티팩트 상태 기록
+
+**권장 흐름 (줄글 prose flow 기준, sync 통합)**:
 ```
-프로젝트 생성 → flow.md 자유 줄글 작성
-  → 🎯 평가해줘 (1차 전체)
-     ├── claim-extractor → evaluations/latest/claim-extraction.md
-     ├── flow-evaluator → evaluations/latest/evaluation.md
-     ├── 작업 계획서 → evaluations/latest/work-plan.md (HUNT 체크박스)
-     └── 이전 평가 있으면 → evaluations/archive/001-{date}-flow/ 스냅샷
+프로젝트 생성 → .sync-state.json 초기화 → flow.md 자유 줄글 작성
+
+  → 🎯 평가해줘 (1차)
+     ├── sync 체크 (초기 상태)
+     ├── claim-extractor → INTERNAL / EXTERNAL 분류
+     ├── flow-evaluator → evaluation.md (5축)
+     ├── work-plan.md: 🔄 REANALYZE + 🔍 HUNT 체크박스
+     └── archive/001-{date}-flow/
 
   → [Stage 1 리서치]
-     ├── 작업 시작해줘 → HUNT 자동 검색 → consensus-results.md 누적
+     ├── 작업 시작해줘
+     │   ├── REANALYZE 먼저 (기존 PDF 재스캔 → analyzed/*.md v2 append)
+     │   └── HUNT (Consensus 신규 검색)
      ├── (사용자) PDF 다운로드 → candidates/
-     └── 새 논문 처리해줘 → paper-analyst 자동 분석
+     └── 새 논문 처리해줘 → paper-analyst Mode A + sync 갱신
 
-  → 🔍 레퍼런스 점검해줘 (축 1 전용, 경량)
-     └── 축 1만 빠르게 채점, archive 스냅샷 생성 안 함
+  → 🔍 레퍼런스 점검해줘 (축 1 경량)
 
-  → (선택) 📝 flow 업데이트해줘 → 새 논문 반영한 보강 제안
+  → (선택) 📝 flow 업데이트해줘 → writing-architect Mode C diff 제안
 
-  → [Stage 2] 초안 작성해줘 → writing-architect 구조 설계 → 확인 → 초안
-  → 🎯 평가해줘 (2차 전체) — 축 1~5 모두 유의미하게 움직임
-     └── archive/002-{date}-v1-draft/ 스냅샷
+  → [Stage 2] 초안 작성해줘
+     ├── writing-architect: analyzed/*.md 섹션별 인용 다발 우선 참조
+     ├── 부족 시 on-demand PDF 직접 읽기
+     └── sync 갱신 (chapters 각 파일)
 
-  → [Stage 3] Chapter X 수정해줘 (반복) → citation-auditor 자동 감사
-  → 🎯 평가해줘 (3차 전체)
-     └── archive/003-{date}-revised/ 스냅샷
+  → 🎯 평가해줘 (2차) → archive/002-{date}-v1-draft/
 
-  → [Stage 4] 리뷰 체크해줘 → peer-reviewer 심사 시뮬레이션
-  → 🎯 평가해줘 (최종) — 목표 점수 달성 확인
-     └── archive/004-{date}-final/ 스냅샷
+  → [Stage 3] Chapter X 수정해줘 (반복)
+     ├── citation-auditor PDF 대조 감사
+     └── sync 갱신
+
+  → 🎯 평가해줘 (3차) → archive/003-{date}-revised/
+
+  → [Stage 4]
+     ├── 📦 최종 통합해줘 (final/* 재빌드)
+     ├── 리뷰 체크해줘 (peer-reviewer 시뮬레이션)
+     └── 🎯 평가해줘 (최종) → archive/004-{date}-final/
+
+언제든: 🔄 sync 확인해줘 / 🗑 논문 제거해줘 / 🔄 논문 재분석해줘
 ```
 
 **핵심 변경점**:

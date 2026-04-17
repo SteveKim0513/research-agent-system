@@ -91,6 +91,35 @@
 
 ## 실행 절차
 
+### Phase -1: Sync 상태 점검 (평가 시작 전 필수)
+
+`scripts/sync_state.py check {project}` 실행하여 다음을 확인:
+
+1. flow.md 변경 여부
+2. papers/collected/ 추가·삭제 감지
+3. 챕터 vs 논문 버전 drift
+4. 챕터 vs flow drift
+5. final vs chapters drift
+6. evaluations/latest/ staleness
+
+**중대 stale 항목이 있으면** (예: 삭제된 논문에 dangling citation), 사용자에게 보고하고 **평가를 중단**하거나 사용자 확인 후 진행.
+
+보고 예:
+```
+⚠️ Sync 점검 결과: 2건 이슈
+
+1. [paper_removed] Kroupin_2025.pdf가 collected/에서 제거됨
+   - 영향: Chapter 1에 dangling citation 2건
+   - 권장: "논문 제거해줘: Kroupin_2025.pdf" 먼저 실행
+
+2. [chapter_flow_drift] Chapter 3이 구 flow.md 기반
+   - 권장: 평가 진행 전 Chapter 3 수정 고려
+
+계속 진행하시겠습니까? [진행 / 중단]
+```
+
+사용자가 "진행"을 선택하면 Phase 0으로 계속.
+
 ### Phase 0: 줄글 flow 파싱 + 구조 추론 (prose flow인 경우 필수)
 
 flow.md가 **줄글(prose)** 형태일 때 (= 체크박스 목록이나 구조적 테이블 없음) 다음을 먼저 수행:
@@ -196,6 +225,16 @@ cp -r projects/{PROJECT_NAME}/evaluations/latest/* \
 
 두 번째 이후 평가일 경우 `evaluation.md` 최상단에 가장 최근 archive 스냅샷과의 축별 점수 비교 테이블을 삽입한다.
 
+### 평가 완료 후 Sync 갱신
+
+평가 산출물 저장이 끝나면 반드시 다음을 실행하여 `.sync-state.json`을 갱신:
+
+```bash
+python3 scripts/sync_state.py update-evaluation {project_name}
+```
+
+이는 evaluations.flow_hash_at_run 및 chapter_hashes_at_run을 현재 상태로 기록하여 이후 sync 점검의 기준점이 된다.
+
 ### evaluation.md 구조
 
 ```markdown
@@ -263,9 +302,23 @@ cp -r projects/{PROJECT_NAME}/evaluations/latest/* \
 
 ### 📚 Stage 1: 논문 리서치
 
-#### 🔍 1-A. 문장 단위 레퍼런스 헌트 (claim-extractor 결과 기반)
+#### 🔄 1-Z. 기존 PDF 재분석 (UNMATCHED-INTERNAL)
 
-> **이 블록은 "작업 시작해줘" 명령이 자동으로 Consensus MCP에 투입하는 작업 큐입니다.** 각 HUNT 항목의 `검색 키워드`가 순서대로 검색됩니다. 실행 후 `papers/consensus-results.md`에 누적 저장됩니다.
+> **"작업 시작해줘"가 REANALYZE 작업을 우선 실행합니다.** 이미 보유한 PDF를 새 flow 컨텍스트로 재스캔하여 analyzed/*.md에 append. HUNT보다 앞서 실행 — 외부 검색 전에 내부 재활용이 우선.
+
+- [ ] **[REANALYZE-001]** S023 — Zelazo_2012.pdf를 Section 4 hot EF 각도로 재분석
+  - 대상 PDF: `papers/collected/Zelazo_2012_hot_cool_EF.pdf`
+  - 현재 버전: v1 (Section 1 각도)
+  - 재분석 초점: hot EF 보편성 수치·인용구
+  - 담당: paper-analyst Mode B
+  - 완료 조건: analyzed_version v1 → v2, sync-state.json 갱신
+  - 근거 축: 1-1 Coverage
+
+- [ ] **[REANALYZE-NNN]** ... (claim-extraction.md의 UNMATCHED-INTERNAL 전량)
+
+#### 🔍 1-A. 문장 단위 레퍼런스 헌트 (UNMATCHED-EXTERNAL)
+
+> **"작업 시작해줘"가 REANALYZE 후 HUNT를 Consensus MCP에 자동 투입합니다.** 각 HUNT 항목의 `검색 키워드`가 순서대로 검색됩니다. 실행 후 `papers/consensus-results.md`에 누적 저장됩니다.
 
 - [ ] **[HUNT-001]** S004: "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다."
   - 검색 키워드:

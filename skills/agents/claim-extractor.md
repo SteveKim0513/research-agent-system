@@ -76,15 +76,33 @@
 
 5종 중 하나로 분류. 애매한 경우 **보수적으로 NEEDS_CITATION**으로 분류 (over-inclusion이 under-inclusion보다 안전).
 
-### Phase 3: 기존 논문 pool 매칭
+### Phase 3: 기존 논문 pool 매칭 (3-way 분류)
 
-`papers/consensus-results.md`와 `papers/analyzed/*.md`를 스캔하여 각 NEEDS_CITATION 문장에 대해:
-- ✅ **MATCHED**: 기존 논문으로 뒷받침 가능 → 인용 매핑만 필요
-- ❌ **UNMATCHED**: 새 논문 검색 필요 → 리서치 과제 생성
+`papers/consensus-results.md`, `papers/analyzed/*.md` (**모든 버전** v1/v2/...), `papers/collected/` 목록을 스캔하여 각 NEEDS_CITATION 문장을 3-way로 분류한다:
 
-### Phase 4: 레퍼런스 헌트 과제 생성 (UNMATCHED 문장용)
+- ✅ **MATCHED**: 기존 `analyzed/*.md`의 섹션별 인용 다발이 이 주장을 이미 명시적으로 뒷받침 → 인용 매핑만 필요
+- 🔄 **UNMATCHED-INTERNAL**: `papers/collected/`에 관련 PDF가 있으나 현재 analyzed/*.md는 이 각도를 커버하지 못함 → **REANALYZE 과제 생성** (기존 PDF 재분석)
+- ❌ **UNMATCHED-EXTERNAL**: 관련 논문 자체가 없음 → **HUNT 과제 생성** (Consensus 외부 검색)
 
-각 UNMATCHED 문장에 대해:
+### UNMATCHED-INTERNAL 판별 휴리스틱
+
+다음 중 하나 이상이면 INTERNAL로 분류:
+
+1. **주제 키워드 매칭**: 해당 주장의 키워드가 `analyzed/*.md`의 제목·초록 요약에 등장하지만, 현재 섹션별 인용 다발에는 없음
+2. **관련성 점수 ≥ 3/5**: paper-analyst가 해당 논문을 flow의 인근 섹션에 활용 가능하다고 판정했으나 현재 flow 각도와 불일치
+3. **저자/논문 지명**: 사용자가 flow.md에서 특정 저자명을 언급했는데 해당 논문이 collected/에 있음
+
+### Phase 4-A: REANALYZE 과제 생성 (UNMATCHED-INTERNAL용)
+
+각 UNMATCHED-INTERNAL 문장에 대해:
+1. **대상 PDF**: `papers/collected/{파일명}.pdf`
+2. **재분석 각도**: 이 주장을 뒷받침할 수 있는지 확인할 읽기 초점
+3. **예상 결과**: 새 섹션별 인용 다발 vNEW에 추가될 항목 예시
+4. **담당 에이전트**: paper-analyst (Mode B)
+
+### Phase 4-B: HUNT 과제 생성 (UNMATCHED-EXTERNAL용)
+
+각 UNMATCHED-EXTERNAL 문장에 대해:
 1. **검색 키워드 3-5개** 제안 (Consensus MCP 검색용)
 2. **기대 논문 프로필**:
    - 유형: 메타분석 / 리뷰 / 실증 연구 / 이론 논문
@@ -109,18 +127,19 @@
 
 ## 📊 요약
 
-| 분류 | 개수 | 기존 pool 매칭 | 신규 검색 필요 |
-|------|------|---------------|-------------|
-| A. Empirical | X | Y | Z |
-| B. Descriptive | X | Y | Z |
-| C. Borrowed Definition | X | Y | Z |
-| D. Counter-argument | X | Y | Z |
-| E. Author Extension | X | Y | Z |
-| F. Author Contribution | X | — | — |
-| G. Connector/Meta | X | — | — |
-| **합계** | N | M | K |
+| 분류 | 개수 | ✅ MATCHED | 🔄 INTERNAL | ❌ EXTERNAL |
+|------|------|-----------|------------|-------------|
+| A. Empirical | X | Ya | Yb | Yc |
+| B. Descriptive | X | Ya | Yb | Yc |
+| C. Borrowed Definition | X | Ya | Yb | Yc |
+| D. Counter-argument | X | Ya | Yb | Yc |
+| E. Author Extension | X | Ya | Yb | Yc |
+| F. Author Contribution | X | — | — | — |
+| G. Connector/Meta | X | — | — | — |
+| **합계** | N | M | R | K |
 
-**총 리서치 과제**: **K개**
+**🔄 REANALYZE 과제**: **R개** (기존 PDF 재분석)
+**❌ HUNT 과제**: **K개** (Consensus 신규 검색)
 
 ---
 
@@ -142,7 +161,23 @@
 
 ---
 
-## 🔍 레퍼런스 헌트 과제 (UNMATCHED 신규 검색 필요)
+## 🔄 재분석 과제 (UNMATCHED-INTERNAL — 기존 PDF 재스캔)
+
+### [REANALYZE-001] S023: "hot EF는 감정 조절 요구의 문화 보편성을 반영한다"
+
+- **분류**: A. Empirical
+- **대상 PDF**: `papers/collected/Zelazo_2012_hot_cool_EF.pdf`
+- **현재 analyzed 버전**: v1 (Section 1 배경 각도만 커버)
+- **재분석 각도**: Section 4 hot EF 보편성 논증 — 감정 조절 요구가 문화 간 보편적이라는 증거 구체화
+- **예상 결과**: analyzed/Zelazo_2012-analysis.md에 `## [v2]` append — Section 4용 인용 다발 (hot EF 직접 인용 2-3개, 보편성 수치)
+- **담당**: paper-analyst (Mode B)
+- **완료 조건**: analyzed_version v1 → v2로 증가, sync-state.json 갱신
+
+### [REANALYZE-002] ... (UNMATCHED-INTERNAL 전량)
+
+---
+
+## 🔍 레퍼런스 헌트 과제 (UNMATCHED-EXTERNAL — Consensus 신규 검색)
 
 ### [HUNT-001] S004: "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다."
 
@@ -205,7 +240,9 @@
   "total_sentences": N,
   "needs_citation": X,
   "matched": M,
-  "unmatched": K,
+  "unmatched_internal": R,
+  "unmatched_external": K,
+  "reanalyze_tasks": R,
   "hunt_tasks": K,
   "over_claim_flags": A,
   "under_claim_flags": B,
