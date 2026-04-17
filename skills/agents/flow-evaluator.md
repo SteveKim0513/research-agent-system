@@ -136,7 +136,7 @@ flow.md가 **줄글(prose)** 형태일 때 (= 체크박스 목록이나 구조�
 
 1. `skills/agents/claim-extractor.md`를 읽어 Agent 도구로 병렬 호출
 2. 입력: 줄글 flow.md 전체 + papers/consensus-results.md + papers/analyzed/*.md
-3. 출력: `projects/{PROJECT_NAME}/claim-extraction.md`
+3. 출력: `projects/{PROJECT_NAME}/evaluations/latest/claim-extraction.md`
 4. 결과 요약(JSON)을 받아 Phase 2의 축 1 평가에 직접 투입
 
 ### Phase 1: 사전 맥락 수집
@@ -330,16 +330,7 @@ python3 scripts/sync_state.py update-evaluation {project_name}
   - 근거 축: 1-1 Coverage, 1-2 Accuracy
   - 완료 조건: papers/collected/에 매칭 논문 1편 이상 + paper-analyst 분석 완료
 
-- [ ] **[HUNT-002]** S010: "양심은 어린 시절 내면화를 거쳐 자발적 규칙 따르기로 발달한다."
-  - 검색 키워드:
-    1. `conscience internalization voluntary rule following childhood`
-    2. `Kochanska effortful control conscience longitudinal`
-    3. `moral self committed compliance internalization`
-  - 기대 프로필: 종단 + 리뷰 / 세미널+최근 / 최소 2편
-  - 배치: flow.md Section 4 후반
-  - 근거 축: 1-1 Coverage
-
-- [ ] **[HUNT-NNN]** ... (claim-extraction.md의 UNMATCHED 건 전부 자동 생성)
+- [ ] **[HUNT-NNN]** ... (claim-extraction.md의 UNMATCHED-EXTERNAL 전량 자동 생성)
 
 #### 📖 1-B. 기존 pool 재활용 (MATCHED 문장용)
 
@@ -358,52 +349,30 @@ python3 scripts/sync_state.py update-evaluation {project_name}
 
 #### 📚 1-D. 축 4 관련 (독창성 보강)
 
-- [ ] **[RESEARCH-D1]** 유사 선행 연구 (Doebel 2020, Perone 2020) 정독 후 차별점 추출
-  - 에이전트: paper-analyst (차별점 분석 모드) + originality-evaluator
-  - 근거: 축 4-2 감점 (-X)
-
-#### 축 4 관련
-- [ ] **[RESEARCH-N]** 유사 선행 연구 (Doebel 2020, Perone 2020) 정독하여 novelty positioning에 쓸 차별점 추출
-  - 에이전트: paper-analyst (차별점 분석 모드)
-  - 근거: 축 4-2 감점 (-X)
-
-[...]
+- [ ] **[RESEARCH-001]** 유사 선행 연구 (예: Doebel 2020, Perone 2020) 정독 후 차별점 추출
+  - 에이전트: paper-analyst Mode B + originality-evaluator
+  - 근거: 축 4-2 감점
 
 ### ✍️ Stage 2: 1차 버전 작성
 
-#### 축 2 관련
-- [ ] **[DRAFT-1]** Section 2→3 전환에 bridge 문단 추가 — "따라서 [선행 결론]을 해결하려면 [후속 질문]이 필요하다"
-  - 에이전트: writing-architect (Phase 1 구조 설계에 반영)
-  - 근거: 축 2-2 감점 (-X)
+**형식**: 각 항목에 `[DRAFT-NNN]` ID + 대상 섹션/문단 + 구체 지시 + 담당 에이전트 + 근거 축. 예:
 
-#### 축 5 관련
-- [ ] **[DRAFT-2]** Section 4 첫 단락에 '규칙 깊이' 정의 + 두 축의 조작적 기준 박스 추가
-  - 에이전트: concept-clarity-evaluator로 정의 초안 검증 후 writing-architect
-  - 근거: 축 5-1, 5-2 감점 (-X)
-
-[...]
+- [ ] **[DRAFT-001]** Section 2→3 전환에 bridge 문단 추가 (writing-architect Phase 1 반영)
+- [ ] **[DRAFT-002]** Section 4 도입부에 '규칙 깊이' 정의 박스 추가 (concept-clarity-evaluator 검증 → writing-architect)
 
 ### 🔧 Stage 3: 수정
 
-#### 축 1 관련
-- [ ] **[REVISION-1]** Chapter 2 p.3 "Smith이 X를 증명" → 원문은 상관관계만 보고 → "Smith (2023) reported a correlation..."로 수정
-  - 에이전트: citation-auditor → Chapter 수정
-  - 근거: 축 1-2 Accuracy 감점 (-X)
+**형식**: `[REVISION-NNN]` + 대상 챕터/문장 + 수정 지시 + 담당 에이전트 + 근거 축. 예:
 
-#### 축 3 관련
-- [ ] **[REVISION-2]** Section 5 반론 섹션에 가장 강한 반론 버전 추가 + 재반박
-  - 에이전트: peer-reviewer (Mode A) → writing-architect
-  - 근거: 축 3-1 Steelman 감점 (-X)
-
-[...]
+- [ ] **[REVISION-001]** Chapter 2 "X를 증명" → 원문 상관관계만 보고 → 표현 약화 (citation-auditor 감사 후 수정)
+- [ ] **[REVISION-002]** Section 5 반론 섹션 steelman 강화 (peer-reviewer Mode A → writing-architect)
 
 ### ✅ Stage 4: 최종 완성
 
-- [ ] **[FINAL-1]** citation-auditor full-pass — 모든 인용에 대한 accuracy audit
-- [ ] **[FINAL-2]** peer-reviewer 시뮬레이션 (Mode A, 3명 리뷰어)
-- [ ] **[FINAL-3]** originality-evaluator 재평가 — novelty positioning 최종 검증
-- [ ] **[FINAL-4]** concept-clarity-evaluator 재평가 — 정의 일관성 최종 검증
-- [ ] **[FINAL-5]** 5축 재평가 실행 → 목표 점수 달성 확인
+- [ ] **[FINAL-001]** citation-auditor 전량 PDF 대조 감사
+- [ ] **[FINAL-002]** peer-reviewer Mode A — 3명 리뷰어 시뮬레이션
+- [ ] **[FINAL-003]** originality-evaluator / concept-clarity-evaluator 최종 재평가
+- [ ] **[FINAL-004]** 전체 5축 재평가 → 목표 점수 달성 확인
 
 ---
 

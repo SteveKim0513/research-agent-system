@@ -24,7 +24,7 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 | 4 | 독창성·기여도 | "So What?" · Novelty positioning · Contribution layer · Implications |
 | 5 | 구성개념 정의 정밀도 | Definition · Operationalization · Boundary · Categorical/Dimensional |
 
-### 9개 서브 에이전트
+### 10개 서브 에이전트
 
 **평가**: flow-evaluator, claim-extractor, originality-evaluator, concept-clarity-evaluator
 **생성·수정**: writing-architect, citation-auditor, paper-analyst
@@ -102,7 +102,7 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (9개 서브 에이전트)
+│   └── agents/               (10개 서브 에이전트)
 │       ├── flow-evaluator.md
 │       ├── claim-extractor.md
 │       ├── originality-evaluator.md

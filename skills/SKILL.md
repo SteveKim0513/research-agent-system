@@ -37,7 +37,7 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 ## 서브 에이전트 시스템
 
-이 스킬은 9개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 10개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
@@ -185,6 +185,18 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 
 사용자가 "평가해줘", "flow 평가해줘", "원고 평가해줘", "5축 평가", "점수 매겨줘" 등을 말하면:
 
+### 단계 0: Sync 선행 점검 (gate)
+
+평가 시작 전 반드시 `scripts/sync_state.py check {PROJECT_NAME}` 실행:
+
+- **Critical stale** (dangling citation, paper_removed 등) → 사용자에게 보고하고 해결 권유 후 진행 여부 확인
+- **Minor stale** (flow drift 등) → 경고만 보고하고 자동 진행
+- **Clean** → 바로 단계 1로
+
+이 단계는 flow-evaluator.md의 Phase -1과 동일한 로직 (참고: `skills/agents/flow-evaluator.md` Phase -1).
+
+별도로 "sync 확인해줘" 명령은 평가 없이 sync만 독립 점검할 때 사용.
+
 ### 단계 1: 평가 대상 판별
 
 현재 프로젝트의 상태에 따라 자동으로 평가 단계를 판별:
@@ -204,7 +216,7 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 2. Agent 도구로 claim-extractor를 먼저 호출:
    - 전달: flow.md 전체 + papers/consensus-results.md + papers/analyzed/*.md + claim-extractor.md 지침
    - 수행: 문장 ID 부여 → 5종 분류 → 기존 pool 매칭 → UNMATCHED 건에 대한 HUNT 과제 생성
-   - 저장: `projects/{PROJECT_NAME}/claim-extraction.md`
+   - 저장: `projects/{PROJECT_NAME}/evaluations/latest/claim-extraction.md`
 
 평가 대상이 이미 작성된 원고(`chapters/*.md`, `final/*.md`)인 경우에도 동일하게 claim-extractor를 선행 호출 (문장 단위 인용 누락 감사용).
 
@@ -224,47 +236,21 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 4. **축 4 심층 평가**가 필요하면 originality-evaluator를 병렬 호출 (flow-evaluator가 판단)
 5. **축 5 심층 평가**가 필요하면 concept-clarity-evaluator를 병렬 호출 (flow-evaluator가 판단)
 
-### 단계 3: 결과 저장 — evaluations/latest/ + archive 스냅샷
+### 단계 4: 결과 저장
 
-#### 3-a. Archive 스냅샷 (이전 평가 보존)
+flow-evaluator가 다음을 자동 수행 (상세 절차는 `skills/agents/flow-evaluator.md` 참조):
 
-평가 **실행 직전**에 `evaluations/latest/`가 비어있지 않으면:
+1. **Archive 스냅샷**: 기존 `evaluations/latest/`를 `evaluations/archive/{NNN}-{date}-{stage}/`로 자동 복사
+2. **신규 산출물 저장** (모두 `evaluations/latest/` 하위):
+   - `evaluation.md` — 5축 점수 + 감점 사유
+   - `work-plan.md` — 작업 계획서 (REANALYZE + HUNT 체크박스 포함)
+   - `claim-extraction.md` — 문장 단위 주장 테이블 (prose flow인 경우)
+   - `originality-report.md` — 축 4 심층 (선택)
+   - `concept-clarity-report.md` — 축 5 심층 (선택)
+3. **Delta 추적**: 두 번째 이후 평가 시 `evaluation.md` 상단에 직전 archive 스냅샷 대비 축별 점수 변화 표 자동 삽입
+4. **Sync 갱신**: `python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}` 실행
 
-```bash
-# 다음 순번 계산 (기존 archive 개수 + 1)
-N=$(ls projects/{PROJECT_NAME}/evaluations/archive 2>/dev/null | wc -l)
-NEXT=$(printf "%03d" $((N+1)))
-DATE=$(date +%Y-%m-%d)
-STAGE="{flow|v1-draft|revised|final}"  # 평가 단계
-
-# 스냅샷 폴더 생성 후 latest/ 내용을 복사
-mkdir -p projects/{PROJECT_NAME}/evaluations/archive/${NEXT}-${DATE}-${STAGE}
-cp -r projects/{PROJECT_NAME}/evaluations/latest/* \
-      projects/{PROJECT_NAME}/evaluations/archive/${NEXT}-${DATE}-${STAGE}/
-```
-
-#### 3-b. 신규 평가 산출물을 latest/에 저장
-
-- `projects/{PROJECT_NAME}/evaluations/latest/evaluation.md` — 5축 점수 + 감점 사유
-- `projects/{PROJECT_NAME}/evaluations/latest/work-plan.md` — 작업 계획서 (HUNT 체크박스 포함)
-- `projects/{PROJECT_NAME}/evaluations/latest/claim-extraction.md` — 문장 단위 주장 테이블 (prose flow인 경우)
-- `projects/{PROJECT_NAME}/evaluations/latest/originality-report.md` — 축 4 심층 (선택)
-- `projects/{PROJECT_NAME}/evaluations/latest/concept-clarity-report.md` — 축 5 심층 (선택)
-
-#### 3-c. Delta 추적
-
-두 번째 이후 평가일 경우 `evaluation.md` 상단에 **직전 archive 스냅샷과의 비교**를 명시:
-
-```markdown
-## 📈 Delta (vs archive/002-2026-04-22-after-draft-v1)
-| 축 | 이전 | 현재 | 변화 |
-|---|------|------|------|
-| 1 | 52 | 84 | +32 🟢 |
-| 2 | 68 | 69 | +1 |
-| ... |
-```
-
-### 단계 4: 사용자 보고
+### 단계 5: 사용자 보고
 
 ```
 🎯 5축 평가 완료
@@ -296,25 +282,32 @@ cp -r projects/{PROJECT_NAME}/evaluations/latest/* \
 🔧 Stage 3 (수정): {N}개 작업 — 예상 회복 +{X}
 ✅ Stage 4 (최종): {N}개 작업 — 예상 회복 +{X}
 
-💾 저장:
-   ✓ projects/{PROJECT_NAME}/evaluation.md
-   ✓ projects/{PROJECT_NAME}/work-plan.md
-   ✓ projects/{PROJECT_NAME}/originality-report.md (축 4 심층)
-   ✓ projects/{PROJECT_NAME}/concept-clarity-report.md (축 5 심층)
+💾 저장 (모두 evaluations/latest/ 하위):
+   ✓ evaluations/latest/evaluation.md
+   ✓ evaluations/latest/work-plan.md
+   ✓ evaluations/latest/claim-extraction.md (prose flow)
+   ✓ evaluations/latest/originality-report.md (축 4 심층)
+   ✓ evaluations/latest/concept-clarity-report.md (축 5 심층)
+   📦 이전 평가 → evaluations/archive/{NNN}-{date}-{stage}/ 자동 스냅샷
 
 👉 다음 단계:
    1. work-plan.md 검토
    2. Stage 1부터 순차 진행:
-      - "작업 시작해줘" → Consensus 검색 (리서치)
+      - "작업 시작해줘" → REANALYZE(기존 PDF 재분석) + HUNT(신규 검색) 자동 실행
       - "새 논문 처리해줘" → PDF 처리
       - "초안 작성해줘" → Stage 2
       - "Chapter X 수정해줘" → Stage 3
-   3. 각 Stage 완료 후 다시 "평가해줘" → 점수 변화 확인
+   3. Stage 1 후엔 "레퍼런스 점검해줘"(경량, 축 1만) 권장
+   4. 전체 5축 재평가는 flow 업데이트/초안/수정 후에만 실효적
 ```
 
-### 단계 5: 반복 평가 규칙
+### 단계 6: 반복 평가 규칙
 
-- **각 Stage 완료 시 자동 재평가**: 사용자가 다음 단계로 넘어가기 전에 "평가해줘"를 권장
+- **각 Stage 완료 시 재평가 권장 (차별화)**:
+  - Stage 1 (리서치) 후 → `"레퍼런스 점검해줘"` (축 1 경량)
+  - Stage 2 (초안) 후 → `"평가해줘"` (전체 5축)
+  - Stage 3 (수정) 후 → `"평가해줘"` (전체 5축)
+  - Stage 4 (최종) 전 → `"평가해줘"` (최종 5축)
 - **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시, `evaluation.md`에 이전 점수 대비 변화(+X, −X)를 함께 표시
 - **목표 달성 확인**: 각 축이 90점 이상이면 🟢, 70-89점이면 🟡, 70점 미만이면 🔴
 
@@ -453,85 +446,28 @@ python3 scripts/sync_state.py update-paper {PROJECT_NAME} {파일명}.pdf
    - 완료된 HUNT는 `- [x]` 체크
    - 찾은 논문이 기대 프로필에 못 미치면 `⚠️ 재검색 필요` 주석 추가
 
-### 단계 3: 결과를 papers/consensus-results.md 파일에 저장
+### 단계 3: 결과 보고
 
-검색 결과를 화면에 출력하는 것과 동시에 **반드시 projects/{PROJECT_NAME}/papers/consensus-results.md 파일에 저장**하세요. 각 논문의 PDF/DOI URL은 클릭 가능한 마크다운 링크 형식 (`[제목](URL)`)으로 포함해야 합니다.
+각 HUNT 결과는 `papers/consensus-results.md`에 `[HUNT-NNN]` 태그로 누적 저장된다 (단계 2b에서 이미 수행). 각 논문은 클릭 가능한 마크다운 링크 (`[제목](URL)`) 형식으로 포함.
 
-파일 구조 예시:
-
-```markdown
-# Consensus 검색 결과
-
-검색 일시: YYYY-MM-DD HH:MM
-
----
-
-## Section 1: Introduction
-**검색 키워드**: `transformer attention mechanism`
-
-### 1. Vaswani et al. (2017) ⭐⭐⭐⭐⭐
-- **제목**: [Attention is All You Need](https://arxiv.org/pdf/1706.03762.pdf)
-- **학회**: NeurIPS 2017
-- **인용**: 50,000+회
-- **핵심 내용**: Transformer 아키텍처 최초 제안, Self-attention으로 RNN/CNN 대체
-- **관련성**: 95%
-- **활용 방안**: 기초 개념 설명 및 배경 제시
-- **PDF 링크**: https://arxiv.org/pdf/1706.03762.pdf
-
----
+화면 요약 예시:
 ```
+🔍 HUNT 실행 완료
 
-### 단계 4: 결과 포맷팅 (화면 출력)
+📊 요약
+   🔄 REANALYZE: {N}개 완료 ({M}편 PDF 재분석, v2 append)
+   🔍 HUNT: {K}개 완료 ({L}편 신규 후보 확보)
+   ⚠️  재검색 권장: {R}개 (기대 프로필 미달)
 
-**각 섹션별로 구분하여** 다음과 같이 제시하세요:
-
-```
-🔍 필요한 논문 검색 결과:
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📖 Section 1: Introduction
-검색 키워드: "transformer attention mechanism"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📄 1. Vaswani et al. (2017) ⭐⭐⭐⭐⭐
-   제목: "Attention is All You Need"
-   학회: NeurIPS 2017
-   인용: 50,000+회
-   
-   📝 핵심 내용:
-   - Transformer 아키텍처 최초 제안
-   - Self-attention 메커니즘으로 RNN/CNN 대체
-   - 병렬 처리 가능하여 학습 속도 향상
-   
-   🎯 관련성: 95%
-   💡 활용 방안: 기초 개념 설명 및 배경 제시
-   
-   🔗 PDF: https://arxiv.org/pdf/1706.03762.pdf
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💡 추천 논문 (우선순위):
-   1. [논문 1]
-   2. [논문 2]
-
-💾 검색 결과 저장됨: projects/{PROJECT_NAME}/papers/consensus-results.md
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 HUNT 실행 요약
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ 완료 HUNT: {N}개
-⚠️  재검색 권장: {N}개
-📄 신규 확보 후보 논문: {N}편
-🔄 claim-extraction.md 매칭 갱신: {N}건
+📄 papers/consensus-results.md에 {L}편 추가
+🔄 evaluations/latest/claim-extraction.md 매칭 갱신: {T}건
 
 👉 다음 단계:
-   1. papers/consensus-results.md 파일의 링크에서 필요한 논문을 다운로드
-   2. 다운로드한 PDF를 projects/{PROJECT_NAME}/papers/candidates/ 폴더에 저장
-   3. "새 논문 처리해줘" 입력 → paper-analyst 자동 분석
-   4. 완료 후 "평가해줘" 재실행 → 축 1 점수 변화 확인
+   1. consensus-results.md 링크에서 필요한 논문 PDF 다운로드
+   2. papers/candidates/에 저장 → "새 논문 처리해줘"
 ```
 
-### 단계 5: 다음 단계 권장 (현실적 분기)
+### 단계 4: 다음 단계 권장 (현실적 분기)
 
 HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
@@ -931,6 +867,8 @@ Reviewer 3 (실용주의자): Accept with Minor
 
 사용자가 "sync 확인해줘", "sync 점검", "상태 확인해줘", "stale 체크" 등을 말하면:
 
+> **참고**: "평가해줘" 명령은 단계 0에서 동일한 sync 체크를 자동 실행. 이 명령은 평가 없이 **sync만 독립 점검**할 때 사용.
+
 ### 단계 1: sync_state.py check 실행
 
 ```bash
@@ -1170,7 +1108,7 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 
 1. `skills/agents/originality-evaluator.md` 파일을 읽는다
 2. 현재 프로젝트의 평가 대상(flow.md 또는 초안) + `papers/analyzed/*.md` + `papers/consensus-results.md`를 전달하여 Agent 실행
-3. 결과를 `projects/{PROJECT_NAME}/originality-report.md`에 저장
+3. 결과를 `projects/{PROJECT_NAME}/evaluations/latest/originality-report.md`에 저장
 
 **주요 출력**: Novelty Delta Map (선행 연구 3편 대비 차별점 테이블) + "So What?" 명시 여부 + 심사자 예상 공격.
 
@@ -1182,7 +1120,7 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 
 1. `skills/agents/concept-clarity-evaluator.md` 파일을 읽는다
 2. 현재 프로젝트의 평가 대상을 전달하여 Agent 실행
-3. 결과를 `projects/{PROJECT_NAME}/concept-clarity-report.md`에 저장
+3. 결과를 `projects/{PROJECT_NAME}/evaluations/latest/concept-clarity-report.md`에 저장
 
 **주요 출력**: 핵심 구성개념 정의 감사 테이블 + 의미 drift 탐지 + 범주/차원 선택 근거 감사.
 
