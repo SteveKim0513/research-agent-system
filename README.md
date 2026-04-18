@@ -92,6 +92,7 @@ Claude에서:
 ```
 
 **상세 가이드는 [MANUAL.md](./MANUAL.md) 참고.**
+**시스템의 설계 철학·학술 글쓰기 원칙은 [PRINCIPLES.md](./PRINCIPLES.md) 참고.**
 
 ---
 
@@ -124,8 +125,9 @@ research-agent/
 │       ├── chapters/          (+ archive/ for draft rollback)
 │       └── final/
 ├── install.sh
-├── README.md                  (이 파일)
-└── MANUAL.md                  (사용자 매뉴얼)
+├── README.md                  (이 파일 — 설치·개요)
+├── MANUAL.md                  (사용자 매뉴얼 — 사용법)
+└── PRINCIPLES.md              (설계 철학·학술 글쓰기 원칙)
 ```
 
 ---
