@@ -19,6 +19,9 @@ sync_state.py — Research-Agent 프로젝트의 아티팩트 sync 상태 관리
     python scripts/sync_state.py update-evaluation <project_name>
     python scripts/sync_state.py update-final <project_name>
     python scripts/sync_state.py remove-paper <project_name> <paper_filename>
+    python scripts/sync_state.py snapshot-chapters <project_name> <trigger> [chapter_filename]
+        trigger: "pre-redraft", "chX-edit" 등의 태그 (폴더명에 포함)
+        chapter_filename 지정 시 해당 챕터만 스냅샷, 미지정 시 chapters/ 전체
 """
 
 import hashlib
@@ -152,6 +155,49 @@ def cmd_update_paper(project_name: str, paper_filename: str) -> int:
     return 0
 
 
+def cmd_snapshot_chapters(project_name: str, trigger: str, chapter_filename: str = None) -> int:
+    """chapters/의 현재 상태를 chapters/archive/{NNN}-{date}-{trigger}/에 스냅샷.
+
+    chapter_filename 지정 시 단일 파일만, 미지정 시 chapters/ 전체.
+    Before-overwrite 보존용.
+    """
+    root = project_root(project_name)
+    chap_dir = root / "chapters"
+    if not chap_dir.exists():
+        print(f"⚠️  chapters/ 폴더 없음: {chap_dir}", file=sys.stderr)
+        return 1
+
+    archive_dir = chap_dir / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    # 다음 순번 계산
+    existing = sorted([p for p in archive_dir.iterdir() if p.is_dir() and p.name[:3].isdigit()])
+    next_n = len(existing) + 1
+    next_tag = f"{next_n:03d}"
+    date = datetime.now().strftime("%Y-%m-%d")
+    folder_name = f"{next_tag}-{date}-{trigger}"
+    dest_dir = archive_dir / folder_name
+
+    if chapter_filename:
+        src = chap_dir / chapter_filename
+        if not src.exists():
+            print(f"⚠️  챕터 없음: {src}", file=sys.stderr)
+            return 1
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        (dest_dir / chapter_filename).write_bytes(src.read_bytes())
+        print(f"✅ 챕터 스냅샷: {dest_dir}/{chapter_filename}")
+    else:
+        chapter_files = [p for p in chap_dir.glob("*.md") if p.is_file()]
+        if not chapter_files:
+            print("⚠️  스냅샷할 챕터 없음 (chapters/ 비어있음)", file=sys.stderr)
+            return 0
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for src in chapter_files:
+            (dest_dir / src.name).write_bytes(src.read_bytes())
+        print(f"✅ 전체 챕터 스냅샷: {dest_dir} ({len(chapter_files)}개 파일)")
+    return 0
+
+
 def cmd_remove_paper(project_name: str, paper_filename: str) -> int:
     state = load_state(project_name)
     if paper_filename in state["papers"]:
@@ -216,6 +262,52 @@ def cmd_update_final(project_name: str) -> int:
     save_state(project_name, state)
     print(f"✅ final 상태 갱신")
     return 0
+
+
+def stale_priority(stale: dict) -> int:
+    """각 stale 항목의 긴급도 점수. 높을수록 downstream 영향 큼."""
+    kind = stale.get("kind", "")
+    if kind == "flow_changed":
+        return 30  # 가장 많은 downstream 무효화
+    if kind == "paper_removed":
+        dangling = stale.get("dangling_in_chapters", {}) or {}
+        return 20 + len(dangling) * 10  # dangling 많을수록 급함
+    if kind == "paper_added_untracked":
+        impacted = stale.get("impacted", []) or []
+        return 8 + len(impacted) * 4
+    if kind == "chapter_paper_version_drift":
+        details = stale.get("details", []) or []
+        return 10 * len(details)
+    if kind == "chapter_flow_drift":
+        impacted = stale.get("impacted", []) or []
+        return 15 * len(impacted)
+    if kind == "final_stale":
+        return 5
+    if kind == "evaluation_stale":
+        return 10
+    return 0
+
+
+def stale_tier(score: int) -> str:
+    if score >= 30:
+        return "P1-Critical"
+    if score >= 15:
+        return "P2-High"
+    return "P3-Medium"
+
+
+def dependency_order(stale: dict) -> int:
+    """의존성 해소 순서. 낮을수록 먼저 해결해야 함."""
+    order_map = {
+        "paper_added_untracked": 1,       # 새 논문 처리 우선
+        "paper_removed": 2,               # dangling 빨리 해소
+        "flow_changed": 3,                # cascade 시작점
+        "chapter_paper_version_drift": 4, # papers 정리 후
+        "chapter_flow_drift": 5,          # papers 정리 후
+        "final_stale": 6,                 # chapters 정리 후
+        "evaluation_stale": 7,            # 모든 것 정리 후 마지막
+    }
+    return order_map.get(stale.get("kind", ""), 99)
 
 
 def cmd_check(project_name: str) -> int:
@@ -333,12 +425,40 @@ def cmd_check(project_name: str) -> int:
             "resolve": '"평가해줘"',
         })
 
-    # 출력
+    # priority 점수 + 등급 부여
+    for s in stales:
+        s["score"] = stale_priority(s)
+        s["priority"] = stale_tier(s["score"])
+        s["dependency_order"] = dependency_order(s)
+
+    # 긴급도 순 (displayed)
+    stales_by_urgency = sorted(stales, key=lambda s: -s["score"])
+
+    # 의존성 해소 순서 (execution)
+    stales_by_dependency = sorted(stales, key=lambda s: (s["dependency_order"], -s["score"]))
+    ordered_plan = [
+        {
+            "step": i + 1,
+            "priority": s["priority"],
+            "kind": s["kind"],
+            "score": s["score"],
+            "resolve": s.get("resolve", ""),
+        }
+        for i, s in enumerate(stales_by_dependency)
+    ]
+
+    # 등급별 집계
+    tier_counts = {"P1-Critical": 0, "P2-High": 0, "P3-Medium": 0}
+    for s in stales:
+        tier_counts[s["priority"]] = tier_counts.get(s["priority"], 0) + 1
+
     result = {
         "project": project_name,
         "checked_at": now_iso(),
         "stale_count": len(stales),
-        "stales": stales,
+        "tier_counts": tier_counts,
+        "stales": stales_by_urgency,
+        "ordered_resolution_plan": ordered_plan,
     }
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if not stales else 1
@@ -404,6 +524,9 @@ def main(argv: list[str]) -> int:
             return cmd_update_final(args[0])
         if cmd == "remove-paper" and len(args) == 2:
             return cmd_remove_paper(args[0], args[1])
+        if cmd == "snapshot-chapters" and 2 <= len(args) <= 3:
+            chapter_fn = args[2] if len(args) == 3 else None
+            return cmd_snapshot_chapters(args[0], args[1], chapter_fn)
     except SystemExit:
         raise
     except Exception as e:

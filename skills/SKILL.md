@@ -592,6 +592,18 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 3. **papers/collected/ 폴더의 논문 목록 확인**
 4. **papers/analyzed/ 폴더의 분석 리포트 확인** (paper-analyst 결과)
 
+### 단계 1b: 기존 chapters 자동 스냅샷 (데이터 손실 방지)
+
+`chapters/` 폴더가 **이미 비어있지 않다면** 이번 "초안 작성해줘"는 **전면 재작성(re-draft)**을 의미. 덮어쓰기 전 현재 상태를 archive에 보존:
+
+```bash
+python3 scripts/sync_state.py snapshot-chapters {PROJECT_NAME} pre-redraft
+```
+
+결과: `projects/{PROJECT_NAME}/chapters/archive/{NNN}-{date}-pre-redraft/`에 전체 chapters 파일 복사. 구 초안을 영영 잃지 않음 — 필요 시 복구 가능.
+
+`chapters/`가 비어있으면 이 단계 스킵.
+
 ### 단계 2: 🤖 writing-architect 에이전트 호출 — Phase 1: 논증 구조 설계
 
 1. `skills/agents/writing-architect.md` 파일을 읽는다
@@ -684,6 +696,16 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
 ## 챕터 수정 + 자동 일관성 체크
 
 사용자가 "Chapter X 수정해줘: [내용]" 또는 "X장 수정: [내용]" 등을 말하면:
+
+### 단계 0: 수정 전 단일 챕터 자동 스냅샷
+
+chapter-editor 호출 전에 대상 챕터의 현재 상태를 archive에 보존:
+
+```bash
+python3 scripts/sync_state.py snapshot-chapters {PROJECT_NAME} ch{X}-edit 0{X}-{name}.md
+```
+
+결과: `chapters/archive/{NNN}-{date}-ch{X}-edit/0{X}-{name}.md`로 스냅샷. 수정 실패·롤백·비교 목적으로 활용 가능.
 
 ### 단계 1: 🤖 chapter-editor 에이전트 호출
 
@@ -867,40 +889,58 @@ python3 scripts/sync_state.py check {PROJECT_NAME}
 
 출력 JSON에서 `stales` 배열을 파싱하여 사람이 읽을 수 있는 형태로 변환.
 
-### 단계 2: 사용자 보고
+### 단계 2: 사용자 보고 (priority 등급별)
+
+sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ordered_resolution_plan` (의존성 순) 를 파싱하여:
 
 ```
 🔄 Sync 점검 결과
 
-✅ 전체 동기화 상태 양호 (또는)
+✅ 전체 동기화 상태 양호 (stale 0건 시 이 줄만)
 
-⚠️ Stale 감지: {N}건
+⚠️ Stale 감지: {총 N}건
+   🔴 P1-Critical: {Na}건  🟡 P2-High: {Nb}건  🟢 P3-Medium: {Nc}건
 
-1. [flow_changed] flow.md가 변경됨 (hash 불일치)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 P1-Critical (먼저 해결)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. [flow_changed] flow.md 변경됨 (score: 30)
    영향: analyzed/*.md 일부 구버전, evaluations/latest/ 재생성 필요
-   권장 조치: "논문 재분석해줘" 후 "평가해줘"
+   → "논문 재분석해줘" 후 "평가해줘"
 
-2. [paper_removed] Zelazo_2022.pdf가 collected/에서 제거됨
+2. [paper_removed] Zelazo_2022.pdf 제거됨 (score: 40, dangling 2챕터)
    영향: Chapter 2, 4에 dangling citation 3건
-   권장 조치: "논문 제거해줘: Zelazo_2022.pdf"
+   → "논문 제거해줘: Zelazo_2022.pdf"
 
-3. [chapter_paper_version_drift] 챕터 2건이 구버전 논문 분석 기반
-   영향: Chapter 3 (Kroupin v1 기반, 현재 v2), Chapter 4 (Zelazo v1 기반, 현재 v2)
-   권장 조치: "Chapter 3 수정해줘: 새 분석 반영", "Chapter 4 수정해줘: ..."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 P2-High
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. [chapter_flow_drift] 챕터 2건이 구 flow 기반 (score: 30)
+   → "Chapter 3 수정해줘", "Chapter 4 수정해줘"
 
-4. [final_stale] final/complete-draft.* 가 chapters 현재 상태와 불일치
-   권장 조치: "최종 통합해줘"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟢 P3-Medium
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. [final_stale] final/* 가 chapters 현재와 불일치 (score: 5)
+   → "최종 통합해줘"
 ```
 
-### 단계 3: 자동 해결 옵션 제공
+### 단계 3: 의존성 순 실행 계획 제시
 
-stale 항목이 3개 이상이면:
+`ordered_resolution_plan`은 **의존성 순서**로 정렬된다 — 단순히 긴급도가 아니라 cascade 영향 기반. P1을 먼저 풀어야 P2/P3가 의미 있음:
+
 ```
-다수의 stale 감지 → 순차 해결 가이드:
-  1단계: "논문 재분석해줘" (flow 변경 전파)
-  2단계: "평가해줘" (평가 재생성)
-  3단계: "Chapter X 수정해줘" (챕터 동기화)
-  4단계: "최종 통합해줘" (final 재빌드)
+📋 권장 실행 순서 (의존성 순):
+
+1. "새 논문 처리해줘" (paper_added_untracked 해소)       — P3
+2. "논문 제거해줘: Zelazo_2022.pdf" (dangling 해소)      — P1
+3. "논문 재분석해줘" (flow_changed 전파)                 — P1
+4. "Chapter 3 수정해줘", "Chapter 4 수정해줘" (drift 해소) — P2
+5. "최종 통합해줘" (final 재빌드)                        — P3
+6. "평가해줘" (전체 재평가 마지막)                       — P3
+
+⚠️ 이 순서로 진행하지 않으면 후속 단계에서 같은 stale이 다시 감지됩니다
+   (예: Chapter 수정 전에 평가해도 여전히 구버전 기반 경고).
 ```
 
 ---

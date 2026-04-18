@@ -120,8 +120,8 @@ research-agent/
 │   └── {project-name}/
 │       ├── flow.md
 │       ├── evaluations/       (latest/ + archive/)
-│       ├── papers/            (candidates/ + collected/ + analyzed/)
-│       ├── chapters/
+│       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/)
+│       ├── chapters/          (+ archive/ for draft rollback)
 │       └── final/
 ├── install.sh
 ├── README.md                  (이 파일)

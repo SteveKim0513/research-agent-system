@@ -117,6 +117,7 @@ projects/my-essay/
 │   ├── collected/            ← 처리 완료된 PDF
 │   └── analyzed/             ← paper-analyst 분석 리포트
 ├── chapters/                 ← 초안 섹션별 파일
+│   └── archive/              ← 덮어쓰기 직전 자동 스냅샷 (롤백 가능)
 ├── final/                    ← 통합본 + docx
 └── .paper-metadata.json
 ```
@@ -594,19 +595,48 @@ python3 scripts/sync_state.py update-chapter {project} <filename.md>
 python3 scripts/sync_state.py update-evaluation {project}
 python3 scripts/sync_state.py update-final {project}
 python3 scripts/sync_state.py remove-paper {project} <filename.pdf>
+
+# chapters 스냅샷 (자동 호출되지만 수동 사용 가능)
+python3 scripts/sync_state.py snapshot-chapters {project} <trigger> [chapter.md]
+#   trigger 예: "pre-redraft", "ch2-edit", "manual-backup"
+#   chapter.md 지정 시 단일 파일, 미지정 시 chapters/ 전체
 ```
 
-### Stale 유형
+### Stale 유형 + Priority 점수
 
-| kind | 의미 | 권장 해결 |
-|------|------|----------|
-| `flow_changed` | flow.md 해시 불일치 | `"논문 재분석해줘"` 후 `"평가해줘"` |
-| `paper_added_untracked` | collected/에 미추적 논문 | `"새 논문 처리해줘"` |
-| `paper_removed` | 추적 중이던 논문이 collected/에서 사라짐 | `"논문 제거해줘: {파일}"` |
-| `chapter_paper_version_drift` | 챕터가 구버전 논문 분석 기반 | `"Chapter X 수정해줘: 새 분석 반영"` |
-| `chapter_flow_drift` | 챕터가 구 flow.md 기반 | `"Chapter X 수정해줘"` |
-| `final_stale` | final/* 가 chapters 현재 상태와 불일치 | `"최종 통합해줘"` |
-| `evaluation_stale` | evaluation이 현재 flow/chapters와 불일치 | `"평가해줘"` |
+각 stale 항목은 **긴급도 점수**와 **등급(tier)**, **의존성 순서**를 부여받는다.
+
+| kind | 의미 | 기본 score | tier | dependency order | 권장 해결 |
+|------|------|-----------|------|------------------|----------|
+| `flow_changed` | flow.md 해시 불일치 | 30 | 🔴 P1 | 3 | `"논문 재분석해줘"` 후 `"평가해줘"` |
+| `paper_removed` | collected/에서 제거 (dangling당 +10) | 20+ | 🔴 P1 | 2 | `"논문 제거해줘: {파일}"` |
+| `chapter_flow_drift` | 챕터가 구 flow 기반 (챕터당 +15) | 15+ | 🟡 P2 | 5 | `"Chapter X 수정해줘"` |
+| `chapter_paper_version_drift` | 구버전 논문 분석 기반 (drift당 +10) | 10+ | 🟡 P2 | 4 | `"Chapter X 수정해줘: 새 분석 반영"` |
+| `paper_added_untracked` | collected/에 미추적 논문 (개당 +4) | 8+ | 🟢/🟡 | 1 | `"새 논문 처리해줘"` |
+| `evaluation_stale` | evaluation이 현재 flow/chapters와 불일치 | 10 | 🟢 P3 | 7 | `"평가해줘"` |
+| `final_stale` | final/* 가 chapters 현재와 불일치 | 5 | 🟢 P3 | 6 | `"최종 통합해줘"` |
+
+### Priority Tier 의미
+
+- **🔴 P1-Critical (score ≥ 30)**: downstream 모든 stale을 재촉발하는 루트. 먼저 해결 필수.
+- **🟡 P2-High (15-29)**: 특정 챕터들에 영향. P1 해소 후 처리.
+- **🟢 P3-Medium (< 15)**: 마지막 재빌드·재평가. 다른 stale 해소 후 자연 해결되는 경우 많음.
+
+### Dependency Order (실행 순서)
+
+점수 크기와 **별개로**, 의존성에 따라 해결 순서가 정해진다. 순서를 지키지 않으면 후속 단계에서 같은 stale이 재감지됨:
+
+```
+1. paper_added_untracked     → 새 논문 메타데이터 등록 먼저
+2. paper_removed             → dangling 해소 (후속 수정의 전제)
+3. flow_changed              → cascade 시작점
+4. chapter_paper_version_drift
+5. chapter_flow_drift        → papers 정리 후 chapters 수정
+6. final_stale               → chapters 정리 후 재빌드
+7. evaluation_stale          → 모든 것 정리 후 재평가
+```
+
+`"sync 확인해줘"` 명령이 자동으로 이 순서대로 실행 계획을 제시함.
 
 ### 편의 명령
 
@@ -660,6 +690,7 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 | `papers/archived/` | "논문 제거해줘" | 제거된 PDF 보관 (복구 가능) |
 | `papers/archived/analyzed/` | "논문 제거해줘" | 제거된 논문의 분석 리포트 보관 |
 | `chapters/0N-*.md` | "초안 작성해줘" | 섹션별 초안 |
+| `chapters/archive/{NNN}-{date}-{trigger}/` | "초안 작성해줘"·"Chapter X 수정해줘" 실행 직전 | **구버전 chapters 자동 스냅샷** (데이터 손실 방지). trigger 예: `pre-redraft`, `ch2-edit` |
 | `final/complete-draft.md` | "초안 작성해줘" / "최종 통합해줘" | 통합본 |
 | `final/complete-draft.docx` | "초안 작성해줘" / "최종 통합해줘" | Word 문서 |
 | `.paper-metadata.json` | "새 논문 처리해줘" | 논문 메타데이터 DB |
@@ -887,6 +918,27 @@ mv projects/{프로젝트}/papers/archived/{파일}.pdf \
 mv projects/{프로젝트}/papers/archived/analyzed/{파일}-analysis.md \
    projects/{프로젝트}/papers/analyzed/
 python3 scripts/sync_state.py update-paper {프로젝트} {파일}.pdf
+```
+
+**"초안 재작성했는데 구버전이 더 좋았다"**
+`chapters/archive/`에서 자동 스냅샷된 구버전 복구:
+```bash
+# 최신 pre-redraft 스냅샷 찾기
+ls projects/{프로젝트}/chapters/archive/ | grep pre-redraft
+
+# 예: 003-2026-04-22-pre-redraft 복구
+cp projects/{프로젝트}/chapters/archive/003-2026-04-22-pre-redraft/*.md \
+   projects/{프로젝트}/chapters/
+```
+
+**"Chapter X 수정을 롤백하고 싶다"**
+```bash
+# 해당 수정 직전 스냅샷 찾기
+ls projects/{프로젝트}/chapters/archive/ | grep ch2-edit
+
+# 단일 챕터 복구 (가장 최근 스냅샷 기준)
+cp projects/{프로젝트}/chapters/archive/007-2026-04-23-ch2-edit/02-background.md \
+   projects/{프로젝트}/chapters/
 ```
 
 ---
