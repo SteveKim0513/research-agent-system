@@ -132,6 +132,8 @@ research-agent/
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow.md
+│       ├── critical-questions.md       (🎭 Critical Mode: 사용자가 답하는 Socratic 질문)
+│       ├── critical-questions.archive/ (🎭 질문·답변 버전 히스토리)
 │       ├── evaluations/       (latest/ + archive/)
 │       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/)
 │       ├── chapters/          (+ archive/ for draft rollback)

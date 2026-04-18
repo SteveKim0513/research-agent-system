@@ -108,19 +108,33 @@ Claude에서:
 자동 생성되는 구조:
 ```
 projects/my-essay/
-├── flow.md                   ← 당신이 자유 줄글로 작성
-├── FLOW-TEMPLATE.md          ← 작성 가이드 (수정 금지)
+├── flow.md                             ← 당신이 자유 줄글로 작성
+├── FLOW-TEMPLATE.md                    ← 작성 가이드 (수정 금지)
+├── critical-questions.md               ← 🎭 Critical Mode: 사용자가 답하는 Socratic 질문
+│                                         (intellectual_ambition ≥ critical일 때만 생성)
+├── critical-questions.archive/         ← 🎭 질문·답변 버전 히스토리 (v1, v2, ...)
+│   ├── 001-2026-04-18-initial.md
+│   ├── 002-2026-04-22-post-research.md
+│   └── ...
 ├── evaluations/
-│   ├── latest/               ← 평가 결과 (최신본)
-│   └── archive/              ← 평가 스냅샷 히스토리
+│   ├── latest/                         ← 평가 결과 (최신본)
+│   │   ├── evaluation.md
+│   │   ├── work-plan.md
+│   │   ├── claim-extraction.md
+│   │   ├── originality-report.md
+│   │   ├── concept-clarity-report.md
+│   │   └── critical-lens-report.md     ← 🎭 (Critical Mode 활성 시)
+│   └── archive/                        ← 평가 스냅샷 히스토리
 ├── papers/
-│   ├── candidates/           ← 다운로드한 PDF 임시 보관
-│   ├── collected/            ← 처리 완료된 PDF
-│   └── analyzed/             ← paper-analyst 분석 리포트
-├── chapters/                 ← 초안 섹션별 파일
-│   └── archive/              ← 덮어쓰기 직전 자동 스냅샷 (롤백 가능)
-├── final/                    ← 통합본 + docx
-└── .paper-metadata.json
+│   ├── candidates/                     ← 다운로드한 PDF 임시 보관
+│   ├── collected/                      ← 처리 완료된 PDF
+│   ├── analyzed/                       ← paper-analyst 분석 (v1/v2/v3/[critical] append)
+│   └── archived/                       ← "논문 제거해줘"로 이동된 PDF + 분석
+├── chapters/                           ← 초안 섹션별 파일
+│   └── archive/                        ← 덮어쓰기 직전 자동 스냅샷 (롤백 가능)
+├── final/                              ← 통합본 + docx
+├── .paper-metadata.json                ← 메타데이터 + intellectual_ambition 필드
+└── .sync-state.json                    ← 아티팩트 의존성·버전 추적
 ```
 
 ### 단계 2 — flow.md 작성 (자유 줄글)

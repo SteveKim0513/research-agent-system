@@ -144,8 +144,9 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
   "papers": [],
   "last_updated": null,
   "project_name": "{PROJECT_NAME}",
-  "version": "1.1",
-  "research_type": null
+  "version": "1.2",
+  "research_type": null,
+  "intellectual_ambition": "incremental"
 }
 ```
 
@@ -184,17 +185,23 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    research-agent/
    └── projects/
        └── {PROJECT_NAME}/
-           ├── papers/
-           │   ├── collected/      (메타데이터 처리 완료된 논문)
-           │   ├── candidates/     (선택한 논문, 처리 대기)
-           │   └── analyzed/       (에이전트 분석 리포트)
+           ├── flow.md                          (실제 작성용 — 이 파일을 수정)
+           ├── FLOW-TEMPLATE.md                 (가이드 — 수정 금지)
+           ├── critical-questions.md            (🎭 Critical Mode 활성 시 생성)
+           ├── critical-questions.archive/      (🎭 질문·답변 버전 히스토리)
            ├── evaluations/
-           │   ├── latest/         (최신 평가 산출물 — 명령이 참조)
-           │   └── archive/        (과거 평가 스냅샷)
-           ├── FLOW-TEMPLATE.md   (가이드 - 수정하지 마세요)
-           ├── flow.md            (실제 작성용 - 이 파일을 수정하세요)
+           │   ├── latest/                      (최신 평가 산출물 — 명령이 참조)
+           │   └── archive/                     (과거 평가 스냅샷)
+           ├── papers/
+           │   ├── candidates/                  (다운로드 후 처리 대기)
+           │   ├── collected/                   (처리 완료된 PDF)
+           │   ├── analyzed/                    (paper-analyst 분석 v1/v2/v3/[critical])
+           │   └── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
            ├── chapters/
-           └── final/
+           │   └── archive/                     (덮어쓰기 직전 자동 스냅샷)
+           ├── final/
+           ├── .paper-metadata.json             (메타데이터 + intellectual_ambition)
+           └── .sync-state.json                 (아티팩트 의존성·버전 추적)
 
 👉 다음 단계:
    1. projects/{PROJECT_NAME}/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
