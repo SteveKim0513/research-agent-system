@@ -26,12 +26,22 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 
 ### 🎭 Critical Mode (비판적 시각 지원)
 
-`intellectual_ambition`을 `critical` 또는 `paradigm-shifting`으로 설정하면 활성화. Oxford·Cambridge·ENS style의 비판 전통을 시스템에 통합:
+`"비판 모드 critical로 설정해줘"` 또는 flow.md 기반 자동 제안으로 활성화. Oxford·Cambridge·ENS style의 비판 전통을 시스템에 통합:
 
 - **축 6 critical-lens**: Paradigm Mapping / Fault-line / Bold Defense / Minority Recovery
 - **critical-companion**: Stage마다 Socratic 질문 자동 생성 (답은 사용자 몫 — 시스템이 절대 암시하지 않음)
+- **critical-commitments.md**: 사용자 답변을 **actionable spec으로 자동 추출** → 모든 writing 에이전트가 필수 참조 → 작업 완료 후 반영 결과 투명 보고 (답변이 허공에 묻히지 않음)
 - **peer-reviewer Iconoclast**: "충분히 대담한가?" 심사자 페르소나
 - **paper-analyst Mode C**: hidden assumptions / methodological biases / field politics 발굴
+
+**답변 → 반영 → 확인 흐름**:
+```
+critical-questions.md 답변 작성
+  → "답변 반영해줘" (또는 writing 명령 시 자동)
+  → critical-commitments.md에 actionable 추출
+  → 초안/수정 명령 실행
+  → 결과 완료 후 "✅ [C-001] ... Section 2에 추가" 반영 보고
+```
 
 ### 14개 서브 에이전트
 
@@ -132,8 +142,10 @@ research-agent/
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow.md
-│       ├── critical-questions.md       (🎭 Critical Mode: 사용자가 답하는 Socratic 질문)
+│       ├── critical-questions.md       (🎭 사용자가 답하는 Socratic 질문)
 │       ├── critical-questions.archive/ (🎭 질문·답변 버전 히스토리)
+│       ├── critical-commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
+│       ├── critical-commitments.archive/ (🎭 commitment 상태 히스토리)
 │       ├── evaluations/       (latest/ + archive/)
 │       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/)
 │       ├── chapters/          (+ archive/ for draft rollback)

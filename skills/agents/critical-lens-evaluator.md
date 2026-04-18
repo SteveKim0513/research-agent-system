@@ -79,9 +79,21 @@ Oxford·Cambridge·ENS·German humanities 등 **비판 전통이 강한 학문 �
 - 진정한 critical 관점은 종종 **주류가 공식적 기억에서 지운 목소리**를 복원하는 데서 나온다
 - Kuhn·Foucault·de Certeau 등이 이 방법론을 실천
 
-## 추가 검증: critical-questions.md 답변과의 정합성
+## 추가 검증: critical-commitments.md 반영 상태 (Phase 5 이후)
 
-사용자가 `critical-questions.md`에 답변한 내용이 **실제 원고에 구현**되었는지 검증한다:
+critical-companion이 `critical-commitments.md`를 생성했다면 이 파일이 **가장 직접적인 정합성 판정 자료**이다. 답변 원문을 직접 파싱할 필요 없이 commitment 커버리지를 사용:
+
+**점수 조정 규칙**:
+- FULFILLED 비율 ≥ 80% → C-1 ~ C-4 각각 +2 보너스 (사용자가 답한 대담함을 구현)
+- FULFILLED 비율 40-79% → 조정 없음
+- FULFILLED 비율 < 40% → C-3 Bold Defense -10 (답변한 대담함이 원고에 부재)
+- CONFLICTING 1건 이상 → C-3 -15 + 명시적 감점 사유 "원고가 사용자 답변의 정반대로 작성됨 (자기 배신)"
+
+**commitment별 세부 감점** (리포트의 "📌 critical-questions.md 답변과의 정합성" 섹션에 포함):
+
+## 추가 검증: critical-questions.md 답변과의 정합성 (commitment 파일 없을 때만)
+
+critical-commitments.md가 아직 생성되지 않았다면 직접 `critical-questions.md` 답변을 파싱하여 검증한다:
 
 ```
 ✅ v2 Q1.1 답변: "EF가 탈맥락 통제 가정 거부"

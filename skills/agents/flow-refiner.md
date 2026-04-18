@@ -24,6 +24,15 @@
 
 ## 실행 절차
 
+### Phase 0: UNFULFILLED commitment 우선 검토
+
+`critical-commitments.md`가 존재하면:
+1. UNFULFILLED / CONFLICTING 상태 commitment를 목록화
+2. 이 commitment들이 현재 flow.md의 **어느 섹션·논증**에서 자연스럽게 구현될 수 있는지 매핑
+3. 적절한 flow.md 보강 제안을 commitment 해소 경로로 준비
+
+→ flow-refiner의 제안은 **새 논문 + 미이행 commitment** 두 소스에서 나옴.
+
 ### Phase 1: 새 논문 집계
 
 1. `.sync-state.json`에서 `flow_md.mtime` 이후에 추가된 papers 엔트리 식별

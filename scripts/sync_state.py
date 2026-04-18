@@ -25,6 +25,8 @@ sync_state.py — Research-Agent 프로젝트의 아티팩트 sync 상태 관리
     python scripts/sync_state.py snapshot-critical-questions <project_name> <trigger>
         trigger: "post-research", "post-draft", "manual-update" 등
         critical-questions.md를 critical-questions.archive/{NNN}-{date}-{trigger}.md로 보존
+    python scripts/sync_state.py snapshot-critical-commitments <project_name> <trigger>
+        critical-commitments.md를 critical-commitments.archive/{NNN}-{date}-{trigger}.md로 보존
 """
 
 import hashlib
@@ -201,6 +203,27 @@ def cmd_snapshot_chapters(project_name: str, trigger: str, chapter_filename: str
     return 0
 
 
+def cmd_snapshot_critical_commitments(project_name: str, trigger: str) -> int:
+    """critical-commitments.md를 critical-commitments.archive/{NNN}-{date}-{trigger}.md로 보존."""
+    root = project_root(project_name)
+    src = root / "critical-commitments.md"
+    if not src.exists():
+        print(f"ℹ️  critical-commitments.md 없음 — 스냅샷 스킵")
+        return 0
+
+    archive_dir = root / "critical-commitments.archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    existing = sorted([p for p in archive_dir.iterdir() if p.is_file() and p.name[:3].isdigit()])
+    next_n = len(existing) + 1
+    next_tag = f"{next_n:03d}"
+    date = datetime.now().strftime("%Y-%m-%d")
+    dest = archive_dir / f"{next_tag}-{date}-{trigger}.md"
+    dest.write_bytes(src.read_bytes())
+    print(f"✅ critical-commitments 스냅샷: {dest}")
+    return 0
+
+
 def cmd_snapshot_critical_questions(project_name: str, trigger: str) -> int:
     """critical-questions.md를 critical-questions.archive/{NNN}-{date}-{trigger}.md로 보존.
 
@@ -312,6 +335,9 @@ def stale_priority(stale: dict) -> int:
         return 5
     if kind == "evaluation_stale":
         return 10
+    if kind == "commitment_unfulfilled":
+        details = stale.get("details", []) or []
+        return 20 + len(details) * 3  # UNFULFILLED·CONFLICTING per entry
     return 0
 
 
@@ -331,6 +357,7 @@ def dependency_order(stale: dict) -> int:
         "flow_changed": 3,                # cascade 시작점
         "chapter_paper_version_drift": 4, # papers 정리 후
         "chapter_flow_drift": 5,          # papers 정리 후
+        "commitment_unfulfilled": 5,      # chapter 정리와 함께 해소 (chapters 수정으로)
         "final_stale": 6,                 # chapters 정리 후
         "evaluation_stale": 7,            # 모든 것 정리 후 마지막
     }
@@ -437,6 +464,26 @@ def cmd_check(project_name: str) -> int:
             "msg": "final/complete-draft.* 가 chapters의 현재 상태와 불일치",
             "resolve": '"최종 통합해줘"',
         })
+
+    # 6a. commitment 반영 상태 (critical-commitments.md의 UNFULFILLED/CONFLICTING 파싱)
+    commitments_file = root / "critical-commitments.md"
+    if commitments_file.exists():
+        try:
+            text = commitments_file.read_text(encoding="utf-8")
+            unfulfilled_count = text.count("🔴 UNFULFILLED")
+            conflicting_count = text.count("⚠️ CONFLICTING")
+            partial_count = text.count("🟡 PARTIAL")
+            problematic = unfulfilled_count + conflicting_count
+            if problematic > 0:
+                stales.append({
+                    "kind": "commitment_unfulfilled",
+                    "msg": f"Critical commitments 미이행 {problematic}건 (UNFULFILLED {unfulfilled_count} + CONFLICTING {conflicting_count})",
+                    "details": ["critical-commitments.md 참조"] * problematic,
+                    "partial_count": partial_count,
+                    "resolve": '"Chapter X 수정해줘"로 commitment 해소, 또는 "질문 업데이트해줘"로 답변 철회',
+                })
+        except Exception:
+            pass
 
     # 6. evaluation vs flow/chapters sync
     eval_flow_stale = (
@@ -556,6 +603,8 @@ def main(argv: list[str]) -> int:
             return cmd_snapshot_chapters(args[0], args[1], chapter_fn)
         if cmd == "snapshot-critical-questions" and len(args) == 2:
             return cmd_snapshot_critical_questions(args[0], args[1])
+        if cmd == "snapshot-critical-commitments" and len(args) == 2:
+            return cmd_snapshot_critical_commitments(args[0], args[1])
     except SystemExit:
         raise
     except Exception as e:

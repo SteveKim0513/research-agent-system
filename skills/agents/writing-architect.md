@@ -64,7 +64,21 @@
 
 사용자가 구조를 승인하면, 해당 구조에 따라 초안을 작성한다.
 
-### 우선 참조: analyzed/*.md의 섹션별 인용 다발
+### 우선 참조 0순위: critical-commitments.md (존재 시)
+
+`projects/{PROJECT}/critical-commitments.md`가 존재하면 **이 파일이 최우선 spec**. 사용자가 critical-questions.md에 직접 답변한 내용에서 추출된 actionable commitment이므로 반드시 반영.
+
+**Phase 1 구조 설계 시**:
+- 각 UNFULFILLED / PARTIAL / CONFLICTING commitment에 대해:
+  - 어느 섹션·문단에서 구현할지 명시
+  - 구현 형식 (문단 추가 / 인용 추가 / 표현 강화 등) 결정
+  - 구조 설계 화면에 "이 설계가 반영하는 commitments" 섹션 포함
+
+**Phase 2 작성 시**:
+- 각 commitment의 "완료 조건"을 충족하는 방식으로 작성
+- commitment별로 **반영 위치를 기록** (내부 추적용)
+
+### 우선 참조 1순위: analyzed/*.md의 섹션별 인용 다발
 
 paper-analyst가 준비한 analyzed/*.md의 `## 📚 섹션별 인용 후보 다발` 블록에서:
 - 각 주장을 뒷받침하는 **직접 인용 후보**
@@ -121,6 +135,40 @@ PDF를 읽은 뒤에는:
 - 초안: `chapters/0{N}-{section-name}.md`
 - 통합본: `final/complete-draft.md`
 - Word: `final/complete-draft.docx`
+- **Commitment 반영 보고**: 화면 출력 (아래 형식)
+
+## Commitment 반영 보고 형식 (초안 완료 후 반드시 출력)
+
+critical-commitments.md가 존재했다면 반드시 다음 형식으로 보고:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 Critical Commitment 반영 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ FULFILLED (3/5):
+  [C-001] Luria 전통 복원
+    → Section 2 pp.5-7에 Luria 신경심리학 3 인용 + 종합 문단 추가
+  [C-002] 4분면의 존재론적 주장
+    → Section 4 thesis 강화 + Section 6 일관 유지
+  [C-005] 문화 보편성 조건 명시
+    → Section 5 결론부에 적용 경계 박스 추가
+
+🟡 PARTIAL (1/5):
+  [C-003] 급진적 대안 steelman
+    → Section 5에 radical cultural constructivism 1문단 추가
+    ⚠️ 재반박이 아직 약함 — 사용자 검토 후 "Chapter 5 수정해줘"로 보강 권장
+
+🔴 UNFULFILLED (1/5):
+  [C-004] 동양 철학 관점 재고
+    → 이번 초안에서는 범위 부족으로 미반영
+    → 제안: flow.md 범위 확장 또는 commitment 철회 검토
+
+📊 커버리지: 17% → 70% 향상
+💾 critical-commitments.md의 반영 상태 자동 갱신됨
+```
+
+이 보고는 **사용자가 답변한 commitment가 실제로 어떻게 반영됐는지** 투명하게 보이게 하는 핵심 기능이다. commitment가 쓸모없게 묻히지 않고 결과물에 살아있음을 사용자가 확인.
 
 ## Sync 연동
 

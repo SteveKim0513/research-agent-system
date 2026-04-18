@@ -189,6 +189,8 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            ├── FLOW-TEMPLATE.md                 (가이드 — 수정 금지)
            ├── critical-questions.md            (🎭 Critical Mode 활성 시 생성)
            ├── critical-questions.archive/      (🎭 질문·답변 버전 히스토리)
+           ├── critical-commitments.md          (🎭 답변에서 추출한 actionable spec)
+           ├── critical-commitments.archive/    (🎭 commitment 상태 히스토리)
            ├── evaluations/
            │   ├── latest/                      (최신 평가 산출물 — 명령이 참조)
            │   └── archive/                     (과거 평가 스냅샷)
@@ -1152,6 +1154,145 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
    - 모든 sync 확인: "sync 확인해줘"
    - 평가 갱신: "평가해줘"
 ```
+
+---
+
+## 🎭 비판 모드 설정 (intellectual_ambition)
+
+사용자가 `"비판 모드 설정해줘"`, `"intellectual_ambition 설정해줘"`, `"비판 모드 {level}"` 등을 말하면:
+
+### 단계 1: 요청 파싱
+
+사용자 입력에서 레벨 추출:
+- `"incremental"` / `"비판 모드 끄기"` / `"점진적"` → incremental
+- `"critical"` / `"비판적"` → critical
+- `"paradigm-shifting"` / `"패러다임 도전"` → paradigm-shifting
+
+명시 없으면 flow.md를 분석하여 권장값 제시 후 사용자 확인.
+
+### 단계 2: flow.md 기반 자동 감지 (레벨 미명시 시)
+
+flow.md를 스캔하여 다음 단서 탐지:
+
+**critical 신호**:
+- "비판한다", "재개념화한다", "문제가 있다", "대안을 제시한다"
+- 특정 논문의 **근본 가정을 의심**하는 문장
+- "이분법은 타당한가?" 같은 **분야 전제 의심**
+
+**paradigm-shifting 신호**:
+- "새로운 프레임워크", "근본적 재정의", "revolution"
+- "이 분야는 X라는 잘못된 전제 위에 서 있다"
+- 저자 기여가 **개념적 신개념 도입**
+
+**incremental 신호**:
+- 데이터 수집·분석 중심
+- 기존 이론 **검증·확장**
+- 특정 맥락·집단으로 **적용 범위 확대**
+
+### 단계 3: 사용자 확인
+
+```
+현재 설정: intellectual_ambition = "incremental"
+
+flow.md 분석 결과:
+- "Kroupin의 이분법은 타당한가?" → critical 신호
+- "규칙의 속성으로 재개념화" → critical 신호
+- "보편적 EF와 특수적 EF의 양립" → critical 신호
+
+→ 권장: **critical**로 변경
+
+변경하시겠습니까? [yes / no / paradigm-shifting로 승격]
+```
+
+### 단계 4: 설정 반영
+
+`.paper-metadata.json` 업데이트:
+```json
+{
+  "intellectual_ambition": "critical",
+  "ambition_updated_at": "2026-04-18T10:00:00"
+}
+```
+
+### 단계 5: 후속 동작 안내
+
+```
+✅ intellectual_ambition을 "critical"로 설정
+
+이제 활성화되는 기능:
+  🎭 critical-lens-evaluator (축 6 추가)
+  🤔 critical-companion (Stage 마일스톤마다 Socratic 질문)
+  👹 peer-reviewer Reviewer 4 (Iconoclast)
+  🔍 paper-analyst Mode C (핵심 논문 비판적 읽기)
+
+비활성화 (incremental로 되돌리려면):
+  "비판 모드 incremental로 설정해줘"
+
+다음 단계:
+  "평가해줘"로 Critical Mode 포함 전체 평가 실행
+```
+
+### 자동 제안 트리거
+
+첫 `"평가해줘"` 실행 시, intellectual_ambition이 `incremental`이고 flow.md에서 critical 신호 ≥ 3개 감지되면 flow-evaluator가 사용자에게 자동 제안:
+
+```
+💡 제안: 이 프로젝트는 "critical" 성향이 강합니다.
+   intellectual_ambition을 critical로 변경하면 Critical Mode가 활성화되어
+   새로운 관점·비판적 시각 지원이 강화됩니다.
+   
+   변경: "비판 모드 critical로 설정해줘"
+   현 상태 유지: 그대로 평가 진행
+```
+
+---
+
+## 💬 답변 반영 (답변 반영해줘 — 경량 commitment 추출)
+
+사용자가 `"답변 반영해줘"`, `"commitments 추출해줘"` 등을 말하면:
+
+### 단계 1: 선행 조건 확인
+
+1. `critical-questions.md` 존재 확인 (없으면 "먼저 질문 업데이트해줘" 안내)
+2. 기존 `critical-commitments.md`가 있으면 snapshot:
+   ```bash
+   python3 scripts/sync_state.py snapshot-critical-commitments {PROJECT_NAME} manual-extract
+   ```
+
+### 단계 2: 경량 critical-companion 호출 (Phase 6만 실행)
+
+critical-companion의 Phase 1-5는 스킵하고 **Phase 6 (commitment 추출)만** 실행:
+
+1. `skills/agents/critical-companion.md` 읽기
+2. Agent 도구로 호출 시 "EXTRACT_ONLY_MODE" 플래그 전달:
+   - 입력: 현재 critical-questions.md + chapters/*.md (반영 상태 판정용) + 기존 critical-commitments.md
+   - 수행: Phase 6만 — commitment 추출·분류·상태 업데이트
+   - 출력: critical-commitments.md 갱신
+
+### 단계 3: 결과 보고
+
+```
+📌 Commitment 추출 완료
+
+💾 critical-commitments.md 갱신:
+  🟢 FULFILLED: 2건
+  🟡 PARTIAL: 1건
+  🔴 UNFULFILLED: 2건
+  ⚠️ CONFLICTING: 0건
+  
+  총 반영률: 50% (2.5/5)
+
+🔴 UNFULFILLED commitment (2건):
+  - [C-003] 급진적 대안 steelman (Section 5)
+  - [C-004] 동양 철학 관점 재고 (Section 4)
+
+👉 다음 단계:
+  1. UNFULFILLED 해소: "Chapter 5 수정해줘: [C-003] 급진적 대안 steelman 강화"
+  2. 또는 답변 자체를 재고: critical-questions.md 답변 수정 후 다시 "답변 반영해줘"
+  3. 전체 평가: "평가해줘"
+```
+
+**이 명령의 가치**: 사용자가 답변만 쓰고 끝내는 것이 아니라, **답변이 시스템에 actionable하게 등록되었음을 즉시 확인**. writing 작업 전에 commitment 추출을 보장.
 
 ---
 

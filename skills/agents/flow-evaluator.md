@@ -147,6 +147,10 @@ flow.md가 **줄글(prose)** 형태일 때 (= 체크박스 목록이나 구조�
 4. `papers/analyzed/*.md` 로드 (각 논문의 주장/한계/활용 방안 파악)
 5. `papers/collected/` 목록 확인 (실제 보유 논문 확인)
 6. `claim-extraction.md`가 존재하면 로드 (Phase 0b 결과)
+7. **`critical-commitments.md`가 존재하면 로드** — 사용자가 답변한 commitment의 현재 반영 상태. 축 4·6 점수에 직접 영향:
+   - FULFILLED 비율 ≥ 80%: 축 6 보너스 +5, 축 4-4 보너스 +3
+   - FULFILLED 비율 < 40%: 축 6 감점 -15, 축 4-1 감점 -10 ("사용자가 답한 대담함을 원고가 구현 안 함")
+   - CONFLICTING 발견: 축 3-1 Steelman 감점 -12 (자기 배신은 steelman 반대)
 
 ### Phase 2: 5축 냉정 평가
 

@@ -158,6 +158,97 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 
 현재 버전 하단에 "다음 v+1에서 물을 후보 질문" 2-3개를 예고. 사용자가 미리 생각할 시간 확보.
 
+### Phase 6: Commitment 추출 — **critical-commitments.md 자동 생성**
+
+가장 중요한 통합 기능. 사용자의 답변을 시스템이 활용할 수 있게 **actionable commitment**로 변환한다. 그래야 writing agents가 답변을 실제 원고에 반영 가능.
+
+**절차**:
+
+1. 현재 `critical-questions.md`에서 **사용자가 답변한 것**만 스캔
+2. 각 답변에서 **구체적 행동**을 추출 (사용자 원문 그대로 인용 + 번역)
+3. 각 commitment를 4-상태로 분류:
+   - 🟢 **FULFILLED**: 이미 chapters/* 에 반영됨
+   - 🟡 **PARTIAL**: 일부만 반영됨
+   - 🔴 **UNFULFILLED**: chapters/* 에 반영 안 됨
+   - ⚠️ **CONFLICTING**: chapters/* 가 정반대로 작성됨
+
+4. 기존 `critical-commitments.md`가 있으면 `critical-commitments.archive/`로 스냅샷:
+   ```bash
+   python3 scripts/sync_state.py snapshot-critical-commitments {PROJECT} {trigger}
+   ```
+
+5. 새 `critical-commitments.md`를 `projects/{PROJECT}/critical-commitments.md`에 저장
+
+**commitment 추출 규칙**:
+
+- **반드시 사용자 원문 인용**: "사용자가 이렇게 해석될 수도 있다"는 추측 금지. 사용자의 **명시적 언급**만 commitment로 승격
+- **모호한 답변은 commitment 아님**: "고민해보겠다" 같은 중립 답변은 commitment 등록 안 함
+- **여러 commitment 분리**: 한 답변에 여러 행동이 있으면 각각 분리 (C-001, C-002 ...)
+- **actionable 변환 규칙**:
+  - 대상 위치 (어느 섹션·문단)
+  - 구체적 행동 (추가/대체/삭제/강화)
+  - 완료 조건 (무엇이 있어야 fulfilled로 전환되는가)
+
+### critical-commitments.md 형식
+
+```markdown
+# Critical Commitments — {프로젝트명}
+
+**추출 일시**: YYYY-MM-DD
+**소스 버전**: critical-questions.md v{N}
+
+---
+
+## 🎯 Active Commitments
+
+### [C-001] {짧은 제목}
+- **출처**: v{N} Q{X.Y}
+- **사용자 원문**:
+  > "{사용자 답변에서 직접 인용한 문장}"
+- **Actionable**:
+  - **대상 위치**: [섹션/문단/문장]
+  - **행동**: [추가/대체/삭제/강화 + 구체 내용]
+  - **완료 조건**: [무엇이 있어야 fulfilled]
+- **반영 상태**: 🔴 UNFULFILLED / 🟡 PARTIAL / 🟢 FULFILLED / ⚠️ CONFLICTING
+- **근거**: [상태 판정의 구체적 이유]
+
+### [C-002] ...
+
+---
+
+## ⚠️ 미답변 질문 (commitment 아님, 트래킹)
+
+- v{N} Q{X.Y} — {N}회째 미답변
+
+---
+
+## 📊 Commitment 커버리지
+
+- 🟢 FULFILLED: {N}건
+- 🟡 PARTIAL: {N}건
+- 🔴 UNFULFILLED: {N}건
+- ⚠️ CONFLICTING: {N}건
+- **총 반영률**: {X}% ({fulfilled+0.5*partial}/{total})
+
+### Commitment별 추천 실행 순서 (의존성)
+1. UNFULFILLED·CONFLICTING 우선 해소 (draft 수정 필요)
+2. PARTIAL 완전화
+3. 이후 `"평가해줘"` 재실행 시 축 6 점수 상승 기대
+
+---
+
+## 🔗 이 파일을 사용하는 에이전트
+
+- `writing-architect`: 초안 Phase 1 구조 설계 시 commitment를 섹션 spec에 통합
+- `chapter-editor`: 수정이 commitment를 깎지 않는지 검증
+- `flow-refiner`: UNFULFILLED를 flow.md 보강 제안으로 승격
+- `flow-evaluator`: 커버리지를 축 6 점수에 반영
+- `citation-auditor`: commitment가 요구한 인용 실제 사용 검증
+- `peer-reviewer Iconoclast`: UNFULFILLED를 "자기 배신" 공격으로 사용
+```
+
+이 파일은 **기계 가독적(machine-readable)**으로 작성 — 다른 에이전트가 파싱해서 활용.
+
 ## 출력 파일 형식
 
 ```markdown

@@ -543,6 +543,35 @@ Critical Mode는 이 구조적 편향을 **의식적으로 보정**합니다.
 
 **제1 제약 — 절대적**: 답변·예시·힌트·leading question 전면 금지. 답을 찾는 과정 자체가 새로운 관점의 발견이며, 그 과정은 **반드시 사용자의 것**.
 
+### 답변 → Actionable → 결과물 반영 파이프라인
+
+그러나 사용자 답변이 **허공에 묻히면** 의미 없습니다. 시스템의 근본 설계 원칙:
+
+**"답변은 곧 spec이다"** — 사용자가 critical-questions.md에 쓴 답변은 해당 프로젝트의 **사양**으로 취급되며, 모든 writing 에이전트가 반드시 참조·반영.
+
+구현 메커니즘:
+
+1. **critical-commitments.md** — 답변에서 자동 추출된 actionable 사양
+   - 사용자 원문 직접 인용 (추측 금지)
+   - 대상 섹션·행동·완료 조건 명시
+   - 4-상태 분류 (FULFILLED/PARTIAL/UNFULFILLED/CONFLICTING)
+
+2. **모든 writing 에이전트가 필수 입력으로 참조**:
+   - writing-architect: 초안 구조에 commitment 할당
+   - chapter-editor: 수정이 commitment를 깎지 않는지 검증
+   - flow-refiner: UNFULFILLED를 flow 보강 제안으로 승격
+
+3. **투명한 반영 보고** — 작업 완료 후 반드시 출력:
+   ```
+   ✅ [C-001] Luria 복원 → Section 2 pp.5-7에 추가
+   🟡 [C-003] 급진적 steelman → 부분 반영, 추가 수정 권장
+   🔴 [C-004] 동양 철학 → 범위 부족으로 미반영
+   ```
+
+4. **sync 시스템이 미이행 탐지**: `commitment_unfulfilled` stale type으로 자동 탐지, P2-High priority로 해소 유도.
+
+이 설계의 의미: 사용자가 **답변을 쓰는 것 자체가 설계 작업**이 된다. 답변이 단순 기록이 아니라 시스템에 대한 **명세(specification)**로 기능하며, 원고가 그 명세와 괴리되면 자동으로 드러난다. **"말과 글의 일치"**를 시스템적으로 강제.
+
 **8 카테고리 × 버전 진화**:
 1. 패러다임 의식 (분야가 당연시하는 것은?)
 2. 대담성 자가 점검 (충분히 용감한가?)

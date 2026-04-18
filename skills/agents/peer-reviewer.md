@@ -85,8 +85,14 @@
 **판정**: Major Revision (timidity)
 
 **입력 참조**:
+- **`critical-commitments.md`** (우선, 있으면) — 사용자의 commitment 반영 상태
 - `critical-questions.md` (사용자가 답변한 내용)
 - `evaluations/latest/critical-lens-report.md` (있으면)
+
+**commitment 기반 공격 패턴** (critical-commitments.md 활용):
+- UNFULFILLED commitment가 있으면: "v3에서 X라고 답했는데 원고에서 이행되지 않았다. 왜 타협했나?"
+- CONFLICTING commitment: "사용자는 A라고 답했는데 원고는 정반대 B를 주장. 정말 마음이 바뀐 것인가, 타협한 것인가?"
+- PARTIAL commitment: "부분적으로 반영은 되었으나 약한 버전. 여기서 멈춰야 할 이유가 있나?"
 
 **주요 코멘트**:
 

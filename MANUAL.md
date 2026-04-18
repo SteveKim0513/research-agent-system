@@ -113,9 +113,9 @@ projects/my-essay/
 ├── critical-questions.md               ← 🎭 Critical Mode: 사용자가 답하는 Socratic 질문
 │                                         (intellectual_ambition ≥ critical일 때만 생성)
 ├── critical-questions.archive/         ← 🎭 질문·답변 버전 히스토리 (v1, v2, ...)
-│   ├── 001-2026-04-18-initial.md
-│   ├── 002-2026-04-22-post-research.md
-│   └── ...
+├── critical-commitments.md             ← 🎭 답변에서 자동 추출한 actionable commitment
+│                                         (writing 에이전트가 필수 참조)
+├── critical-commitments.archive/       ← 🎭 commitment 상태 버전 히스토리
 ├── evaluations/
 │   ├── latest/                         ← 평가 결과 (최신본)
 │   │   ├── evaluation.md
@@ -693,7 +693,18 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 
 ### 활성화 방법
 
-프로젝트의 `.paper-metadata.json`에 `intellectual_ambition` 필드를 설정:
+**방법 1: 명령으로 설정 (권장)**
+```
+"비판 모드 critical로 설정해줘"
+"비판 모드 paradigm-shifting로 설정해줘"
+"비판 모드 incremental로 되돌려줘"
+```
+
+**방법 2: 자동 제안 수용**
+첫 `"평가해줘"` 실행 시 flow.md에 critical 신호(≥3개)가 있으면 시스템이 자동 제안. 사용자가 yes/no 선택.
+
+**방법 3: 직접 편집 (비권장)**
+프로젝트의 `.paper-metadata.json`에 `intellectual_ambition` 필드를 수동 설정:
 
 ```json
 {
@@ -726,7 +737,51 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 1. **짧게 쓰지 마세요** — 한 문장 답은 생각 안 한 것
 2. **정합성 경고를 무시하지 마세요** — "v2에서 X라고 답했는데 원고는 Y"는 지적 자기 배신 신호
 3. **답하지 않은 질문도 가치** — carry-over되며 "2회째 미답변"이 되면 회피 중임을 자기 진단
-4. **답변 후 평가해줘** → critical-lens-evaluator가 답변과 원고 정합성을 5점 보너스 또는 감점으로 반영
+
+### 답변이 결과물에 자동 반영되는 메커니즘 🎯
+
+가장 중요한 기능. 사용자가 답변을 **허공에 쓰는 것이 아니라** 시스템이 actionable하게 등록하여 모든 writing 에이전트가 참조합니다.
+
+```
+1. 사용자가 critical-questions.md의 답변 공간에 작성
+
+2. 다음 중 하나가 trigger (답변 추출):
+   a) "질문 업데이트해줘" (전체 critical-companion — 신규 질문 + 추출)
+   b) "답변 반영해줘" (경량 — 추출만, 질문 갱신 안 함)
+   c) "초안 작성해줘" / "Chapter X 수정해줘" 실행 시 자동 prehook
+
+3. critical-companion이 답변을 파싱하여:
+   - 사용자 원문을 그대로 인용
+   - actionable 형식으로 변환 (대상 섹션, 행동, 완료 조건)
+   - 현재 chapters/*와 대조하여 4-상태 분류:
+     🟢 FULFILLED / 🟡 PARTIAL / 🔴 UNFULFILLED / ⚠️ CONFLICTING
+   - critical-commitments.md에 기록
+
+4. writing 에이전트가 commitment를 spec으로 사용:
+   - writing-architect Phase 1 구조 설계 시 "이 commitment를 이 섹션에 구현" 명시
+   - chapter-editor가 수정 중 commitment 충돌 여부 검증
+   - flow-refiner가 UNFULFILLED를 flow 보강 제안으로 승격
+
+5. 작업 완료 후 에이전트가 반영 결과 보고:
+   ✅ [C-001] Luria 복원 → Section 2 pp.5-7에 추가
+   🟡 [C-003] 급진적 steelman → 일부만 반영, 추가 수정 권장
+   🔴 [C-004] 동양 철학 → 범위 부족으로 미반영
+
+6. 사용자가 투명하게 확인:
+   - 답변한 것이 어디에 반영되었는지
+   - 무엇이 여전히 미이행인지
+   - critical-commitments.md 파일을 열어 전체 상태 조회 가능
+```
+
+### 답변하지 않을 때
+
+답변을 건너뛰어도 시스템은 계속 작동하지만:
+- 해당 질문은 **carry-over**되어 다음 버전에도 등장
+- 2회 연속 미답변 → 🔴 "회피 중일 수 있음" 표시
+- critical-lens-evaluator가 미답변을 **축 6 soft cap**으로 반영 (예: 답변 없으면 C-1 점수 60점 상한)
+- critical-commitments.md에 commitment 등록은 **안 됨** (답변이 명시적이어야만)
+
+→ 답변 없음은 **미반영**으로 이어지며, 시스템이 그 사실을 숨기지 않는다.
 
 ### 8개 질문 카테고리
 

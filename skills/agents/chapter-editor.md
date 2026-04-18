@@ -24,6 +24,14 @@
 
 ## 실행 절차
 
+### Phase 0: Commitment 사전 검토
+
+`critical-commitments.md`가 존재하면:
+1. 대상 챕터와 관련된 commitment 식별 (같은 섹션 명시 등)
+2. 각 commitment의 현재 반영 상태 재확인
+3. **이번 수정이 어떤 commitment를 진전시키는가** 판단
+4. 수정이 기존 commitment와 **충돌**하면 사용자에게 먼저 확인
+
 ### Phase 1: 수정 지시 해석
 
 사용자 지시를 다음 단위로 분해:
@@ -80,6 +88,13 @@ python3 scripts/sync_state.py update-chapter {PROJECT_NAME} 0{X}-{name}.md
 2. 변경 요약 보고 (어느 문단, 어떤 변경, 근거 논문)
 3. 일관성 체크 결과
 4. (후속) citation-auditor가 생성하는 인용 감사 리포트
+5. **Commitment 영향 보고** — critical-commitments.md가 있을 때:
+   ```
+   📌 이번 수정의 Commitment 영향:
+   ✅ [C-001] Luria 복원 FULFILLED → FULFILLED (유지)
+   🟡 → ✅ [C-003] 급진적 대안 steelman PARTIAL → FULFILLED (완료)
+   💾 critical-commitments.md 자동 갱신
+   ```
 
 ## 주의사항
 
