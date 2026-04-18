@@ -24,11 +24,11 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 | 4 | 독창성·기여도 | "So What?" · Novelty positioning · Contribution layer · Implications |
 | 5 | 구성개념 정의 정밀도 | Definition · Operationalization · Boundary · Categorical/Dimensional |
 
-### 10개 서브 에이전트
+### 12개 서브 에이전트
 
-**평가**: flow-evaluator, claim-extractor, originality-evaluator, concept-clarity-evaluator
-**생성·수정**: writing-architect, citation-auditor, paper-analyst
-**보조**: gap-finder, methodology-advisor, peer-reviewer
+**평가 (4)**: flow-evaluator, claim-extractor, originality-evaluator, concept-clarity-evaluator
+**생성·수정 (5)**: paper-analyst, writing-architect, chapter-editor, flow-refiner, citation-auditor
+**보조 (3)**: gap-finder, methodology-advisor, peer-reviewer
 
 ---
 
@@ -102,13 +102,15 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (10개 서브 에이전트)
+│   └── agents/               (12개 서브 에이전트)
 │       ├── flow-evaluator.md
 │       ├── claim-extractor.md
 │       ├── originality-evaluator.md
 │       ├── concept-clarity-evaluator.md
 │       ├── paper-analyst.md
 │       ├── writing-architect.md
+│       ├── chapter-editor.md
+│       ├── flow-refiner.md
 │       ├── citation-auditor.md
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md

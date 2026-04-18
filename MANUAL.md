@@ -58,6 +58,34 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 
 ## 🗺 전체 User Journey
 
+### 각 단계별 에이전트 사용 맵 (한눈에 보기)
+
+| 단계 | 명령 | 핵심 에이전트 | 부가 에이전트 (자동 체이닝) | 산출물 |
+|------|------|-------------|-------------------------|--------|
+| 1. 프로젝트 생성 | `"[이름] 프로젝트 만들어줘"` | — | sync_state.py init | 폴더 구조 + 빈 flow.md |
+| 2. flow.md 작성 | (사용자 직접) | — | — | flow.md (prose) |
+| 3. 1차 평가 | `평가해줘` | **flow-evaluator** (오케스트레이터) | claim-extractor + originality-evaluator + concept-clarity-evaluator + (v1-draft/revised/final일 때) citation-auditor | evaluation.md, work-plan.md, claim-extraction.md, originality-report.md, concept-clarity-report.md |
+| 4a. 리서치 실행 | `작업 시작해줘` | — (MCP 직접 호출) | **paper-analyst Mode B** (REANALYZE 과제), Consensus MCP (HUNT 과제) | consensus-results.md 누적, analyzed/*.md v2+ append |
+| 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 |
+| 5a. 경량 점검 | `레퍼런스 점검해줘` | **flow-evaluator** (axis-1 mode) | PDF 2-3편 샘플링 자동 검증 | evaluation.md 축 1만 갱신 |
+| 5b. flow 보강 | `flow 업데이트해줘` | **flow-refiner** | — | flow.md 업데이트 제안 → 승인 시 flow.md 갱신 |
+| 6. 1차 초안 | `초안 작성해줘` | **writing-architect** (Phase 1 → 사용자 승인 → Phase 2) | on-demand PDF 접근 | chapters/*.md, final/complete-draft.md, .docx |
+| 7. 2차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 30% 샘플** | archive/002 + 갱신된 evaluations/latest/ |
+| 8. 챕터 수정 | `Chapter X 수정해줘: ...` | **chapter-editor** | **citation-auditor** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 |
+| 9. 3차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 전량** | archive/003 |
+| 10a. 최종 통합 | `최종 통합해줘` | — | — | final/complete-draft.md + .docx 재생성 |
+| 10b. 심사 시뮬 | `리뷰 체크해줘` | **peer-reviewer** (Mode A) | — | 리뷰어 3명 시뮬 리포트 |
+| 10c. 최종 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + **citation-auditor 전량 + 이전 archive 대비 new error** | archive/004 |
+| 언제든 (보조) | `gap 분석해줘` | **gap-finder** | — | gaps-analysis.md |
+| 언제든 (empirical만) | `방법론 추천/검증해줘` | **methodology-advisor** | — | 화면 보고 |
+| 언제든 | `sync 확인해줘` | sync_state.py | — | stale 리스트 + 해결 가이드 |
+| 언제든 | `논문 제거해줘: {파일}` | sync_state.py + (자동) citation-auditor | — | archived/ 이동 + dangling 경고 |
+| 언제든 | `논문 재분석해줘` | **paper-analyst** (Mode B) | — | analyzed/*.md v2+ append |
+| 단독 심층 평가 | `독창성 평가해줘` | **originality-evaluator** | — | originality-report.md |
+| 단독 심층 평가 | `정의 정밀도 평가해줘` | **concept-clarity-evaluator** | — | concept-clarity-report.md |
+
+### 상세 단계별 가이드
+
 ### 단계 0 — 최초 설치 (1회)
 
 [README § 설치](./README.md#-설치) 참고.
@@ -393,30 +421,63 @@ peer-reviewer Mode B:
 
 ## 🤖 서브 에이전트 시스템
 
-### 평가 전용 (4개)
+총 **12개** 전문 에이전트. 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
 
-| 에이전트 | 역할 | 호출 시점 |
-|---------|------|----------|
-| **flow-evaluator** | 5축 오케스트레이터, work-plan.md 생성 | "평가해줘" |
-| **claim-extractor** | 문장 단위 주장 추출·분류·HUNT 생성 | flow-evaluator가 자동 호출 |
-| **originality-evaluator** | 축 4 심층 평가, Delta Map 작성 | flow-evaluator 자동 / "독창성 평가해줘" 단독 |
-| **concept-clarity-evaluator** | 축 5 심층 평가, 정의 감사 테이블 | flow-evaluator 자동 / "정의 정밀도 평가해줘" 단독 |
+### 📊 에이전트 분류 (3 카테고리)
 
-### 생성·수정 (3개)
+#### 평가 전용 (4개)
 
-| 에이전트 | 역할 | 호출 시점 |
-|---------|------|----------|
-| **writing-architect** | 논증 구조 설계 → 초안 작성, flow 업데이트 제안 | "초안 작성해줘", "flow 업데이트해줘" |
-| **citation-auditor** | 인용 accuracy 감사, APA 형식 체크 | "Chapter X 수정해줘" (자동) |
-| **paper-analyst** | 논문 심층 분석 (요약·기여·한계·관련성) | "새 논문 처리해줘" (자동) |
+| 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
+|---------|----------|--------|---------|----------|
+| **flow-evaluator** | 5축 평가 오케스트레이션, work-plan.md 생성, sync gate | flow.md, claim-extraction.md, analyzed/*.md, chapters/*, consensus-results.md | evaluation.md, work-plan.md, archive/ 스냅샷 | `평가해줘` |
+| **claim-extractor** | 문장 단위 주장 추출·5종 분류·3-way(MATCHED/INTERNAL/EXTERNAL) 매칭 | flow.md 또는 chapters/*, analyzed/*.md (모든 버전), consensus-results.md | claim-extraction.md (REANALYZE+HUNT 과제 포함) | flow-evaluator 자동 호출 (prose flow) |
+| **originality-evaluator** | 축 4 심층 평가, 선행 연구 Delta Map | flow 또는 초안, analyzed/*.md | originality-report.md | flow-evaluator 자동 / `독창성 평가해줘` 단독 |
+| **concept-clarity-evaluator** | 축 5 심층 평가, 구성개념 정의 감사 테이블 | flow 또는 초안 | concept-clarity-report.md | flow-evaluator 자동 / `정의 정밀도 평가해줘` 단독 |
 
-### 보조 (3개, 수동 호출)
+#### 생성·수정 (5개)
 
-| 에이전트 | 역할 | 호출 시점 |
-|---------|------|----------|
-| **gap-finder** | 방법론·응용·데이터·이론·시간 Gap 5종 탐색 | "gap 분석해줘" |
-| **methodology-advisor** | 방법론 추천(3가지 비교) 또는 검증 | "방법론 추천/검증해줘" |
-| **peer-reviewer** | 심사 시뮬레이션(Mode A) 또는 대응(Mode B) | "리뷰 체크해줘", "리뷰 답변 도와줘" |
+| 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
+|---------|----------|--------|---------|----------|
+| **paper-analyst** | PDF → 섹션별 인용 다발 (v1/v2/v3 버전 관리, Mode A 초기 / Mode B 재분석) | papers/collected/*.pdf, flow.md | analyzed/*.md (append) | `새 논문 처리해줘` (Mode A 자동) / `논문 재분석해줘` 또는 REANALYZE 과제 (Mode B) |
+| **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, analyzed/*.md (모든 버전), on-demand PDF | chapters/0N-*.md, final/complete-draft.md(.docx) | `초안 작성해줘` |
+| **chapter-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, analyzed/*.md, on-demand PDF | 수정된 chapter 파일 | `Chapter X 수정해줘: ...` (자동) |
+| **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
+| **citation-auditor** | PDF 원문 대조 accuracy 감사 (over-claim·misattribution·APA 형식·분포) | chapter, papers/collected/*.pdf, analyzed/*.md | 감사 리포트 (화면) | `Chapter X 수정해줘` 후 자동 체이닝 + `평가해줘` v1/revised/final 단계 자동 체이닝 |
+
+#### 보조 (3개, 수동 호출)
+
+| 에이전트 | 단일 책임 | 호출 시점 | 노트 |
+|---------|----------|----------|------|
+| **gap-finder** | **분야(field)의 빈틈** 5종(방법론·응용·데이터·이론·시간) 탐색 | `gap 분석해줘` | → *후속 연구 아이디어* 도출용 |
+| **methodology-advisor** | 방법론 추천(Advisor 3가지 비교) 또는 검증(Critic) | `방법론 추천/검증해줘` | ⚠️ **empirical 프로젝트 전용** — theoretical essay에서는 사용 안 함 |
+| **peer-reviewer** | Mode A 가상 심사자 2~3명 시뮬레이션 / Mode B 실제 리뷰 대응 | `리뷰 체크해줘` / `리뷰 답변 도와줘` | Stage 4 최종 품질 게이트 |
+
+---
+
+### 🔍 혼동하기 쉬운 쌍 명확화
+
+#### gap-finder vs originality-evaluator
+
+| 항목 | gap-finder | originality-evaluator |
+|------|-----------|---------------------|
+| **주어** | **분야(field)** | **이 논문(this paper)** |
+| **질문** | "분야 전반에서 뭐가 안 다뤄졌는가?" | "이 논문이 분야에 **새로** 뭐를 더하는가?" |
+| **용도** | 후속 연구 아이디어, 미래 방향 | 현 논문의 novelty positioning, "So What?" 검증 |
+| **출력** | gaps-analysis.md (5종 Gap + 난이도·임팩트) | originality-report.md (Delta Map + 축 4 점수) |
+| **호출 시점** | 수동, 아이디어 발상 단계 | flow-evaluator 자동 (모든 평가 시) |
+
+둘 다 "빠진 것"을 다루지만 **주어가 다름**. 혼동 시 gap-finder를 "미래 연구 제안 도구", originality-evaluator를 "현 논문 기여 심사 도구"로 기억.
+
+#### writing-architect vs chapter-editor vs flow-refiner
+
+| 항목 | writing-architect | chapter-editor | flow-refiner |
+|------|------------------|----------------|--------------|
+| **대상** | chapters/* **신규 창작** | chapters/* **기존 수정** | **flow.md 보강 제안** |
+| **구조 설계** | ✅ Phase 1 필수 | ❌ (기존 구조 유지) | ❌ (제안만) |
+| **사용자 승인 시점** | Phase 1 후 (구조 확인) | 즉시 수정 (지시 명확) | 제안 후 (반영 승인) |
+| **직접 파일 수정** | ✅ chapters/* 생성 | ✅ chapters/* 수정 | ⚠️ 승인 후에만 |
+| **후속 에이전트** | — | citation-auditor 자동 체이닝 | — |
+| **호출 빈도** | 1회 (초안) | 반복 (5챕터 × 2-3회) | 0-1회 (선택) |
 
 ---
 
@@ -684,7 +745,7 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
      └── 새 논문 처리해줘 (paper-analyst Mode A + sync 갱신)
 
   → 🔍 레퍼런스 점검해줘 (축 1 경량)
-  → (선택) 📝 flow 업데이트해줘 (writing-architect Mode C)
+  → (선택) 📝 flow 업데이트해줘 (flow-refiner)
 
   → [Stage 2] 초안 작성해줘
      ├── analyzed/*.md 섹션별 인용 다발 우선

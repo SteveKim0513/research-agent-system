@@ -170,6 +170,26 @@ flow.md가 **줄글(prose)** 형태일 때 (= 체크박스 목록이나 구조�
 **축 N 총평**: [한 문단으로 냉정하게]
 ```
 
+### Phase 2.5: 단계별 citation-auditor 자동 체이닝 (PDF 기반 Accuracy 검증)
+
+평가 단계(v1-draft / revised / final)에 따라 citation-auditor를 자동 호출하여 축 1-2 Accuracy를 **PDF 원문 기반으로** 검증한다. flow 단계에서는 인용문이 아직 없으므로 스킵.
+
+| 평가 단계 | citation-auditor 실행 범위 | 근거 |
+|---------|-------------------------|------|
+| flow | 스킵 | 인용문 없음 |
+| v1-draft | **chapters/*.md 중 무작위 30% 샘플** | 초안의 첫 accuracy 스냅샷 |
+| revised | **chapters/*.md 전량** | 수정 반영 후 전면 검증 |
+| final | **전량 + 이전 archive 대비 new error diff** | 최종 품질 게이트 |
+
+절차:
+1. `skills/agents/citation-auditor.md` 읽기
+2. 단계별 샘플 대상 선정 (v1-draft: 랜덤 30%, revised/final: 전량)
+3. Agent 도구로 citation-auditor 병렬 호출 (챕터 단위)
+4. 각 결과의 over-claim / misattribution 건수를 수집하여 축 1-2 Accuracy 감점에 반영
+5. final 단계에서는 이전 archive의 citation 감사 결과와 비교하여 **새로 생긴 오류**만 별도 리포트
+
+이 체이닝은 `"Chapter X 수정해줘"` 명령의 post-edit citation-auditor 호출과 **별개**이며 평가 단계마다 독립적으로 실행된다.
+
 ### Phase 3: 축 간 상호작용 점검
 
 일부 문제는 여러 축에 동시 영향. 예:

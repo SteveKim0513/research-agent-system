@@ -37,20 +37,22 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 ## 서브 에이전트 시스템
 
-이 스킬은 10개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 12개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
 | **flow-evaluator** 🎯 | `skills/agents/flow-evaluator.md` | "평가해줘" / "flow 평가" / "원고 평가" | 자동 (평가 진입점) |
-| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md의 문장 단위 주장 추출 (flow-evaluator가 자동 호출) | 자동 |
-| **originality-evaluator** | `skills/agents/originality-evaluator.md` | 축 4 심층 평가 (flow-evaluator가 자동 호출) | 자동/수동 |
-| **concept-clarity-evaluator** | `skills/agents/concept-clarity-evaluator.md` | 축 5 심층 평가 (flow-evaluator가 자동 호출) | 자동/수동 |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" | 자동 |
-| **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" | 자동 |
-| **citation-auditor** | `skills/agents/citation-auditor.md` | "챕터 수정", FINAL 단계 full-pass | 자동 |
-| **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" | 수동 |
-| **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" | 수동 |
-| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘", FINAL 단계 | 수동/자동 |
+| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (flow-evaluator 자동 호출) | 자동 |
+| **originality-evaluator** | `skills/agents/originality-evaluator.md` | 축 4 심층 (flow-evaluator 자동 호출) | 자동/수동 |
+| **concept-clarity-evaluator** | `skills/agents/concept-clarity-evaluator.md` | 축 5 심층 (flow-evaluator 자동 호출) | 자동/수동 |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (Mode A) / "논문 재분석" (Mode B) | 자동 |
+| **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
+| **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
+| **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
+| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1/revised/final) 자동 체이닝 | 자동 |
+| **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
+| **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
+| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Stage 4) | 수동 |
 
 ### 에이전트 호출 방법
 
@@ -140,9 +142,20 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
   "papers": [],
   "last_updated": null,
   "project_name": "{PROJECT_NAME}",
-  "version": "1.0"
+  "version": "1.1",
+  "research_type": null
 }
 ```
+
+`research_type`은 사용자가 flow.md 작성 후 첫 `"평가해줘"` 실행 시 자동 판별하여 채워진다:
+- `"theoretical"` — 이론·개념 에세이 (기존 개념 비판, 새 프레임워크 제안)
+- `"empirical"` — 경험 연구 (데이터 수집·분석·해석)
+
+flow-evaluator가 flow.md의 RQ·Thesis에서 추론하여 설정하며, 사용자가 수동 변경 가능.
+
+**용도**: 
+- `theoretical`인 프로젝트에서는 methodology-advisor 명령을 **명령 추천 목록에서 숨김** (해당 명령이 useless).
+- `empirical`인 프로젝트에서는 methodology-advisor가 **Stage 1-2에서 능동 제안**됨.
 
 ### 단계 5: 안내 메시지 출력
 
@@ -494,8 +507,14 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 ### 단계 1: 축 1 전용 평가
 
 1. `evaluations/latest/claim-extraction.md`의 MATCHED/UNMATCHED 현황 재계산
-2. 각 MATCHED 건의 인용 매핑이 paper-analyst 분석과 정합하는지 sampling 검증 (accuracy)
+2. **PDF 샘플링 accuracy 검증** (신규):
+   - MATCHED 건 중 **2-3개를 무작위 샘플링**
+   - 각 샘플에 대해 `papers/collected/{파일명}.pdf`를 Read로 열어 원문 확인
+   - analyzed/*.md의 섹션별 인용 다발이 원문과 일치하는지 대조
+   - 불일치 발견 시 해당 건을 `⚠️ 재검증 필요`로 플래그 + paper-analyst Mode B 재실행 권장
 3. 새 논문을 반영한 **축 1의 4개 하위 기준만** 재채점 (Coverage, Accuracy, Authority, Balance)
+
+**샘플링 근거**: 초안 작성 전 단계이므로 전량 PDF 대조는 과도. 2-3편 랜덤 샘플로 paper-analyst 요약의 신뢰도만 spot-check. 전량 검증은 Stage 3 수정 시 citation-auditor가 담당.
 
 ### 단계 2: 저장 (경량, archive 스냅샷 없음)
 
@@ -530,18 +549,15 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
 사용자가 "flow 업데이트해줘", "flow 보강", "새 논문 반영해서 flow 고쳐줘" 등을 말하면:
 
-### 단계 1: 새로 확보된 논문 집계
+### 단계 1: 🤖 flow-refiner 에이전트 호출
 
-1. `papers/analyzed/` 중 flow.md 작성 시점 이후 추가된 분석 리포트를 식별
-2. `claim-extraction.md`에서 UNMATCHED → MATCHED로 전환된 문장 목록 수집
+1. `skills/agents/flow-refiner.md` 파일을 읽는다
+2. Agent 도구로 flow-refiner를 호출:
+   - 전달: flow.md + `.sync-state.json` + 신규 analyzed/*.md + evaluations/latest/evaluation.md + claim-extraction.md
+   - 수행: Phase 1 새 논문 집계 → Phase 2-4 축 3·4·기타 보강 후보 탐색 → Phase 5 diff 제안 작성
+3. 에이전트가 제안 리스트를 화면에 출력
 
-### 단계 2: 🤖 writing-architect 경량 호출 (flow-refinement 모드)
-
-1. `skills/agents/writing-architect.md` 읽기
-2. Agent로 flow.md + 신규 analyzed/*.md 전달
-3. 수행: 축 3(반론 보강), 축 4(Delta 명확화)를 실제로 움직일 수 있는 **문단 단위 수정 제안**을 생성. 단, flow.md는 **직접 수정하지 않고** diff 형태로 사용자에게 보고.
-
-### 단계 3: 사용자 확인
+### 단계 2: 사용자 확인
 
 ```
 📝 flow.md 업데이트 제안
@@ -559,11 +575,9 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 👉 이 제안들을 flow.md에 반영할까요? [전체 수락 / 개별 선택 / 거부]
 ```
 
-### 단계 4: 반영 후 권장 사항
+### 단계 3: 반영 후 권장 사항
 
-사용자가 수락하면 flow.md를 갱신하고, **전체 5축 재평가 권장** (이제는 의미 있는 변화 예상).
-
----
+사용자가 수락하면 flow-refiner가 flow.md를 갱신하고 `sync_state.py update-flow` 실행. 이후 **전체 5축 재평가 권장** (이제는 의미 있는 변화 예상).
 
 ---
 
@@ -671,47 +685,23 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
 
 사용자가 "Chapter X 수정해줘: [내용]" 또는 "X장 수정: [내용]" 등을 말하면:
 
-### 단계 1: 챕터 파일 읽기
+### 단계 1: 🤖 chapter-editor 에이전트 호출
 
-```bash
-cat projects/{PROJECT_NAME}/chapters/0{X}-*.md
-```
+1. `skills/agents/chapter-editor.md` 파일을 읽는다
+2. Agent 도구로 chapter-editor를 호출:
+   - 전달: 대상 챕터 경로 + 사용자 수정 지시 + flow.md + 관련 analyzed/*.md + chapter-editor.md 지침
+   - 수행: Phase 1 지시 해석 → Phase 2 재료 수집 → Phase 3 수정 적용 → Phase 4 일관성 자동 체크
+3. 에이전트가 수정된 챕터 파일을 저장
 
-### 단계 2: 수정 사항 적용
+### 단계 2: citation-auditor 자동 체이닝 + Sync 갱신
 
-사용자가 요청한 수정 사항을 해당 챕터에 적용하세요.
+chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에서 `sync_state.py update-chapter`를 실행. SKILL.md에서는 이를 중복 기술하지 않고 chapter-editor에 위임.
 
-### 단계 3: 수정된 챕터 저장
+추가로 SKILL.md가 보장할 것:
+- chapter-editor 완료 후 반환된 결과가 citation-auditor 감사 리포트를 포함하는지 확인
+- sync 갱신 완료 로그 확인
 
-파일에 수정된 내용을 저장하세요.
-
-### 단계 3b: Sync 갱신
-
-```bash
-python3 scripts/sync_state.py update-chapter {PROJECT_NAME} 0{X}-{name}.md
-```
-
-이는 해당 챕터의 현재 해시, flow_hash_at_write, papers_used(현재 사용 중인 논문 버전 매핑)을 `.sync-state.json`에 기록한다. 이후 "최종 통합해줘" 단계에서 final/*의 stale 판정 기준이 됨.
-
-### 단계 4: 자동 일관성 체크
-
-**수정 직후 자동으로 다음을 확인하세요:**
-
-1. **Flow 목표 달성 확인**
-2. **이전/다음 챕터와의 연결 확인**
-3. **중복 내용 확인**
-
-### 단계 5: 🤖 citation-auditor 에이전트 자동 호출
-
-일관성 체크와 함께 **자동으로** citation-auditor 서브 에이전트를 호출한다.
-
-1. `skills/agents/citation-auditor.md` 파일을 읽는다
-2. Agent 도구로 citation-auditor를 실행한다:
-   - 전달: 수정된 챕터 내용 + papers/collected/의 원문 PDF + papers/analyzed/의 분석 리포트 + citation-auditor.md 지침
-   - 수행: 인용 내용 정확성 검증, APA 형식 체크, 인용 분포 분석
-3. 감사 결과를 보고에 포함한다
-
-### 단계 6: 통합 결과 보고
+### 단계 3: 통합 결과 보고
 
 ```
 ✅ Chapter {X} 수정 완료
@@ -1133,13 +1123,13 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 | `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 (+ .sync-state.json 초기화) | - | 0 |
 | 🎯 `"평가해줘"` | **5축 냉정 평가 + 작업계획서** (sync 체크 → archive 스냅샷 → 평가) | 🤖 flow-evaluator (+ claim-extractor + originality + concept-clarity) | flow / v1 / revised / final |
 | 🔍 `"레퍼런스 점검해줘"` | **축 1 경량 재평가** (빠름, archive 없음) | flow-evaluator (axis-1 mode) | Stage 1 직후 |
-| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 writing-architect (Mode C) | Stage 1 직후 |
+| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 flow-refiner | Stage 1 직후 |
 | `"작업 시작해줘"` | work-plan.md REANALYZE 먼저 → HUNT → Consensus 자동 검색 | 🤖 paper-analyst (Mode B) + MCP | 1 리서치 |
 | `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 (v1) + sync 갱신 | 🤖 paper-analyst (Mode A, 자동) | 1 리서치 |
 | 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (v2 append) | 🤖 paper-analyst (Mode B, 자동) | 모든 단계 |
 | 🗑 `"논문 제거해줘: {파일}"` | 안전 archived 이동 + dangling citation 경고 | - | 모든 단계 |
 | `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (Mode A, 자동) | 2 1차작성 |
-| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 + sync 갱신 | 🤖 writing-architect (Mode B) + citation-auditor | 3 수정 |
+| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 + sync 갱신 | 🤖 chapter-editor + citation-auditor (자동 체이닝) | 3 수정 |
 | 📦 `"최종 통합해줘"` | chapters 병합 + docx 재빌드 + sync 갱신 | - | 4 최종 |
 | 🔄 `"sync 확인해줘"` | 아티팩트 간 동기화 상태 점검 + 해결 가이드 | sync_state.py | 모든 단계 |
 | `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder | 리서치 보조 |
@@ -1172,7 +1162,7 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 
   → 🔍 레퍼런스 점검해줘 (축 1 경량)
 
-  → (선택) 📝 flow 업데이트해줘 → writing-architect Mode C diff 제안
+  → (선택) 📝 flow 업데이트해줘 → flow-refiner diff 제안
 
   → [Stage 2] 초안 작성해줘
      ├── writing-architect: analyzed/*.md 섹션별 인용 다발 우선 참조
