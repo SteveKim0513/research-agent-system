@@ -515,6 +515,80 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 ---
 
+## 🎭 Critical Mode — 새로운 관점·비판적 시각의 능동적 지원
+
+### 왜 기본 5축만으로는 부족한가
+
+5축 평가는 **top-tier 저널 주류 심사** 기준을 근사합니다. 그러나 Oxford·Cambridge·ENS·German humanities 같은 **비판 전통이 강한 학문 환경**, 그리고 **paradigm-shifting 논문**에서는 기본 5축이 **조용히 보수적 편향**을 만듭니다:
+
+- Delta Map(축 4-2)은 "분야 내 incremental 차별"을 묻고, 프레임 자체의 전복은 묻지 않음
+- Hedging 원칙은 대담한 주장을 "over-claim"으로 플래그할 수 있음
+- Authority & Recency(축 1-3)는 주류·최신을 선호하여 **잊혀진 소수 전통**을 배제
+- peer-reviewer 3인은 전부 orthodox (Reviewer 2는 paradigm 수호자 성향)
+
+Critical Mode는 이 구조적 편향을 **의식적으로 보정**합니다.
+
+### Critical Mode의 6번째 평가 축
+
+| 기준 | 질문 |
+|------|------|
+| **C-1 Paradigm Mapping** | 분야의 dominant assumption을 명시 지명했나? |
+| **C-2 Fault-line Identification** | 그 paradigm의 구조적 약점(내부 모순·외부 반증·배제 패턴)을 지명했나? |
+| **C-3 Bold Defense** | Over-hedge 없이 대담한 주장을 내고 falsifiability를 제시했나? |
+| **C-4 Minority Evidence Recovery** | 주류가 잊은 소수 목소리·비주류 전통을 복원했나? |
+
+### Socratic 동반자 (critical-companion)
+
+가장 근본적인 기능. Stage 마일스톤마다 **질문만** 생성:
+
+**제1 제약 — 절대적**: 답변·예시·힌트·leading question 전면 금지. 답을 찾는 과정 자체가 새로운 관점의 발견이며, 그 과정은 **반드시 사용자의 것**.
+
+**8 카테고리 × 버전 진화**:
+1. 패러다임 의식 (분야가 당연시하는 것은?)
+2. 대담성 자가 점검 (충분히 용감한가?)
+3. 소수 의견 복원 (잊혀진 목소리는?)
+4. 반대 사고 (정반대가 맞는다면?)
+5. 지적 계보 (누구를 잇는가?)
+6. 지도교수의 도전 (어디를 공격당할까?)
+7. 5년 후 독자 (embarrassing할 부분?)
+8. 숨은 가정 (자신이 당연시하는 것?)
+
+매 버전마다 이전 답변과 현재 원고의 **정합성**을 자동 점검 — 답한 대담함을 원고가 구현했는가? 자기 배신 탐지.
+
+### 철학적 배경
+
+Critical Mode는 다음 학술 비판 전통에 근거:
+
+- **Thomas Kuhn** (*Structure of Scientific Revolutions*): paradigm의 가정을 의식할 때만 paradigm-shift가 가능
+- **Karl Popper** (*Conjectures and Refutations*): 대담한 추측 + 엄격한 검증. Over-hedging은 지적 겁.
+- **Michel Foucault** (*Archaeology of Knowledge*): 지식 체제가 조직적으로 무엇을 말하지 못하게 만드는가
+- **Jürgen Habermas** (*Knowledge and Human Interests*): 모든 지식은 이해관계에 서 있다
+- **Ludwig Wittgenstein** (후기 *Philosophical Investigations*): 개념은 사용 맥락에서 의미를 얻는다 — 새 개념은 새 language game
+- **Mary Douglas** (*How Institutions Think*): 분야는 자기 경계를 방어하며 사고 패턴을 강제한다
+- **Michel de Certeau** (*The Practice of Everyday Life*): 주류 체제 밖에서 "전술적" 저항이 발생
+
+이들의 공통 통찰: **주류는 주류인 이유로 보지 못하는 것이 있다**. 좋은 연구자는 그 맹점을 발견하는 사람.
+
+### intellectual_ambition 설정 가이드
+
+| 값 | 적합 케이스 |
+|----|----------|
+| `incremental` | 분야 내 정밀한 기여, 실증 연구, 세분화·확장 작업 |
+| `critical` | 기존 프레임워크 비판 + 대안 제시, Oxford·Cambridge style 에세이 |
+| `paradigm-shifting` | 분야 근본 재정의, Kuhn적 혁명 시도 |
+
+대부분의 학위논문은 **critical**에서 시작해서 단계적으로 담대해지는 것이 현실적.
+
+### Critical Mode와 시스템 본원 철학의 관계
+
+이 모드는 기본 5축에 **덧붙은 것**이 아니라, 기본 철학을 **극한까지 밀고 간 형태**입니다. 시스템의 근본 원칙은 "사용자의 지적 주체성 보존"이며, Critical Mode는 특히 **비판적 주체성**을 보호합니다.
+
+- **Cold evaluation**은 관대하지 않지만, **critical-companion은 질문만 하고 답은 안 함** — 관대함과 다른 차원의 존중
+- **단일 책임 원칙**은 critical-lens-evaluator와 originality-evaluator를 분리 — 전자는 paradigm 밖, 후자는 분야 내
+- **Safe backtracking**은 critical-questions.archive로 확장 — 사용자의 지적 진화 전체를 보존
+
+---
+
 ## 🎯 결론
 
 이 시스템은 **좋은 논문이 되기 위한 모든 고려사항**을 다음 세 층위로 구현합니다:

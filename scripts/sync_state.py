@@ -22,6 +22,9 @@ sync_state.py — Research-Agent 프로젝트의 아티팩트 sync 상태 관리
     python scripts/sync_state.py snapshot-chapters <project_name> <trigger> [chapter_filename]
         trigger: "pre-redraft", "chX-edit" 등의 태그 (폴더명에 포함)
         chapter_filename 지정 시 해당 챕터만 스냅샷, 미지정 시 chapters/ 전체
+    python scripts/sync_state.py snapshot-critical-questions <project_name> <trigger>
+        trigger: "post-research", "post-draft", "manual-update" 등
+        critical-questions.md를 critical-questions.archive/{NNN}-{date}-{trigger}.md로 보존
 """
 
 import hashlib
@@ -195,6 +198,30 @@ def cmd_snapshot_chapters(project_name: str, trigger: str, chapter_filename: str
         for src in chapter_files:
             (dest_dir / src.name).write_bytes(src.read_bytes())
         print(f"✅ 전체 챕터 스냅샷: {dest_dir} ({len(chapter_files)}개 파일)")
+    return 0
+
+
+def cmd_snapshot_critical_questions(project_name: str, trigger: str) -> int:
+    """critical-questions.md를 critical-questions.archive/{NNN}-{date}-{trigger}.md로 보존.
+
+    critical-companion이 새 버전 생성 직전 호출.
+    """
+    root = project_root(project_name)
+    src = root / "critical-questions.md"
+    if not src.exists():
+        print(f"ℹ️  critical-questions.md 없음 (초기 버전) — 스냅샷 스킵")
+        return 0
+
+    archive_dir = root / "critical-questions.archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    existing = sorted([p for p in archive_dir.iterdir() if p.is_file() and p.name[:3].isdigit()])
+    next_n = len(existing) + 1
+    next_tag = f"{next_n:03d}"
+    date = datetime.now().strftime("%Y-%m-%d")
+    dest = archive_dir / f"{next_tag}-{date}-{trigger}.md"
+    dest.write_bytes(src.read_bytes())
+    print(f"✅ critical-questions 스냅샷: {dest}")
     return 0
 
 
@@ -527,6 +554,8 @@ def main(argv: list[str]) -> int:
         if cmd == "snapshot-chapters" and 2 <= len(args) <= 3:
             chapter_fn = args[2] if len(args) == 3 else None
             return cmd_snapshot_chapters(args[0], args[1], chapter_fn)
+        if cmd == "snapshot-critical-questions" and len(args) == 2:
+            return cmd_snapshot_critical_questions(args[0], args[1])
     except SystemExit:
         raise
     except Exception as e:

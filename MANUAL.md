@@ -423,7 +423,9 @@ peer-reviewer Mode B:
 
 ## 🤖 서브 에이전트 시스템
 
-총 **12개** 전문 에이전트. 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
+총 **14개** 전문 에이전트 (12 기본 + 2 Critical Mode). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
+
+**Critical Mode**는 프로젝트의 `intellectual_ambition`이 `critical` 또는 `paradigm-shifting`일 때 활성화되며, 비판적 시각·새로운 관점·패러다임 도전을 능동적으로 지원한다 (Oxford·Cambridge·프랑스 고등연구원 style).
 
 ### 📊 에이전트 분류 (3 카테고리)
 
@@ -436,11 +438,20 @@ peer-reviewer Mode B:
 | **originality-evaluator** | 축 4 심층 평가, 선행 연구 Delta Map | flow 또는 초안, analyzed/*.md | originality-report.md | flow-evaluator 자동 / `독창성 평가해줘` 단독 |
 | **concept-clarity-evaluator** | 축 5 심층 평가, 구성개념 정의 감사 테이블 | flow 또는 초안 | concept-clarity-report.md | flow-evaluator 자동 / `정의 정밀도 평가해줘` 단독 |
 
+#### Critical Mode 전용 (2개) — ambition ≥ critical 시 활성화
+
+| 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
+|---------|----------|--------|---------|----------|
+| **critical-lens-evaluator** 🎭 | 축 6 비판적 시각 (C-1 Paradigm Mapping, C-2 Fault-line, C-3 Bold Defense, C-4 Minority Recovery) | flow/chapters, critical-questions.md 답변, Mode C 분석 | critical-lens-report.md | flow-evaluator 자동 / `비판적 시각 평가해줘` 단독 |
+| **critical-companion** 🤔 | Socratic 질문 생성 (답변 절대 금지) + 이전 답변-원고 정합성 점검 | flow/chapters, evaluations, 이전 critical-questions.md | critical-questions.md (신규 버전), archive/에 이전 버전 | Stage 마일스톤 자동 / `질문 업데이트해줘` 수동 |
+
+**critical-companion의 절대 원칙**: 질문만 생성하고 **답변 예시·초안·암시·leading question 절대 금지**. 답을 찾는 과정 자체가 새로운 관점의 발견이며, 그 과정은 사용자의 것이어야 한다.
+
 #### 생성·수정 (5개)
 
 | 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
 |---------|----------|--------|---------|----------|
-| **paper-analyst** | PDF → 섹션별 인용 다발 (v1/v2/v3 버전 관리, Mode A 초기 / Mode B 재분석) | papers/collected/*.pdf, flow.md | analyzed/*.md (append) | `새 논문 처리해줘` (Mode A 자동) / `논문 재분석해줘` 또는 REANALYZE 과제 (Mode B) |
+| **paper-analyst** | PDF → 섹션별 인용 다발 (v1/v2/v3 버전 관리) + Mode C (Critical Reading: hidden assumptions/biases/politics/alternatives/silences) | papers/collected/*.pdf, flow.md | analyzed/*.md (append) | `새 논문 처리해줘` (A 자동) / `논문 재분석해줘` (B) / `비판적으로 분석해줘` (C, ambition ≥ critical 자동) |
 | **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, analyzed/*.md (모든 버전), on-demand PDF | chapters/0N-*.md, final/complete-draft.md(.docx) | `초안 작성해줘` |
 | **chapter-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, analyzed/*.md, on-demand PDF | 수정된 chapter 파일 | `Chapter X 수정해줘: ...` (자동) |
 | **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
@@ -452,7 +463,7 @@ peer-reviewer Mode B:
 |---------|----------|----------|------|
 | **gap-finder** | **분야(field)의 빈틈** 5종(방법론·응용·데이터·이론·시간) 탐색 | `gap 분석해줘` | → *후속 연구 아이디어* 도출용 |
 | **methodology-advisor** | 방법론 추천(Advisor 3가지 비교) 또는 검증(Critic) | `방법론 추천/검증해줘` | ⚠️ **empirical 프로젝트 전용** — theoretical essay에서는 사용 안 함 |
-| **peer-reviewer** | Mode A 가상 심사자 2~3명 시뮬레이션 / Mode B 실제 리뷰 대응 | `리뷰 체크해줘` / `리뷰 답변 도와줘` | Stage 4 최종 품질 게이트 |
+| **peer-reviewer** | Mode A 가상 심사자 2~3명 + **Reviewer 4 Iconoclast (ambition ≥ critical 시 자동 추가)** / Mode B 실제 리뷰 대응 | `리뷰 체크해줘` / `리뷰 답변 도와줘` | Stage 4 최종 품질 게이트. Iconoclast는 timidity·paradigm 내부 머무름·자기 배신 탐지 |
 
 ---
 
@@ -664,6 +675,77 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 
 ---
 
+## 🎭 Critical Mode (비판적 시각 지원)
+
+### 활성화 방법
+
+프로젝트의 `.paper-metadata.json`에 `intellectual_ambition` 필드를 설정:
+
+```json
+{
+  "research_type": "theoretical",
+  "intellectual_ambition": "critical"
+}
+```
+
+3단계 값:
+- `"incremental"` (기본): 분야 내 점진적 기여. Critical Mode 비활성
+- `"critical"`: 비판적 시각 능동 지원. critical-companion·critical-lens-evaluator·Iconoclast 자동 체이닝
+- `"paradigm-shifting"`: 패러다임 도전 전용. Hedging 관대, 비주류 인용 환영, Iconoclast를 주 심사자로 승격
+
+### critical-questions.md 사용 흐름
+
+```
+Stage별 자동 질문 업데이트:
+  flow 작성 후 → v1 questions (패러다임 의식·반대 사고)
+  Stage 1 리서치 후 → v2 (소수 의견·지적 계보)
+  Stage 2 초안 후 → v3 (대담성 자가 점검·정합성)
+  Stage 3 수정 후 → v4 (수정이 대담함을 깎았나)
+  Stage 4 전 → v5 (지도교수 심판·5년 후 독자)
+```
+
+### 사용자의 책임
+
+critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않습니다**. 사용자가 답을 쓰는 과정 자체가 새로운 관점의 발견입니다.
+
+답변 작성 팁:
+1. **짧게 쓰지 마세요** — 한 문장 답은 생각 안 한 것
+2. **정합성 경고를 무시하지 마세요** — "v2에서 X라고 답했는데 원고는 Y"는 지적 자기 배신 신호
+3. **답하지 않은 질문도 가치** — carry-over되며 "2회째 미답변"이 되면 회피 중임을 자기 진단
+4. **답변 후 평가해줘** → critical-lens-evaluator가 답변과 원고 정합성을 5점 보너스 또는 감점으로 반영
+
+### 8개 질문 카테고리
+
+| # | 이름 | 핵심 질문 예시 |
+|---|------|--------------|
+| 1 | 패러다임 의식 | "분야가 당연시하는 가정 중 당신이 의심하는 것?" |
+| 2 | 대담성 자가 점검 | "10배 더 대담해지면 주장이 어떻게 바뀌나?" |
+| 3 | 소수 의견 복원 | "주류가 인용하지 *않는* 결정적 논문은?" |
+| 4 | 반대 사고 | "당신 thesis의 정반대가 맞는다면 왜?" |
+| 5 | 지적 계보 | "당신 논증 스타일은 누구와 가장 닮았나?" |
+| 6 | 지도교수의 도전 | "지도교수 스타일로 상상할 때 어느 지점이 지적당하나?" |
+| 7 | 5년 후 독자 | "5년 후 이 논문의 embarrassing할 부분은?" |
+| 8 | 숨은 가정 | "당신 자신이 당연하게 받아들이는 것은?" |
+
+### critical-lens-evaluator의 4축 (축 6)
+
+| 기준 | 평가 내용 |
+|------|---------|
+| C-1 Paradigm Mapping | 분야의 dominant assumption을 명시 지명 |
+| C-2 Fault-line Identification | 그 paradigm의 구조적 약점 |
+| C-3 Bold Defense | Over-hedge 없는 대담한 주장 + falsifiability |
+| C-4 Minority Evidence Recovery | 잊혀진 소수 의견·비주류 전통 복원 |
+
+### peer-reviewer Iconoclast (Reviewer 4)
+
+`ambition ≥ critical`일 때 자동 추가. 특징:
+- **Timidity 지적**: "여기서 한 걸음 더 나아가야 한다"
+- **Paradigm 내부 머무름 지적**: "비판한다면서 그 게임 안에 있다"
+- **자기 배신 탐지**: critical-questions.md 답변과 원고 불일치 적발
+- **대담성 등급**: ★★★★★ 5점 척도로 평가
+
+---
+
 ## 📁 파일 구조와 역할
 
 ### 사용자가 작성·관리하는 파일
@@ -679,6 +761,9 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 |------|----------|------|
 | `FLOW-TEMPLATE.md` | 프로젝트 생성 시 | 줄글 작성 가이드 (수정 금지) |
 | `.sync-state.json` | 프로젝트 생성 시 | **아티팩트 의존성·버전 추적** (sync 아키텍처의 핵심) |
+| `critical-questions.md` | Stage 마일스톤 (ambition ≥ critical) | **사용자가 답변하는 Socratic 질문** — 답변 없이는 평가 불완전 |
+| `critical-questions.archive/` | 매 critical-companion 재실행 | **질문·답변 버전 히스토리** (지적 여정 기록) |
+| `evaluations/latest/critical-lens-report.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 축 6 심층, paradigm 평가 + 답변 정합성 점검 |
 | `evaluations/latest/evaluation.md` | "평가해줘" | 5축 점수 + 감점 사유 + delta |
 | `evaluations/latest/work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
 | `evaluations/latest/claim-extraction.md` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |

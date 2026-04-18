@@ -37,7 +37,7 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 ## 서브 에이전트 시스템
 
-이 스킬은 12개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 14개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
@@ -45,14 +45,16 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (flow-evaluator 자동 호출) | 자동 |
 | **originality-evaluator** | `skills/agents/originality-evaluator.md` | 축 4 심층 (flow-evaluator 자동 호출) | 자동/수동 |
 | **concept-clarity-evaluator** | `skills/agents/concept-clarity-evaluator.md` | 축 5 심층 (flow-evaluator 자동 호출) | 자동/수동 |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (Mode A) / "논문 재분석" (Mode B) | 자동 |
+| **critical-lens-evaluator** 🎭 | `skills/agents/critical-lens-evaluator.md` | 비판적 시각 축 (ambition ≥ critical 시 자동) | 자동/수동 |
+| **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (A) / "논문 재분석" (B) / "비판적으로 분석" (C) | 자동 |
 | **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
 | **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
 | **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1/revised/final) 자동 체이닝 | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
-| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Stage 4) | 수동 |
+| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
 
 ### 에이전트 호출 방법
 
@@ -151,11 +153,25 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 - `"theoretical"` — 이론·개념 에세이 (기존 개념 비판, 새 프레임워크 제안)
 - `"empirical"` — 경험 연구 (데이터 수집·분석·해석)
 
-flow-evaluator가 flow.md의 RQ·Thesis에서 추론하여 설정하며, 사용자가 수동 변경 가능.
+**추가 필드: intellectual_ambition** (Critical Mode 제어):
+
+```json
+{
+  ...
+  "research_type": "theoretical",
+  "intellectual_ambition": "incremental"
+}
+```
+
+3단계 값:
+- `"incremental"` (기본): 분야 내 점진적 기여. critical-companion·critical-lens-evaluator·Iconoclast 비활성.
+- `"critical"`: 비판적 시각을 능동적으로 지원. 위 3개 agent 자동 체이닝. Hedging 기본 엄격도 유지.
+- `"paradigm-shifting"`: 대담한 주장을 방어. Hedging 관대, 비주류 인용 환영, 모든 critical agent 자동 호출.
 
 **용도**: 
-- `theoretical`인 프로젝트에서는 methodology-advisor 명령을 **명령 추천 목록에서 숨김** (해당 명령이 useless).
-- `empirical`인 프로젝트에서는 methodology-advisor가 **Stage 1-2에서 능동 제안**됨.
+- `theoretical`인 프로젝트에서는 methodology-advisor 명령을 **명령 추천 목록에서 숨김**
+- `critical` 이상인 프로젝트에서는 **critical-companion·critical-lens-evaluator·peer-reviewer Iconoclast**를 자동 체이닝
+- `paradigm-shifting`인 프로젝트에서는 **peer-reviewer가 Iconoclast를 주 심사자로 승격**, 대담한 주장 penalty 완화
 
 ### 단계 5: 안내 메시지 출력
 
@@ -1132,6 +1148,111 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 
 ---
 
+## 🤔 비판적 질문 업데이트 (critical-companion)
+
+사용자가 `"질문 업데이트해줘"`, `"비판적 질문 생성해줘"`, `"critical questions"` 등을 말하면:
+
+### 단계 1: 선행 조건 확인
+
+1. `.paper-metadata.json`의 `intellectual_ambition` 확인
+   - `incremental`이면: "이 기능은 ambition이 critical 이상일 때 활성화됩니다. 변경하시겠습니까?" 안내
+2. 기존 `critical-questions.md` 존재 여부 확인 (있으면 버전 관리 대상)
+
+### 단계 2: 이전 버전 스냅샷
+
+기존 `critical-questions.md`가 존재하면:
+```bash
+python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigger}
+```
+
+trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
+
+### 단계 3: 🤖 critical-companion 호출
+
+1. `skills/agents/critical-companion.md` 파일을 읽는다
+2. Agent 도구로 critical-companion 실행:
+   - 전달: flow.md + chapters/* (있으면) + evaluations/latest/evaluation.md + 이전 critical-questions.md + intellectual_ambition
+   - 수행: Stage 판별 → 카테고리별 질문 생성 → 이전 답변과 원고 정합성 점검 → 다음 버전 예고
+3. 에이전트가 새 버전 `critical-questions.md` 저장, 이전은 archive로 이동
+
+### 단계 4: 사용자 알림
+
+```
+📝 비판적 질문 v{N} 업데이트 완료
+
+경로: projects/{PROJECT}/critical-questions.md
+이전 버전: projects/{PROJECT}/critical-questions.archive/{NNN}-{trigger}.md
+
+📊 요약:
+   🆕 신규 질문: {M}개
+   🔁 Carry-over: {K}개
+   ⚠️ 정합성 경고: {L}건
+
+⚠️ 중요: 시스템이 답변하지 않습니다. 직접 작성하세요.
+    답변 작성이 새로운 관점의 발견 과정입니다.
+    답변 후 "평가해줘" 재실행하면 critical-lens-evaluator가 반영합니다.
+
+👉 다음 단계:
+   1. critical-questions.md 열어 질문에 자기 언어로 답변
+   2. 답변한 내용을 원고에 반영할지 결정
+   3. "평가해줘" → 답변·원고 정합성 점검
+```
+
+---
+
+## 🎭 비판적 시각 평가 (critical-lens-evaluator, 단독 호출)
+
+사용자가 `"비판적 시각 평가해줘"`, `"critical lens 평가"`, `"paradigm 평가"` 등을 말하면:
+
+### 단계 1: 선행 조건 확인
+
+`.paper-metadata.json`의 `intellectual_ambition ≥ critical` 확인. `incremental`이면 다음 메시지 후 중단:
+> "이 평가는 ambition이 critical 이상일 때만 의미 있습니다. `intellectual_ambition`을 변경하시겠습니까?"
+
+### 단계 2: 🤖 critical-lens-evaluator 호출
+
+1. `skills/agents/critical-lens-evaluator.md` 파일을 읽는다
+2. Agent 도구로 실행:
+   - 전달: flow.md 또는 초안 + critical-questions.md (있으면 답변 정합성 점검 핵심) + analyzed/*.md (Mode C 것 우선) + evaluations/latest/originality-report.md
+   - 수행: C-1 Paradigm Mapping / C-2 Fault-line / C-3 Bold Defense / C-4 Minority Recovery 4축 평가 + critical-questions.md 답변-원고 정합성 검증
+3. 결과를 `projects/{PROJECT_NAME}/evaluations/latest/critical-lens-report.md`에 저장
+
+### 단계 3: 화면 보고
+
+축별 점수 + critical-questions.md 정합성 요약 + 심사자 예상 공격 + 개선 권장 우선순위.
+
+---
+
+## 🔍 논문 비판적 분석 (paper-analyst Mode C)
+
+사용자가 `"비판적으로 분석해줘: {파일}"`, `"{논문} critical read"` 등을 말하면:
+
+### 단계 1: paper-analyst Mode C 호출
+
+1. `skills/agents/paper-analyst.md` 파일을 읽는다
+2. Agent 도구로 **Mode C**로 호출:
+   - 전달: 대상 PDF + flow.md + 기존 analyzed/*.md + Mode C 지침
+   - 수행: Hidden assumptions / Methodological biases / Field politics / Alternative interpretations / Silences 추출
+3. `analyzed/{파일}-analysis.md`에 `## [critical] 비판적 읽기` 섹션 **append** (기존 v1/v2 보존)
+
+### 단계 2: 비판적 발견 사항 알림
+
+```
+🔍 비판적 분석 완료: {파일}
+
+📌 주요 발견:
+   • Hidden assumptions: {N}개
+   • Methodological biases: {M}개
+   • Field politics: {분석}
+   • Alternative interpretations: {K}개
+   • Silences: {L}개
+
+💡 이 발견을 critical-questions.md 다음 버전 질문 후보로 제안합니다.
+   "질문 업데이트해줘" 실행 권장.
+```
+
+---
+
 ## 독창성 심층 평가 (축 4, 단독 호출)
 
 사용자가 "독창성 평가해줘", "contribution 평가", "novelty 확인해줘" 등을 말하면:
@@ -1177,6 +1298,9 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 | `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer | 4 최종 |
 | `"독창성 평가해줘"` | 축 4 심층 평가 (단독 호출) | 🤖 originality-evaluator | 모든 단계 |
 | `"정의 정밀도 평가해줘"` | 축 5 심층 평가 (단독 호출) | 🤖 concept-clarity-evaluator | 모든 단계 |
+| 🎭 `"비판적 시각 평가해줘"` | 비판적 시각·패러다임 평가 (ambition ≥ critical) | 🤖 critical-lens-evaluator | 모든 단계 |
+| 🤔 `"질문 업데이트해줘"` | Socratic 질문 v+1 생성 + 정합성 점검 | 🤖 critical-companion | Stage 마일스톤 + 수동 |
+| 🔍 `"비판적으로 분석해줘: {파일}"` | paper-analyst Mode C — hidden assumptions 등 | 🤖 paper-analyst (Mode C) | 리서치 보조 |
 
 **주요 명령 실행 시 자동 sync 동작**:
 - `"평가해줘"` / `"작업 시작해줘"` 등 주요 명령 **시작 시** → `sync_state.py check` → stale 이슈 사용자 보고 (중대 이슈 시 중단 옵션)

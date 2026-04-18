@@ -24,11 +24,21 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 | 4 | 독창성·기여도 | "So What?" · Novelty positioning · Contribution layer · Implications |
 | 5 | 구성개념 정의 정밀도 | Definition · Operationalization · Boundary · Categorical/Dimensional |
 
-### 12개 서브 에이전트
+### 🎭 Critical Mode (비판적 시각 지원)
+
+`intellectual_ambition`을 `critical` 또는 `paradigm-shifting`으로 설정하면 활성화. Oxford·Cambridge·ENS style의 비판 전통을 시스템에 통합:
+
+- **축 6 critical-lens**: Paradigm Mapping / Fault-line / Bold Defense / Minority Recovery
+- **critical-companion**: Stage마다 Socratic 질문 자동 생성 (답은 사용자 몫 — 시스템이 절대 암시하지 않음)
+- **peer-reviewer Iconoclast**: "충분히 대담한가?" 심사자 페르소나
+- **paper-analyst Mode C**: hidden assumptions / methodological biases / field politics 발굴
+
+### 14개 서브 에이전트
 
 **평가 (4)**: flow-evaluator, claim-extractor, originality-evaluator, concept-clarity-evaluator
-**생성·수정 (5)**: paper-analyst, writing-architect, chapter-editor, flow-refiner, citation-auditor
-**보조 (3)**: gap-finder, methodology-advisor, peer-reviewer
+**Critical Mode 전용 (2)**: critical-lens-evaluator, critical-companion
+**생성·수정 (5)**: paper-analyst (A/B/C modes), writing-architect, chapter-editor, flow-refiner, citation-auditor
+**보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 
 ---
 
@@ -103,19 +113,21 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (12개 서브 에이전트)
+│   └── agents/               (14개 서브 에이전트)
 │       ├── flow-evaluator.md
 │       ├── claim-extractor.md
 │       ├── originality-evaluator.md
 │       ├── concept-clarity-evaluator.md
-│       ├── paper-analyst.md
+│       ├── critical-lens-evaluator.md    (Critical Mode)
+│       ├── critical-companion.md         (Critical Mode — Socratic 질문)
+│       ├── paper-analyst.md              (A/B/C modes)
 │       ├── writing-architect.md
 │       ├── chapter-editor.md
 │       ├── flow-refiner.md
 │       ├── citation-auditor.md
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md
-│       └── peer-reviewer.md
+│       └── peer-reviewer.md              (+ Iconoclast persona)
 ├── scripts/                   (메타데이터 추출 등 시스템 스크립트)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/

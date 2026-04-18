@@ -8,11 +8,23 @@
 
 2~3명의 가상 심사자 관점에서 원고를 평가한다.
 
-### 심사자 페르소나
+### 심사자 페르소나 (3 기본 + 1 옵션)
 
 - **Reviewer 1 (엄격한 방법론자)**: 연구 설계, 데이터, 통계적 타당성에 집중
-- **Reviewer 2 (분야 전문가)**: 선행 연구 커버리지, 이론적 기반, 기여도에 집중
+- **Reviewer 2 (분야 전문가)**: 선행 연구 커버리지, 이론적 기반, 기여도에 집중 — 기존 패러다임 수호자 성향
 - **Reviewer 3 (실용주의자)**: 글의 명확성, 논리 흐름, 실무적 함의에 집중
+
+**옵션 페르소나** (프로젝트의 `intellectual_ambition ≥ critical`일 때 자동 추가):
+
+- **Reviewer 4 (이코노클래스트 / 패러다임 도전자)**: 이 논문이 **충분히 대담한가**를 묻는다. Oxford don·Cambridge critical tradition·프랑스 고등연구원 계열의 감수성을 시뮬레이션. 전형 주장:
+  > "이 논문은 기존 프레임을 개선하려 하지만 **프레임 자체를 의심하지 않았다**. 당신이 정말 다른 관점을 갖고 있다면 왜 이렇게 조심스럽게 썼나? 이 논문은 충분히 대담하지 않다."
+
+  **Reviewer 4의 특징적 공격 유형**:
+  1. **Timidity 지적**: "여기서 한 걸음 더 나아가야 한다. 왜 멈췄나?"
+  2. **Paradigm 내부 머무름 지적**: "당신이 비판한다 하지만 여전히 그 게임 안에 있다"
+  3. **Minority evidence 누락 지적**: "왜 Luria를 안 다뤘나? 왜 X 학파는 없나?"
+  4. **자기 배신 지적**: (critical-questions.md를 읽고) "v2에서 X라고 답했는데 원고에는 없다. 왜 타협했나?"
+  5. **대담성 vs Reckless 구분 강요**: "falsifiability 없이 주장하거나, 반대로 검증 가능한데 과도히 약화 — 어느 쪽인가?"
 
 ### 출력 형식
 
@@ -65,6 +77,36 @@
 ## Reviewer 3 (실용주의자)
 
 [같은 구조]
+
+---
+
+## Reviewer 4 (이코노클래스트) — intellectual_ambition ≥ critical일 때만
+
+**판정**: Major Revision (timidity)
+
+**입력 참조**:
+- `critical-questions.md` (사용자가 답변한 내용)
+- `evaluations/latest/critical-lens-report.md` (있으면)
+
+**주요 코멘트**:
+
+1. **[Major] Timid thesis**
+   - "Section 1의 thesis는 너무 안전하다. v2 Q2.1 답변에서 '4분면이 EF의 존재론적 본성이다'라고 했으면서, 본문에서는 'one possible way of organizing'으로 약화"
+   - 💡 대응: 답변한 대담함을 본문에 실제로 구현하거나, 답변을 철회한다면 이유 명시
+
+2. **[Major] Paradigm 내부 머무름**
+   - "이 논문은 Doebel (2020)을 비판하지만 Doebel이 속한 developmental cognitive science의 기본 전제(인지 = 개인 내 처리)를 건드리지 않음. Luria·Vygotsky적 관점에서 이 전제 자체가 공격 대상"
+   - 💡 대응: Section 2 후반에 paradigm 수준 비판 추가, 또는 이 논문이 paradigm 수준 도전이 아님을 명시
+
+3. **[Minor] Minority evidence 누락**
+   - "v2 Q3.1에서 Luria 복원을 약속했으나 원고에 Luria 인용 0건. 약속 이행 또는 철회"
+   - 💡 대응: critical-questions.md 답변 업데이트 또는 Chapter 2 수정
+
+4. **[Minor] Falsifiability 모호**
+   - "'이 4분면이 맞다면 X를 예측할 것'이라는 반증 조건 명시 부족"
+   - 💡 대응: Section 5에 3가지 반증 경로 추가
+
+**대담성 등급**: ★★☆☆☆ (5점 만점 2점 — "아직 타협 중")
 
 ---
 

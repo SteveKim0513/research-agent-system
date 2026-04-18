@@ -15,7 +15,7 @@
 5. **Methodology** → 어떻게 했는지 (필요 시 상세)
 6. **Results** → Figures에서 놓친 세부사항
 
-## 호출 모드 두 가지
+## 호출 모드 세 가지
 
 ### Mode A: 초기 분석 (v1)
 `"새 논문 처리해줘"` 명령 시 **자동 호출**. 각 PDF를 candidates/ → collected/로 이동하면서 v1 분석 생성.
@@ -23,6 +23,19 @@
 ### Mode B: 재분석 (v2, v3, ...)
 `"논문 재분석해줘"` 명령 또는 work-plan.md의 🔄 REANALYZE 과제 실행 시 호출.
 flow.md가 변경되어 새로운 섹션/논증 각도가 생겼을 때, 같은 PDF를 **새 flow 컨텍스트로** 재스캔하여 기존 analyzed/*.md에 **append**.
+
+### Mode C: 비판적 읽기 (Critical Reading)
+`"비판적으로 분석해줘: {파일}"` 명령 또는 `intellectual_ambition ≥ critical`일 때 특정 핵심 논문에 대해 호출.
+
+Mode A/B가 "저자의 주장과 증거"를 **요약**한다면, Mode C는 그 밑에 깔린 것을 **발굴**한다:
+
+- **Hidden assumptions**: 저자가 당연하게 받아들이는 것 (예: "인지 = 개인 내 처리")
+- **Methodological biases**: 방법 선택에 내재된 편향 (예: WEIRD sampling, confirmation-oriented design)
+- **Field politics**: 이 논문이 속한 학파·이 논문이 무시한 학파
+- **Alternative interpretations**: 같은 데이터를 저자와 다르게 해석할 수 있는 경로
+- **Silences**: 저자가 다루지 않은 명백한 질문
+
+이는 분석자가 **저자의 어깨 너머로** 분야를 조감하는 독서법. Mode C는 표준 분석과 분리된 `## [critical] 비판적 읽기` 섹션으로 `analyzed/*.md`에 append.
 
 ## 분석 출력 형식
 
@@ -136,6 +149,63 @@ flow.md의 각 섹션에서 이 논문을 어떻게 활용할 수 있는지, **�
   - [논문 제목] — [왜 유용한지]
 
 ---
+```
+
+### Mode C (비판적 읽기) — [critical] 섹션 append
+
+기존 파일에 **덮어쓰지 않고** 아래와 같이 append:
+
+```markdown
+... (v1, v2 내용 그대로 유지) ...
+
+---
+
+## [critical] 비판적 읽기 (YYYY-MM-DD)
+
+**분석 angle**: {해당 논문이 우리 프로젝트의 어느 critical 주장과 연관되는가}
+
+### 🔍 Hidden Assumptions
+
+저자가 **검증 없이 전제하는 것**:
+
+1. **[가정 1]**: "..."
+   - 근거: p. X에서 저자가 자명한 듯 서술
+   - 반문: 이 가정이 틀렸다면?
+
+2. **[가정 2]**: ...
+
+### ⚖️ Methodological Biases
+
+- **표본 편향**: WEIRD / 학교화된 세계 중심 / 특정 연령·문화 과대표집
+- **측정 편향**: 탈맥락 과제 우선, 맥락 과제 경시 등
+- **해석 편향**: 결과를 특정 방향으로만 읽음
+
+### 🏛 Field Politics
+
+이 논문이 **속한/반대하는** 학파:
+- 속한 학파: ...
+- 반대하는 학파: ...
+- **의도적으로 무시하는** 저자·전통: [Luria?, Vygotsky?, 비서양 인지?]
+
+### 🔀 Alternative Interpretations
+
+같은 데이터·주장을 **완전히 다르게** 해석할 수 있는 경로:
+- **해석 A (저자)**: ...
+- **해석 B (대안)**: ...  — 이 대안이 맞는다면 함의는?
+- **해석 C (더 급진)**: ...
+
+### 🔇 Silences
+
+이 논문이 **다루지 않은 명백한 질문**:
+- Q1: "..."
+- Q2: "..."
+- (이 침묵이 의도적인가, 우연인가?)
+
+### 📌 우리 프로젝트에서 이 비판적 읽기의 활용
+
+- critical-questions.md에 **새 질문 후보**로 제안: [...]
+- 원고 Section X에 **대안 해석** 반영 가능
+- critical-lens-evaluator의 C-2 Fault-line 재료
 ```
 
 ### Mode B (재분석) — v2/v3 섹션 append
