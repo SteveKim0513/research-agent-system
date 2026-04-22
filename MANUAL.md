@@ -65,14 +65,14 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 |------|------|-------------|-------------------------|--------|
 | 1. 프로젝트 생성 | `"[이름] 프로젝트 만들어줘"` | — | sync_state.py init | 폴더 구조 + 빈 flow.md |
 | 2. flow.md 작성 | (사용자 직접) | — | — | flow.md (prose) |
-| 3. 1차 평가 | `평가해줘` | **flow-evaluator** (오케스트레이터) | claim-extractor + originality-evaluator + concept-clarity-evaluator + (v1-draft/revised/final일 때) citation-auditor | evaluation.md, work-plan.md, claim-extraction.md, originality-report.md, concept-clarity-report.md |
+| 3. 1차 평가 | `평가해줘` | **flow-evaluator** (오케스트레이터) | claim-extractor + originality-evaluator + concept-clarity-evaluator + (ambition ≥ critical: critical-lens-evaluator + critical-companion) + (v1-draft/revised/final: citation-auditor 단계별 샘플링) | evaluation.md, work-plan.md, claim-extraction.md, originality-report.md, concept-clarity-report.md, (+critical-lens-report.md, critical-questions.md v+1) |
 | 4a. 리서치 실행 | `작업 시작해줘` | — (MCP 직접 호출) | **paper-analyst Mode B** (REANALYZE 과제), Consensus MCP (HUNT 과제) | consensus-results.md 누적, analyzed/*.md v2+ append |
 | 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 |
 | 5a. 경량 점검 | `레퍼런스 점검해줘` | **flow-evaluator** (axis-1 mode) | PDF 2-3편 샘플링 자동 검증 | evaluation.md 축 1만 갱신 |
 | 5b. flow 보강 | `flow 업데이트해줘` | **flow-refiner** | — | flow.md 업데이트 제안 → 승인 시 flow.md 갱신 |
-| 6. 1차 초안 | `초안 작성해줘` | **writing-architect** (Phase 1 → 사용자 승인 → Phase 2) | on-demand PDF 접근 | chapters/*.md, final/complete-draft.md, .docx |
+| 6. 1차 초안 | `초안 작성해줘` | **writing-architect** (Phase 1 → 사용자 승인 → Phase 2) | (ambition ≥ critical: commitment 추출 prehook 자동) + on-demand PDF 접근 | chapters/*.md, final/complete-draft.md, .docx, critical-commitments.md 갱신 |
 | 7. 2차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 30% 샘플** | archive/002 + 갱신된 evaluations/latest/ |
-| 8. 챕터 수정 | `Chapter X 수정해줘: ...` | **chapter-editor** | **citation-auditor** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 |
+| 8. 챕터 수정 | `Chapter X 수정해줘: ...` | **chapter-editor** | (ambition ≥ critical: commitment prehook) + **citation-auditor** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 + critical-commitments.md 상태 갱신 |
 | 9. 3차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 전량** | archive/003 |
 | 10a. 최종 통합 | `최종 통합해줘` | — | — | final/complete-draft.md + .docx 재생성 |
 | 10b. 심사 시뮬 | `리뷰 체크해줘` | **peer-reviewer** (Mode A) | — | 리뷰어 3명 시뮬 리포트 |
@@ -718,16 +718,19 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 - `"critical"`: 비판적 시각 능동 지원. critical-companion·critical-lens-evaluator·Iconoclast 자동 체이닝
 - `"paradigm-shifting"`: 패러다임 도전 전용. Hedging 관대, 비주류 인용 환영, Iconoclast를 주 심사자로 승격
 
-### critical-questions.md 사용 흐름
+### critical-questions.md 자동 업데이트 트리거 (ambition ≥ critical 시)
 
-```
-Stage별 자동 질문 업데이트:
-  flow 작성 후 → v1 questions (패러다임 의식·반대 사고)
-  Stage 1 리서치 후 → v2 (소수 의견·지적 계보)
-  Stage 2 초안 후 → v3 (대담성 자가 점검·정합성)
-  Stage 3 수정 후 → v4 (수정이 대담함을 깎았나)
-  Stage 4 전 → v5 (지도교수 심판·5년 후 독자)
-```
+`"평가해줘"` 명령이 stage를 판별하여 critical-companion을 **자동 호출**:
+
+| stage | critical-companion trigger | 생성 버전 |
+|-------|--------------------------|---------|
+| flow 단계 첫 평가 | `initial` | v1 (패러다임 의식·반대 사고) |
+| Stage 1 리서치 완료 후 | `post-research` | v2 (소수 의견·지적 계보) |
+| v1-draft 평가 | `post-draft` | v3 (대담성·정합성) |
+| revised 평가 | `post-revision` | v4 (수정이 대담함을 깎았나) |
+| final 직전 | `pre-final` | v5 (지도교수 심판·5년 후 독자) |
+
+사용자는 stage 전환 시 자동으로 새 질문을 받음. 수동 업데이트는 `"질문 업데이트해줘"`.
 
 ### 사용자의 책임
 

@@ -258,7 +258,9 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 
 평가 대상이 이미 작성된 원고(`chapters/*.md`, `final/*.md`)인 경우에도 동일하게 claim-extractor를 선행 호출 (문장 단위 인용 누락 감사용).
 
-### 단계 3: 🤖 flow-evaluator 오케스트레이터 호출
+### 단계 3: 🤖 flow-evaluator 오케스트레이터 호출 + 병렬 체이닝
+
+#### 3-a. flow-evaluator 실행
 
 1. `skills/agents/flow-evaluator.md` 파일을 읽는다
 2. 다음을 수집하여 Agent 도구 prompt에 포함:
@@ -269,10 +271,42 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    - `papers/analyzed/*.md` (논문 분석)
    - `papers/collected/` 파일 목록
    - 현재 평가 단계 (flow / v1-draft / revised / final)
-3. Agent 도구로 flow-evaluator를 실행한다:
-   - 수행: Phase 0 구조 추론(prose인 경우) → 5축 독립 평가 → 축 간 상호작용 점검 → 축별 작업 계획서 (HUNT 과제 포함)
-4. **축 4 심층 평가**가 필요하면 originality-evaluator를 병렬 호출 (flow-evaluator가 판단)
-5. **축 5 심층 평가**가 필요하면 concept-clarity-evaluator를 병렬 호출 (flow-evaluator가 판단)
+   - **`critical-commitments.md`** (존재 시 — 커버리지를 축 4·6 점수에 반영)
+3. Agent 도구로 flow-evaluator를 실행한다
+
+#### 3-b. 병렬 체이닝 (자동) — 아래 에이전트들을 flow-evaluator와 동시 호출
+
+**항상 병렬 호출**:
+- **originality-evaluator** — 축 4 심층 → `originality-report.md`
+- **concept-clarity-evaluator** — 축 5 심층 → `concept-clarity-report.md`
+
+**Critical Mode 활성 시 추가** (`.paper-metadata.json`의 `intellectual_ambition ≥ critical`):
+- **critical-lens-evaluator** — 축 6 심층 → `critical-lens-report.md`
+- **critical-companion** — stage 마일스톤일 때 (아래 표 참조)
+
+**평가 단계(stage)가 v1-draft/revised/final일 때 추가**:
+- **citation-auditor** — PDF 원문 대조 accuracy 검증
+  - v1-draft: chapters/*.md 중 **무작위 30% 샘플**
+  - revised: **chapters/*.md 전량**
+  - final: **전량 + 이전 archive 대비 new-error diff**
+
+#### 3-c. stage 마일스톤 판별 (critical-companion 트리거)
+
+다음 조건에서 critical-companion을 자동 호출:
+
+| 조건 | 트리거 | critical-companion trigger 파라미터 |
+|------|-------|----------------------------------|
+| flow 단계 첫 평가 | 자동 | `initial` |
+| Stage 1 리서치 완료 후 첫 평가 | 자동 | `post-research` |
+| v1-draft 평가 | 자동 | `post-draft` |
+| revised 평가 | 자동 | `post-revision` |
+| final 직전 평가 | 자동 | `pre-final` |
+
+stage 판별 논리는 flow-evaluator가 수행. 해당 trigger로 critical-companion을 별도 호출 (ambition ≥ critical일 때만).
+
+#### 3-d. 모든 병렬 호출 동시 실행
+
+위 에이전트들은 **상호 독립적**이므로 하나의 응답에서 여러 Agent 도구를 **병렬 호출**. flow-evaluator가 최종적으로 모든 결과를 종합하여 evaluation.md 생성.
 
 ### 단계 4: 결과 저장
 
@@ -610,12 +644,26 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
 사용자가 "초안 작성해줘", "draft 생성", "글 써줘" 등을 말하면:
 
+### 단계 0: Commitment 추출 Prehook (Critical Mode 활성 시)
+
+`.paper-metadata.json`의 `intellectual_ambition ≥ critical`이고 `critical-questions.md`가 존재하면:
+
+1. `critical-questions.md`의 mtime이 `critical-commitments.md`의 mtime보다 **최신**인지 확인
+2. 최신이면 (사용자가 답변을 새로 작성했다는 의미) → `"답변 반영해줘"` 명령 자동 실행 (critical-companion Phase 6만):
+   ```
+   🔄 critical-questions.md 변경 감지 — commitment 자동 추출 실행
+   ```
+3. `critical-commitments.md` 갱신 완료 후 단계 1로 진행
+
+이 prehook은 **답변이 실제 결과물에 반영되도록 보장**하는 핵심. 사용자가 답변 작성 후 별도 명령 없이도 writing 에이전트가 최신 commitment를 읽게 됨.
+
 ### 단계 1: 준비 확인
 
 1. **현재 프로젝트의 flow.md 읽기**
 2. **현재 프로젝트의 .paper-metadata.json 읽기**
 3. **papers/collected/ 폴더의 논문 목록 확인**
 4. **papers/analyzed/ 폴더의 분석 리포트 확인** (paper-analyst 결과)
+5. **`critical-commitments.md` 읽기** (존재 시 — writing-architect가 spec으로 사용)
 
 ### 단계 1b: 기존 chapters 자동 스냅샷 (데이터 손실 방지)
 
@@ -722,6 +770,12 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
 
 사용자가 "Chapter X 수정해줘: [내용]" 또는 "X장 수정: [내용]" 등을 말하면:
 
+### 단계 -1: Commitment 추출 Prehook (Critical Mode 활성 시)
+
+`intellectual_ambition ≥ critical`이고 `critical-questions.md` mtime > `critical-commitments.md` mtime이면:
+- `"답변 반영해줘"` 자동 실행 → critical-commitments.md 갱신
+- 사용자에게 `🔄 답변에서 commitment 추출 완료` 알림
+
 ### 단계 0: 수정 전 단일 챕터 자동 스냅샷
 
 chapter-editor 호출 전에 대상 챕터의 현재 상태를 archive에 보존:
@@ -819,7 +873,22 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 
 ---
 
-## 방법론 추천/검증 (수동 호출)
+## 방법론 추천/검증 (수동 호출 + empirical 자동 제안)
+
+### 자동 제안 트리거
+
+`.paper-metadata.json`의 `research_type == "empirical"`일 때 다음 시점에 **시스템이 능동적으로 methodology-advisor 사용을 제안**:
+
+| 시점 | 제안 메시지 |
+|------|-----------|
+| 프로젝트 생성 직후 flow.md 저장 시 | "empirical 프로젝트로 감지됨. 방법론 추천을 받아보시겠습니까? → `방법론 추천해줘`" |
+| 첫 `"평가해줘"` 실행 시 | "이 프로젝트는 empirical이지만 방법론이 flow.md에 아직 명시되지 않음. `방법론 추천해줘` 권장" |
+| `"작업 시작해줘"` 실행 시 | "Stage 1 리서치 전 방법론 방향 확정 권장. `방법론 추천해줘` 또는 `방법론 검증해줘`" |
+| Stage 2 초안 작성 직전 | "초안 작성 전 `방법론 검증해줘`로 최종 점검 권장" |
+
+사용자는 이 제안을 무시하거나 "skip" 가능. 그러나 **Stage 3 수정** 단계에서 방법론 약점이 축 2·3 감점의 주요 원인으로 나타나면 강력히 권고.
+
+### 수동 호출 (모드 A/B)
 
 사용자가 "방법론 추천해줘", "어떻게 접근해야 해?", "방법론 검증해줘" 등을 말하면:
 
