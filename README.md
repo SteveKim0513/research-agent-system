@@ -111,7 +111,8 @@ Claude에서:
 > "초안 작성해줘" ← writing-architect가 구조 설계 → 초안
 ```
 
-**상세 가이드는 [MANUAL.md](./MANUAL.md) 참고.**
+**빠른 사용법은 [GUIDE.md](./GUIDE.md) (3분) 참고.**
+**전체 참고 매뉴얼은 [MANUAL.md](./MANUAL.md) 참고.**
 **시스템의 설계 철학·학술 글쓰기 원칙은 [PRINCIPLES.md](./PRINCIPLES.md) 참고.**
 
 📓 **활동 로그 시스템**: Claude Code hooks가 모든 명령을 `projects/{이름}/activity.log`에 자동 기록. `"작업 추천해줘"`로 로그 기반 다음 명령 추천. 자세히는 [MANUAL.md § 활동 로그](./MANUAL.md#-활동-로그-시스템-activity-log).
@@ -157,7 +158,8 @@ research-agent/
 │       └── final/
 ├── install.sh
 ├── README.md                  (이 파일 — 설치·개요)
-├── MANUAL.md                  (사용자 매뉴얼 — 사용법)
+├── GUIDE.md                   (빠른 사용 가이드 — 3분)
+├── MANUAL.md                  (전체 참고 매뉴얼 — 모든 기능 상세)
 └── PRINCIPLES.md              (설계 철학·학술 글쓰기 원칙)
 ```
 

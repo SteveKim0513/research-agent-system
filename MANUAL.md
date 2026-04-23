@@ -1,9 +1,11 @@
 # Research Agent — 사용자 매뉴얼
 
-Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄글(prose) flow 작성부터 최종 완성까지 이끌어주는 AI 연구 관리 시스템의 사용 가이드입니다.
+Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄글(prose) flow 작성부터 최종 완성까지 이끌어주는 AI 연구 관리 시스템의 **전체 참고 매뉴얼**입니다.
 
-> - 설치가 되어 있지 않다면 먼저 [README.md](./README.md)를 참고하세요.
-> - "왜 이렇게 설계되었는가?" 궁금하면 [PRINCIPLES.md](./PRINCIPLES.md)(설계 철학·학술 글쓰기 원칙) 참고.
+> - **빠르게 시작하고 싶다면** 먼저 [GUIDE.md](./GUIDE.md) (3분) 참고 — 핵심만.
+> - 설치가 되어 있지 않다면 [README.md](./README.md) 참고.
+> - "왜 이렇게 설계되었는가?" 궁금하면 [PRINCIPLES.md](./PRINCIPLES.md)(설계 철학) 참고.
+> - **이 문서(MANUAL.md)**: 14개 에이전트·sync 아키텍처·Critical Mode·활동 로그·권한 관리 등 **모든 기능 상세** + troubleshooting.
 
 ---
 

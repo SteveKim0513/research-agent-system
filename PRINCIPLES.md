@@ -711,5 +711,6 @@ archive를 통해 과거 상태 **조회**는 가능하되 **자동 복원**은 
 
 **관련 문서**:
 - [README.md](./README.md) — 설치, 개요, 빠른 시작
-- [MANUAL.md](./MANUAL.md) — 사용자 매뉴얼, 각 명령 상세
+- [GUIDE.md](./GUIDE.md) — 3분 빠른 사용 가이드 (핵심만)
+- [MANUAL.md](./MANUAL.md) — 전체 참고 매뉴얼 (모든 기능 상세)
 - [skills/SKILL.md](./skills/SKILL.md) — 시스템 동작 정의 (Claude Code 스킬)
