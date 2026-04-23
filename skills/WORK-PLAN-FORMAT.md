@@ -13,7 +13,13 @@
 
 > 📅 마지막 갱신: YYYY-MM-DD HH:MM ({trigger})
 > Stage: {flow | v1-draft | revised | final}
-> intellectual_ambition: {incremental | baseline | critical | paradigm-shifting}
+> intellectual_ambition: {incremental | critical | paradigm-shifting}
+
+---
+
+## 🧭 현재 당신이 해야 할 일
+
+{사용자 브리핑 — 아래 §4.5}
 
 ---
 
@@ -91,9 +97,10 @@
 
 ### 2.1 필수 필드
 
-| 필드 | 형식 | 예시 |
-|------|------|------|
-| **헤더 라인** | `### [TYPE-NNN] {상태이모지} {상태텍스트} · P{1\|2\|3} · {axis} · Stage {N}` | `### [HUNT-002] 🟡 active · P1 · axis1 · Stage 1` |
+| 필드 | 형식 | 예시 | 필수 |
+|------|------|------|------|
+| **헤더 라인 (기본)** | `### [TYPE-NNN] {상태이모지} {상태텍스트} · {axis} · Stage {N}` | `### [HUNT-002] 🟡 active · axis1 · Stage 1` | ✅ |
+| **헤더 라인 (priority 포함)** | 위 + `P{1\|2\|3}` 태그 (axis 앞) | `### [HUNT-002] 🟡 active · P1 · axis1 · Stage 1` | 선택 (대시보드 권장 명령 정렬에 활용) |
 | **무엇** | `**무엇**: {1줄 설명}` | `**무엇**: S017 — EF 전통적 보편성 가정` |
 | **담당 명령** | `**담당 명령**: \`"..."\` → {후속 동작}` | `**담당 명령**: "작업 시작해줘" → Consensus 자동 검색` |
 | **예상 회복** | `**예상 회복**: {축-하위} +{N}` 또는 `—` | `**예상 회복**: 축 1-1 +3` |
@@ -190,6 +197,61 @@
 Task는 **절대 삭제되지 않음**. 취소도 ⚪ deferred + `note: 취소 사유`로 기록. 이력 영속.
 
 ---
+
+## 4.5 사용자 브리핑 섹션 포맷 (엄격)
+
+**위치**: work-plan.md 최상단, `---` 구분자 직후 **대시보드보다 위**. 사용자가 파일을 열자마자 제일 먼저 봄.
+
+**목적**: 한 곳에서 "지금 어떤 파일을 열고 / 뭘 확인하고 / 어떤 명령을 실행할지"를 즉시 알 수 있게.
+
+### 5개 하위 섹션 (순서 고정)
+
+```markdown
+## 🧭 현재 당신이 해야 할 일
+
+### 📖 지금 열어볼 파일
+1. **`evaluations/latest/evaluation.md`** — 최근 평가 요약 (점수·심사 판정·잔여 우선순위)
+2. **`evaluations/latest/axis{N}-*.md`** — 가장 낮은 축 상세 (동적)
+3. **이 파일** — 🎯 다음 명령부터
+
+### ✍️ 확인·수정 가능한 작업 파일
+- `flow/flow.md` — 줄글 플랜 (수정 가능)
+- `chapters/*.md` — 초안 (있을 때)
+- `critical-questions.md` — 🎭 답변 필요 (Critical Mode일 때, 조건부)
+
+### 🎯 지금 실행할 명령 (우선순위 순)
+1. `"{command}"` — {reason, task IDs, expected recovery}
+2. `"{command}"` — {...}
+3. `"{command}"` — {...}
+
+### ⚠️ 중요 알림
+- 🔴 **Blocked N건** — (있을 때)
+- 🎭 **Critical Mode ...** — (활성 시)
+- 📈 **+N점 개선** / 📉 **-N점 하락** — (delta 있을 때)
+- ✨ 🟡 Active 비어있음 — (idle 시)
+- _(특이사항 없음)_
+
+### 📚 Stage 진행 체크리스트
+- [ ] **Stage 1 리서치** — {done}/{total}
+- [ ] **Stage 2 초안**
+- [ ] **Stage 3 수정**
+- [ ] **Stage 4 최종**
+```
+
+### 렌더링 주체
+
+`evaluation_aggregator.py`의 `render_briefing()` 함수가 유일한 생성자. 에이전트가 수동으로 이 섹션을 건드리지 말 것 — 다음 평가 시 aggregator가 덮어씀.
+
+### 왜 이 구조인가
+
+사용자는 work-plan.md를 열면 **3초 안에** 다음을 알 수 있어야 함:
+1. 어떤 파일을 열어봐야 현재 상황을 이해하는가 (📖)
+2. 어떤 파일을 내가 수정할 수 있는가 (✍️)
+3. 지금 Claude에게 뭐라고 말해야 하는가 (🎯)
+4. 놓치면 안 되는 것이 있는가 (⚠️)
+5. 전체 여정 중 어디쯤 와 있는가 (📚)
+
+대시보드(§5)는 **숫자·트렌드** 전용. 브리핑은 **액션**. 둘은 상호보완.
 
 ## 5. 대시보드 포맷 (엄격)
 
@@ -324,7 +386,7 @@ claim-extractor는 HUNT-PROPOSAL-A/B/C... 라벨로 제안 → aggregator가 wor
 
 > 📅 마지막 갱신: 2026-04-23 15:42 (eval #002 후)
 > Stage: flow
-> intellectual_ambition: baseline
+> intellectual_ambition: incremental
 
 ---
 

@@ -31,8 +31,11 @@ AXIS_FILES = {
 
 TASK_TYPES = ["HUNT", "REANALYZE", "DRAFT", "EDIT", "FIX"]
 
+BRIEFING_HEADER = "## 🧭 현재 당신이 해야 할 일"
+
 # 섹션 헤더 → 내부 키 매핑
 SECTION_HEADERS = {
+    BRIEFING_HEADER: "briefing",
     "## 📊 대시보드": "dashboard",
     "## 🟡 Active": "active",
     "## 🔵 In-progress": "in_progress",
@@ -44,6 +47,7 @@ SECTION_HEADERS = {
 RECENT_COMPLETED_PREFIX = "## 🟢 Recent completed"
 
 SECTION_ORDER = [
+    "briefing",
     "dashboard",
     "active",
     "in_progress",
@@ -146,7 +150,7 @@ def extract_score(md_path: Path):
 def parse_axis_scores(project: str):
     lat = latest_dir(project)
     meta = read_metadata(project)
-    ambition = meta.get("intellectual_ambition", "baseline")
+    ambition = meta.get("intellectual_ambition", "incremental")
     critical_mode = ambition in ("critical", "paradigm-shifting")
 
     axis_data = {}
@@ -309,6 +313,12 @@ SKELETON_TEMPLATE = """# work-plan.md
 
 ---
 
+## 🧭 현재 당신이 해야 할 일
+
+{briefing}
+
+---
+
 ## 📊 대시보드
 
 {dashboard}
@@ -351,12 +361,13 @@ _(없음)_
 """
 
 
-def make_skeleton(stage: str, ambition: str, dashboard_block: str, trigger: str = "initial") -> str:
+def make_skeleton(stage: str, ambition: str, dashboard_block: str, briefing_block: str = "_(평가 후 자동 갱신)_", trigger: str = "initial") -> str:
     return SKELETON_TEMPLATE.format(
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
         trigger=trigger,
         stage=stage,
         ambition=ambition,
+        briefing=briefing_block.strip(),
         dashboard=dashboard_block.strip(),
     )
 
@@ -623,6 +634,108 @@ def recommend_commands(sections: dict, stats: dict) -> list:
     return recs[:3]
 
 
+def render_briefing(project: str, sections: dict, stats: dict, recs: list,
+                     ambition: str, critical_mode: bool,
+                     axis_data: dict, prev_total) -> str:
+    """대시보드 위에 표시되는 '사용자 브리핑' — 지금 할 일을 한눈에."""
+    root = project_root(project)
+
+    # 1. 지금 열어볼 파일
+    read_files = ["1. **`evaluations/latest/evaluation.md`** — 최근 평가 요약 (점수·심사 판정·잔여 우선순위)"]
+    # 감점이 큰 축 하나 지목
+    if axis_data:
+        worst_axis, worst_d = min(axis_data.items(), key=lambda x: x[1]["score"])
+        worst_n = worst_axis[-1]
+        read_files.append(
+            f"2. **`evaluations/latest/axis{worst_n}-*.md`** — 가장 낮은 축({worst_d['title']} {worst_d['score']}/100) 상세"
+        )
+    read_files.append("3. **이 파일 (`work-plan.md`)** — 아래 🎯 다음 명령부터 따라가세요")
+
+    # 2. 확인·수정 가능한 작업 파일
+    work_files = []
+    flow_md = root / "flow" / "flow.md"
+    if flow_md.exists():
+        work_files.append("- `flow/flow.md` — 줄글 플랜 (수정하고 `\"평가해줘\"` 재실행 가능)")
+    chap_dir = root / "chapters"
+    if chap_dir.exists():
+        real_chaps = [p for p in chap_dir.glob("*.md") if p.name != "claim-extraction-draft.md"]
+        if real_chaps:
+            work_files.append(f"- `chapters/*.md` — 생성된 초안 {len(real_chaps)}개. `\"Chapter X 수정해줘: EDIT-NNN\"`")
+    crit_q = root / "critical-questions.md"
+    if crit_q.exists():
+        crit_c = root / "critical-commitments.md"
+        if not crit_c.exists() or crit_q.stat().st_mtime > crit_c.stat().st_mtime:
+            work_files.append("- `critical-questions.md` — 🎭 **답변 작성 필요** → `\"답변 반영해줘\"`")
+        else:
+            work_files.append("- `critical-questions.md` (답변 완료) · `critical-commitments.md` (commitment 추출됨)")
+    if not work_files:
+        work_files.append("- `flow/flow.md` — 먼저 줄글 플랜을 작성하세요 (참고: `flow/FLOW-TEMPLATE.md`)")
+
+    # 3. 지금 실행할 명령 (aggregator가 이미 계산한 recs 재활용)
+    commands_block = []
+    for i, r in enumerate(recs, 1):
+        commands_block.append(f"{i}. {r}")
+    if not commands_block:
+        commands_block.append('1. `"평가해줘"` — 아직 평가 없음. 먼저 flow를 평가하세요')
+
+    # 4. 중요 알림
+    alerts = []
+    if stats["state_counts"]["blocked"] > 0:
+        alerts.append(f"🔴 **Blocked {stats['state_counts']['blocked']}건** — 의존성 해소 필요 (아래 🔴 Blocked 섹션 확인)")
+    if critical_mode:
+        if (root / "critical-questions.md").exists():
+            crit_c = root / "critical-commitments.md"
+            crit_q_path = root / "critical-questions.md"
+            if not crit_c.exists():
+                alerts.append("🎭 **Critical Mode 활성** — `critical-questions.md`에 답변 필요 → `\"답변 반영해줘\"`")
+            elif crit_q_path.stat().st_mtime > crit_c.stat().st_mtime:
+                alerts.append("🎭 **critical-questions.md 변경 감지** — `\"답변 반영해줘\"`로 commitment 재추출 필요")
+        else:
+            alerts.append("🎭 **Critical Mode 활성** — 첫 평가 후 `critical-questions.md` 자동 생성됨")
+    if prev_total is not None and axis_data:
+        total = sum(d["score"] for d in axis_data.values())
+        delta = total - prev_total
+        if delta > 0:
+            alerts.append(f"📈 지난 평가 대비 **+{delta}점** 개선")
+        elif delta < 0:
+            alerts.append(f"📉 지난 평가 대비 **{delta}점** 하락 — 원인 분석 권장")
+    if stats["state_counts"]["active"] == 0 and stats["state_counts"]["in_progress"] == 0:
+        alerts.append("✨ 🟡 Active 비어있음 — `\"평가해줘\"`로 새 task 발급 또는 프로젝트 단계 이동")
+    if not alerts:
+        alerts.append("_(특이사항 없음)_")
+
+    # 5. Stage 체크리스트
+    sc = stats["stage_counts"]
+    def stage_check(n, name):
+        done, total = sc[n]
+        if total == 0:
+            return f"- [ ] **Stage {n} {name}** — 아직 task 없음"
+        if done == total:
+            return f"- [x] **Stage {n} {name}** — 완료 ({done}/{total})"
+        return f"- [ ] **Stage {n} {name}** — 진행 중 ({done}/{total})"
+
+    lines = [
+        "### 📖 지금 열어볼 파일",
+        *read_files,
+        "",
+        "### ✍️ 확인·수정 가능한 작업 파일",
+        *work_files,
+        "",
+        "### 🎯 지금 실행할 명령 (우선순위 순)",
+        *commands_block,
+        "",
+        "### ⚠️ 중요 알림",
+        *[f"- {a}" for a in alerts],
+        "",
+        "### 📚 Stage 진행 체크리스트",
+        stage_check(1, "리서치"),
+        stage_check(2, "초안"),
+        stage_check(3, "수정"),
+        stage_check(4, "최종"),
+    ]
+    return "\n".join(lines)
+
+
 def render_dashboard(stats: dict, recs: list) -> str:
     state = stats["state_counts"]
     stage = stats["stage_counts"]
@@ -704,6 +817,7 @@ def update_header_block(header_block: str, stage: str, ambition: str, trigger: s
 def rebuild_work_plan(
     existing: str,
     dashboard: str,
+    briefing: str,
     new_active_cards: list,
     stage: str,
     ambition: str,
@@ -739,6 +853,8 @@ def rebuild_work_plan(
 
     parts = [
         header_block,
+        "---",
+        f"{BRIEFING_HEADER}\n\n" + briefing.strip(),
         "---",
         "## 📊 대시보드\n\n" + dashboard.strip(),
         "---",
@@ -814,8 +930,10 @@ def aggregate(project: str) -> int:
         existing = ""
 
     if not existing:
-        # 최소 skeleton (대시보드는 placeholder)
-        existing = make_skeleton(stage, ambition, "_(대시보드는 아래에서 재계산)_", trigger="initial")
+        existing = make_skeleton(stage, ambition,
+                                  "_(대시보드는 아래에서 재계산)_",
+                                  "_(브리핑은 아래에서 재계산)_",
+                                  trigger="initial")
 
     # 3. HUNT-PROPOSAL 처리 (번호 발급 + claim-extraction back-ref)
     new_cards, updated_ce_texts = process_hunt_proposals(project, existing)
@@ -825,18 +943,30 @@ def aggregate(project: str) -> int:
             p.write_text(text, encoding="utf-8")
             print(f"   {p.relative_to(project_root(project))} 업데이트")
 
-    # 4. 대시보드 재계산 (새 카드 반영 후)
-    # rebuild_work_plan은 대시보드를 미리 계산해서 받는 구조이므로, 두 단계로:
-    #  (1) new_cards만 먼저 반영한 tmp 버전 생성 → stats 계산
-    #  (2) 그 stats로 dashboard 생성 → 최종 rebuild
-    tmp = rebuild_work_plan(existing, "_(계산 중)_", new_cards, stage, ambition, "eval")
+    # 4. 대시보드·브리핑 재계산 (새 카드 반영 후)
+    # 순서: 임시 rebuild → stats 계산 → dashboard·briefing 생성 → 최종 rebuild
+    tmp = rebuild_work_plan(existing, "_(계산 중)_", "_(계산 중)_",
+                             new_cards, stage, ambition, "eval")
     sections = split_sections(tmp)
     stats = collect_task_stats(sections)
     recs = recommend_commands(sections, stats)
     dashboard = render_dashboard(stats, recs)
+    briefing = render_briefing(project, sections, stats, recs,
+                                ambition, critical_mode, axis_data, prev_total)
 
-    final = rebuild_work_plan(existing, dashboard, new_cards, stage, ambition, "eval")
-    wp_path.write_text(final, encoding="utf-8")
+    final = rebuild_work_plan(existing, dashboard, briefing,
+                               new_cards, stage, ambition, "eval")
+
+    # 변경이 있는 경우에만 쓰기 (unnecessary snapshot 방지)
+    # 단, mtime·timestamp 라인은 매번 바뀌므로 그 라인을 빼고 비교
+    def normalize_for_compare(text: str) -> str:
+        return re.sub(r"> 📅 마지막 갱신:.*\n", "", text)
+
+    if wp_path.exists() and normalize_for_compare(existing) == normalize_for_compare(final):
+        # 실질 변경 없음 → 파일 쓰기 skip (mtime 보존)
+        print("ℹ️  work-plan.md 실질 변경 없음 — 파일 갱신 skip")
+    else:
+        wp_path.write_text(final, encoding="utf-8")
     print(f"✅ work-plan.md 갱신 (active={stats['state_counts']['active']}, "
           f"in_progress={stats['state_counts']['in_progress']}, "
           f"completed={stats['state_counts']['completed']})")

@@ -14,7 +14,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 1. [시스템 철학](#-시스템-철학)
 2. [전체 User Journey](#-전체-user-journey)
 3. [5축 평가 기준 상세](#-5축-평가-기준-상세)
-4. [서브 에이전트 시스템](#-서브-에이전트-시스템)
+4. [에이전트 시스템](#-서브-에이전트-시스템)
 5. [Sync 아키텍처](#-sync-아키텍처)
 6. [Critical Mode (비판적 시각 지원)](#-critical-mode-비판적-시각-지원)
 7. [활동 로그 시스템](#-활동-로그-시스템-activity-log)
@@ -460,7 +460,7 @@ peer-reviewer Mode B:
 
 ---
 
-## 🤖 서브 에이전트 시스템
+## 🤖 에이전트 시스템
 
 총 **19개** 전문 에이전트 (8 평가 오케스트레이션 + 1 논문 처리 오케스트레이션 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 1 유틸리티). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
 
@@ -509,7 +509,7 @@ peer-reviewer Mode B:
 | **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, analyzed/*.md (모든 버전), on-demand PDF | chapters/0N-*.md, final/complete-draft.md(.docx) | `초안 작성해줘` |
 | **chapter-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, analyzed/*.md, on-demand PDF | 수정된 chapter 파일 | `Chapter X 수정해줘: ...` (자동) |
 | **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
-| **citation-auditor** | PDF 원문 대조 accuracy 감사 (over-claim·misattribution·APA 형식·분포) | chapter, papers/collected/*.pdf, analyzed/*.md | 감사 리포트 (화면) | `Chapter X 수정해줘` 후 자동 체이닝 + `평가해줘` v1/revised/final 단계 자동 체이닝 |
+| **citation-auditor** | PDF 원문 대조 accuracy 감사 (over-claim·misattribution·APA 형식·분포) | chapter, papers/collected/*.pdf, analyzed/*.md | 감사 리포트 + 신규 EDIT task | `Chapter X 수정해줘` 후 자동 체이닝 + `평가해줘` draft stage (v1-draft/revised/final) 자동 체이닝 |
 
 #### 보조 (3개, 수동 호출)
 
@@ -668,11 +668,78 @@ python3 scripts/sync_state.py update-evaluation {project}
 python3 scripts/sync_state.py update-final {project}
 python3 scripts/sync_state.py remove-paper {project} <filename.pdf>
 
-# chapters 스냅샷 (자동 호출되지만 수동 사용 가능)
+# v2 스냅샷 (모두 자동 호출되지만 수동 사용 가능)
+python3 scripts/sync_state.py snapshot-flow {project} <trigger>
+#   flow/flow.md + flow/claim-extraction-flow.md 쌍을 flow/history/{NNN}-{date}-{trigger}/로
+
+python3 scripts/sync_state.py snapshot-chapter {project} <trigger> <chapter.md>
+#   단일 챕터 + 현재 claim-extraction-draft.md를 chapters/history/{chapter_id}/{NNN}-*/로
+
 python3 scripts/sync_state.py snapshot-chapters {project} <trigger> [chapter.md]
-#   trigger 예: "pre-redraft", "ch2-edit", "manual-backup"
-#   chapter.md 지정 시 단일 파일, 미지정 시 chapters/ 전체
+#   전체 챕터 일괄 (각 챕터별 개별 NNN 생성) 또는 단일 파일
+
+python3 scripts/sync_state.py snapshot-work-plan {project} <trigger>
+#   work-plan.md를 work-plan.archive/{NNN}-{date}-{trigger}.md로
+
+python3 scripts/sync_state.py snapshot-evaluation {project} <trigger>
+#   evaluations/latest/를 evaluations/archive/{NNN}-{date}-{trigger}/로 **증분** 복사 + manifest.json
+
+python3 scripts/sync_state.py snapshot-critical-questions {project} <trigger>
+python3 scripts/sync_state.py snapshot-critical-commitments {project} <trigger>
+#   critical-*.md를 .archive/{NNN}-{date}-{trigger}.md로
 ```
+
+### 평가·논문 처리 전용 스크립트
+
+```bash
+# 평가 delta (축별 stale 판정, stage-aware)
+python3 scripts/evaluation_delta.py check {project} [--stage=auto|flow|v1-draft|revised|final]
+python3 scripts/evaluation_delta.py compute-inputs {project} [--stage=...]
+python3 scripts/evaluation_delta.py mark-done {project} <axis1,axis2,...> [--stage=...]
+python3 scripts/evaluation_delta.py reset {project}
+
+# 평가 aggregator (axis*-*.md → evaluation.md + work-plan.md 갱신)
+python3 scripts/evaluation_aggregator.py {project}
+#   - v1 work-plan 자동으로 work-plan.archive/000-legacy-v1.md로 이동
+#   - HUNT-PROPOSAL-X → HUNT-NNN 번호 발급 + claim-extraction back-reference
+#   - 대시보드 재계산 + 사용자 브리핑 섹션 갱신
+
+# 논문 triage 관리 (Pass 1 결과 집계·tier 승격)
+python3 scripts/paper_triage.py summarize {project}
+python3 scripts/paper_triage.py list {project} --tier=1|2|3
+python3 scripts/paper_triage.py promote {project} <filename> --to=1|2|3
+
+# 논문 재분석 delta (flow 섹션 변경 영향 논문만 반환)
+python3 scripts/paper_reanalysis_delta.py {project} [--full]
+
+# 프로젝트 v1→v2 마이그레이션 (일회성, 멱등)
+python3 scripts/migrate_v2.py {project} [--dry-run]
+python3 scripts/migrate_v2.py --all [--dry-run]
+```
+
+### 에이전트별 sync 호출 의무 (누락 시 아티팩트 어긋남)
+
+각 에이전트가 작업 완료 시점에 호출해야 하는 sync·snapshot 명령 매트릭스:
+
+| 에이전트/명령 | 시점 | 호출 명령 |
+|--------------|------|----------|
+| **evaluation-orchestrator** | 평가 시작 전 | `snapshot-evaluation {P} {stage}`, `snapshot-work-plan {P} {stage}` (변경 시) |
+| evaluation-orchestrator | claim-extractor 호출 전 (flow) | `snapshot-flow {P} pre-claim-extract` |
+| evaluation-orchestrator | claim-extractor 호출 전 (draft, 변경된 각 챕터) | `snapshot-chapter {P} pre-claim-extract {chapter}` |
+| evaluation-orchestrator | 평가 완료 후 | `evaluation_delta.py mark-done {P} {axes} --stage=...` |
+| **writing-architect** | Phase 2 시작 전 (pre-redraft) | `snapshot-chapters {P} pre-redraft` |
+| writing-architect | 각 chapter 저장 후 | `update-chapter {P} {chapter}` |
+| writing-architect | final 통합 후 | `update-final {P}` |
+| **chapter-editor** | Phase 5 수정 직전 | `snapshot-chapter {P} ch{X}-edit {chapter}` |
+| chapter-editor | Phase 8 수정 후 | `update-chapter {P} {chapter}` |
+| **flow-refiner** | Phase 7 반영 직전 | `snapshot-flow {P} pre-refine` |
+| flow-refiner | 반영 후 | `update-flow {P}` |
+| **paper-processing-orchestrator** | 각 논문 분석 완료 후 | `update-paper {P} {file}` |
+| **critical-companion** | questions 신규 버전 직전 | `snapshot-critical-questions {P} pre-update` |
+| critical-companion | commitments 갱신 직전 | `snapshot-critical-commitments {P} pre-update` |
+| **aggregator** | work-plan 쓰기 전 | 내용 비교 → 실질 변경 없으면 skip (snapshot 불필요) |
+
+**정리**: 모든 "수정 직전"에 snapshot. 모든 "수정 후"에 update-*. 이 두 규칙만 지키면 archive·sync-state 모두 일관. aggregator만은 예외(자동 변경 감지 기반 skip).
 
 ### Stale 유형 + Priority 점수
 

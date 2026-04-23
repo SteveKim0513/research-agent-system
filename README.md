@@ -43,11 +43,11 @@ critical-questions.md 답변 작성
   → 결과 완료 후 "✅ [C-001] ... Section 2에 추가" 반영 보고
 ```
 
-### 19개 서브 에이전트
+### 19개 에이전트
 
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
 **논문 처리 오케스트레이션 (1)**: paper-processing-orchestrator (2-pass + Tier)
-**생성·수정 (5)**: paper-analyst (Tier 1 opus / Tier 2·3 sonnet / 재분석 B / 비판적 C), writing-architect, chapter-editor, flow-refiner, citation-auditor
+**생성·수정 (5)**: paper-analyst (Pass 1 triage haiku / Pass 2 Tier 1 opus+Critical / Tier 2·3 sonnet / Mode B 재분석 sonnet / Mode C 비판 opus), writing-architect, chapter-editor, flow-refiner, citation-auditor
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
 **보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 **유틸리티 (1)**: abstract-translator (haiku — HUNT·PDF abstract 한글 번역)
@@ -132,7 +132,7 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (19개 서브 에이전트)
+│   └── agents/               (19개 에이전트)
 │       ├── evaluation-orchestrator.md
 │       ├── paper-processing-orchestrator.md  (2-pass + Tier)
 │       ├── claim-extractor.md
@@ -146,7 +146,15 @@ research-agent/
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md
 │       └── peer-reviewer.md              (+ Iconoclast persona)
-├── scripts/                   (메타데이터 추출 등 시스템 스크립트)
+├── scripts/                   (시스템 스크립트 — sync·평가 delta/aggregator·논문 triage·마이그레이션·활동 로그)
+│   ├── sync_state.py          (아티팩트 sync 상태·스냅샷)
+│   ├── evaluation_delta.py    (stage-aware 축별 stale 감지)
+│   ├── evaluation_aggregator.py (axis 리포트 → evaluation.md + work-plan 대시보드)
+│   ├── paper_triage.py        (Pass 1 결과 집계·tier 승격)
+│   ├── paper_reanalysis_delta.py (flow 변경 기반 영향 논문 필터)
+│   ├── migrate_v2.py          (v1 → v2 폴더 구조 일회성 마이그레이션)
+│   ├── activity_log.py + activity_log_async.sh (활동 로그·hook)
+│   └── extract_metadata.py, normalize_filename.py, backfill_axis_tags.py, rename_to_full_title.py
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + history/)

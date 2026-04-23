@@ -12,7 +12,11 @@ model: opus
 
 ## Stage 감지
 
-`chapters/`에 실제 챕터 파일(`claim-extraction-draft.md` 제외)이 있으면 `stage=draft`, 없으면 `stage=flow`. 더 세분화된 stage(v1-draft/revised/final)는 작업 맥락에서 판단하되, delta/claim-extractor 분기에서는 `flow | draft` 2단 체계로 충분.
+**두 가지 stage 구분**:
+- **Project stage**: `flow | v1-draft | revised | final` — work-plan.md 헤더 + `evaluation_delta.py --stage=` 파라미터
+- **claim-extractor stage**: `flow | draft` — 분석 대상 구분용. v1-draft·revised·final 모두 `draft`로 호출 (동일 `chapters/claim-extraction-draft.md` 갱신)
+
+**감지**: `chapters/`에 실제 챕터 파일(`claim-extraction-draft.md` 제외)이 있으면 claim-extractor는 `draft`, Project stage는 `v1-draft` 이상. 세분화(v1-draft/revised/final)는 작업 맥락 + final 통합본 존재 여부로 판정.
 
 ## 작동 순서
 

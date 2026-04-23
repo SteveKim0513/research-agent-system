@@ -39,6 +39,8 @@
     ]
   },
   "permissions": {
+    "defaultMode": "bypassPermissions",
+    "$defaultMode_note": "사용자 요청으로 활성화됨 (2026-04-23). 'claude --dangerously-skip-permissions'과 동일 효과. deny 목록의 위험 명령은 여전히 차단됨. 조직 레벨에서 비활성화하려면 managed settings에서 disableBypassPermissionsMode: 'disable'.",
     "allow": [
       "Bash(python3 scripts/*)",
       "Bash(python3 $CLAUDE_PROJECT_DIR/scripts/*)",

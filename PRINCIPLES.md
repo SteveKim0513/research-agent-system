@@ -456,9 +456,9 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer, **paper-analyst Tier 1 + Mode C** |
-| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst Tier 2·3 + Mode B** (기본값), claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
-| **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Mode A-triage** (Pass 1 분류) |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer, **paper-analyst Pass 2 Tier 1 (+ Mode C 비판적 읽기)** |
+| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst Pass 2 Tier 2·3 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
+| **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
 **판단 기준**:
 - **창의성·판단력이 품질을 결정하는가?** → opus (실패 시 복구 비용이 크다)

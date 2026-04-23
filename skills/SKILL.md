@@ -53,8 +53,18 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 **자동 체이닝 직전 history snapshot 의무**:
 - flow 수정: `sync_state.py snapshot-flow {P} {trigger}` — 이전 flow.md + claim-extraction-flow.md 쌍 보존
 - chapter 수정: `sync_state.py snapshot-chapter {P} {trigger} {chapter}` — 해당 챕터 + 당시 claim-extraction-draft.md 쌍 보존
+- critical-questions 갱신: `sync_state.py snapshot-critical-questions {P} {trigger}` — 이전 답변 보존
+- critical-commitments 갱신: `sync_state.py snapshot-critical-commitments {P} {trigger}` — 이전 commitment 상태 보존
 
-**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator/aggregator가 `work-plan.md`의 다음 HUNT-NNN·DRAFT-NNN 번호를 발급하고, claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+**Critical Mode 자동 재분석 규칙** (intellectual_ambition ≥ critical일 때만):
+
+| 트리거 | 자동 실행 | 출력 |
+|-------|---------|------|
+| 첫 `평가해줘` 실행 + flow.md critical 신호 ≥ 3 자동 감지 | critical-companion Phase 1-5 호출 | `critical-questions.md` 생성 (v1) |
+| `critical-questions.md` mtime > `critical-commitments.md` mtime | `"답변 반영해줘"` 자동 → critical-companion Phase 6 호출 | `critical-commitments.md` 갱신·신규 생성 |
+| `초안 작성해줘` / `Chapter X 수정해줘` 실행 직전 | 위 mtime 비교 prehook → 필요 시 Phase 6 | commitment 최신화 후 실제 작업 진행 |
+
+**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 `work-plan.md`의 다음 HUNT-NNN·DRAFT-NNN 번호를 발급하고, claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
 
 ## work-plan.md 사용 사이클 (공통)
 
@@ -109,9 +119,9 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 `skills/WORK-PLAN-FORMAT.md` 참조. 모든 에이전트가 work-plan 조작 전 반드시 읽을 것.
 
-## 서브 에이전트 시스템
+## 에이전트 시스템
 
-이 스킬은 **19개의 서브 에이전트**를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 **19개의 에이전트**를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 **모델 라우팅 원칙**: 작업 성격에 따라 서브에이전트를 다른 모델로 실행하여 비용·속도 최적화. 평가·글쓰기는 opus, 분석·검증은 sonnet, 번역 같은 기계적 작업은 haiku. 각 에이전트 정의 파일의 frontmatter `model` 필드에 기본값 표기. Agent 도구 호출 시 `model` 파라미터로 오버라이드 가능.
 
@@ -127,11 +137,11 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
 | **paper-processing-orchestrator** 📄 | `skills/agents/paper-processing-orchestrator.md` | "새 논문 처리해줘" — triage → tier 분배 → 병렬 dispatch (opus, 오케스트레이션만) | 자동 (논문 처리 진입점) |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | Tier별 Mode (A-triage haiku / A-tier1 opus + Critical / A-tier2 sonnet / A-tier3 sonnet-short / B 재분석 / C 비판적 읽기) | 자동 (orchestrator dispatch) |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | Pass 1 (triage, **haiku**) / Pass 2 (Tier 1 **opus**+Critical, Tier 2·3 **sonnet**) / Mode B 재분석 (**sonnet**) / Mode C 비판적 읽기 (**opus**) | 자동 (paper-processing-orchestrator dispatch) |
 | **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
 | **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
-| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1/revised/final) 자동 체이닝 | 자동 |
+| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1-draft/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
 | **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
@@ -139,7 +149,7 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 ### 에이전트 호출 방법
 
-서브 에이전트를 호출할 때는 Agent 도구를 사용하세요:
+에이전트를 호출할 때는 Agent 도구를 사용하세요:
 
 1. 해당 에이전트 파일(`skills/agents/{agent-name}.md`)을 Read 도구로 읽기
 2. 에이전트 프롬프트에 다음을 포함:
@@ -329,7 +339,31 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 - `평가해줘 --full` — 전체 6축 강제 재실행
 - `평가해줘 axis3,4` — 명시 축만 실행 (쉼표 구분)
 
-### 단계 0: Sync 선행 점검 (gate)
+### 단계 0a: 최소 요구사항 검증 (gate)
+
+`flow/flow.md`가 다음 **최소 요건**을 만족하는지 먼저 확인:
+
+1. 파일 자체가 존재
+2. **연구 질문(RQ) 1문장** 명시 (예: `## 연구 질문` 섹션 또는 `"이 글은 X를 묻는다"` 패턴)
+3. **핵심 주장(Thesis) 1문장** 명시 (예: `## Thesis` 섹션 또는 `"본 에세이는 Y라고 주장한다"` 패턴)
+4. 전체 **최소 100자 이상**의 본문 내용
+
+미달이면 평가 중단하고 안내:
+```
+⚠️ flow.md 최소 요건 미달
+
+필요:
+  [ ] 연구 질문 1문장
+  [ ] 핵심 주장 1문장
+  [ ] 본문 최소 100자
+
+현재: {체크 결과}
+
+"flow/flow.md"를 먼저 채운 후 다시 "평가해줘"를 실행하세요.
+`flow/FLOW-TEMPLATE.md`를 참고하세요.
+```
+
+### 단계 0b: Sync 선행 점검 (gate)
 
 `python3 scripts/sync_state.py check {PROJECT_NAME}` 실행 — Critical stale 시 사용자 확인, Minor stale 시 경고만, Clean 시 진행.
 
@@ -363,7 +397,12 @@ python3 scripts/sync_state.py snapshot-evaluation {PROJECT_NAME} {stage}
 
 ### 단계 4: claim-extractor 선행 호출 (자동 재분석)
 
-**Stage 감지**: `chapters/`에 실제 챕터 파일이 있으면 `stage=draft`, 없으면 `stage=flow`.
+**두 가지 "stage" 개념 구분**:
+- **Project stage** (work-plan.md 헤더 + `evaluation_delta.py --stage=`): `flow | v1-draft | revised | final` — 작업의 실제 단계
+- **claim-extractor stage** (내부 분기 파라미터): `flow | draft` — 분석 대상이 `flow/flow.md`인지 `chapters/*.md` 통합인지. Project stage가 `v1-draft/revised/final` 중 어느 것이든 claim-extractor stage는 동일하게 `draft`로 호출됨 (동일 파일 `chapters/claim-extraction-draft.md` 갱신)
+
+**Project stage 감지**: `chapters/`에 실제 챕터 파일이 있으면 `v1-draft` 이상, 없으면 `flow`. 세부 구분(v1-draft vs revised vs final)은 final 통합본·수정 이력으로 판정.
+**claim-extractor stage 감지**: 실제 챕터 파일 존재 여부만 본다 (`v1-draft`+는 `draft`).
 
 Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행한다:
 
@@ -1808,13 +1847,24 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "축 5 심층" "result={sc
 
 사용자가 `"작업 추천해줘"`, `"뭘 해야 해?"`, `"next step"`, `"추천해줘"` 등을 말하면:
 
-### 단계 1: activity.log 기반 분석
+**입력 소스 3종 통합**:
+1. `work-plan.md`의 최상단 "사용자 브리핑" 섹션 + 대시보드 "다음 권장 명령" (aggregator가 이미 계산) ← **primary**
+2. `activity.log` 기반 최근 활동 (보강)
+3. `sync_state.py check` 기반 stale 항목 (주의사항)
+
+### 단계 1: work-plan.md 읽기 (primary)
+
+`projects/{P}/work-plan.md` 최상단의 "🧭 현재 당신이 해야 할 일"과 "📊 대시보드 → 🎯 다음 권장 명령" 추출. **이것이 추천의 뼈대.**
+
+### 단계 2: activity.log 기반 보강
 
 ```bash
 python3 scripts/activity_log.py recommend {PROJECT_NAME} 14
 ```
 
-반환 JSON에서 `current_state` + `recommendations` 추출. 추가로 sync 상태도 병합:
+반환 JSON에서 `current_state` (마지막 활동·stage·점수) 추출. work-plan 추천에 "로그 근거" 추가.
+
+### 단계 3: sync check
 
 ```bash
 python3 scripts/sync_state.py check {PROJECT_NAME}

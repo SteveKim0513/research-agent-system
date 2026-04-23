@@ -235,14 +235,22 @@ if [ "$NEEDS_PROJECTS" = true ]; then
     echo ""
 fi
 
-# Activity Log hooks 자동 구성 (Claude Code hooks)
+# Activity Log hooks + bypassPermissions 자동 구성
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🪝 Activity Log hooks 구성"
+echo "🪝 Activity Log hooks + 권한 모드 구성"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 HOOKS_FILE="$INSTALL_DIR/.claude/settings.json"
 if [ -f "$HOOKS_FILE" ]; then
+    # bypassPermissions 확인 / 안내
+    if grep -q '"defaultMode": "bypassPermissions"' "$HOOKS_FILE" 2>/dev/null; then
+        echo "🔓 권한 모드: bypassPermissions (사전 활성화됨)"
+        echo "   이 프로젝트는 'claude --dangerously-skip-permissions'과 동일하게 동작합니다."
+        echo "   위험 명령(rm -rf / git push --force / git reset --hard 등)은 deny 목록으로 여전히 차단됩니다."
+        echo "   ⚠️ 보안이 민감한 프로젝트에서는 .claude/settings.json의 defaultMode를 제거하세요."
+        echo ""
+    fi
     if grep -q '"UserPromptSubmit"' "$HOOKS_FILE" 2>/dev/null; then
         echo "✅ Activity Log hooks 이미 구성됨"
         echo "   📄 $HOOKS_FILE"
