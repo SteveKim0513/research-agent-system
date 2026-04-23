@@ -217,6 +217,12 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    5. "평가해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
 ```
 
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "stage=init" "target={PROJECT_NAME}" "result=created" "ambition=incremental"
+```
+
 ---
 
 ## 🎯 5축 평가 (flow-evaluator)
@@ -383,6 +389,12 @@ flow-evaluator가 다음을 자동 수행 (상세 절차는 `skills/agents/flow-
 - **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시, `evaluation.md`에 이전 점수 대비 변화(+X, −X)를 함께 표시
 - **목표 달성 확인**: 각 축이 90점 이상이면 🟢, 70-89점이면 🟡, 70점 미만이면 🔴
 
+### 단계 7: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1-draft|revised|final}" "target={대상 파일}" "result={score}/500 ({delta})" "ref=ref:eval-{NNN}" "agents=flow-evaluator,claim-extractor,originality-evaluator,concept-clarity-evaluator{,critical-lens-evaluator,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
+```
+
 ---
 
 ## 논문 처리
@@ -467,6 +479,12 @@ python3 scripts/sync_state.py update-paper {PROJECT_NAME} {파일명}.pdf
 
 💾 .paper-metadata.json 업데이트 완료
 📊 현재 보유 논문: {TOTAL}개 | 분석 완료: {ANALYZED}개
+```
+
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=stage1" "target={N} PDFs" "result=processed" "agents=paper-analyst"
 ```
 
 ---
@@ -557,6 +575,12 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
   [C] "초안 작성해줘"      → Stage 2로 바로 진입 (flow가 이미 충분하다면)
 ```
 
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "HUNT·REANALYZE 실행" "stage=stage1" "target=consensus-results.md" "result={N_hunt} HUNT + {N_reanalyze} REANALYZE done"
+```
+
 ---
 
 ## 🔍 레퍼런스 점검 (축 1 경량 재평가)
@@ -602,6 +626,12 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
    - 축 2-5 전체 재평가는 Stage 2 초안 완료 후 권장
 ```
 
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "레퍼런스 점검 완료" "stage=post-research" "result=axis1 {old}→{new} (+{delta})"
+```
+
 ---
 
 ## 📝 flow 업데이트 (새 논문 반영 보강)
@@ -637,6 +667,12 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 ### 단계 3: 반영 후 권장 사항
 
 사용자가 수락하면 flow-refiner가 flow.md를 갱신하고 `sync_state.py update-flow` 실행. 이후 **전체 5축 재평가 권장** (이제는 의미 있는 변화 예상).
+
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "flow 업데이트" "stage=post-research" "target=flow.md" "result={N} 제안 중 {M} 반영" "agents=flow-refiner"
+```
 
 ---
 
@@ -764,6 +800,12 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
    "Chapter 2 수정해줘: [구체적인 수정 내용]"
 ```
 
+### 단계 7: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=v1-draft" "target=chapters/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect" "commits={fulfilled}/{total}"
+```
+
 ---
 
 ## 챕터 수정 + 자동 일관성 체크
@@ -838,6 +880,12 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 💯 전체 평가: A (94/100)
 ```
 
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=revised" "target=Ch{X}" "result={변경 요약}" "ref=ref:ch-{NNN}" "agents=chapter-editor,citation-auditor"
+```
+
 ---
 
 ## Gap 분석 (수동 호출)
@@ -869,6 +917,12 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 ⭐ 최우선 추천: Gap 1 — [이유]
 
 💾 상세 분석: projects/{PROJECT_NAME}/gaps-analysis.md
+```
+
+### 단계 3: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}개 gap" "agents=gap-finder"
 ```
 
 ---
@@ -922,6 +976,12 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 ⭐ 추천: 방법 1 — [현실적 이유]
 ```
 
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "방법론 {advisor|critic}" "agents=methodology-advisor"
+```
+
 ---
 
 ## 리뷰 체크/답변 (수동 호출)
@@ -965,6 +1025,12 @@ Reviewer 3 (실용주의자): Accept with Minor
 
 🟡 수정 권장 (3건):
    [...]
+```
+
+### 단계 3: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "리뷰 {시뮬|대응}" "stage=final" "result={판정}" "agents=peer-reviewer"
 ```
 
 ---
@@ -1037,6 +1103,12 @@ sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ord
    (예: Chapter 수정 전에 평가해도 여전히 구버전 기반 경고).
 ```
 
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "sync 점검" "result=stale P1:{a} P2:{b} P3:{c}"
+```
+
 ---
 
 ## 🗑 논문 제거 (논문 제거해줘)
@@ -1105,6 +1177,12 @@ mv projects/{PROJECT_NAME}/papers/analyzed/{파일명}-analysis.md \
 이후 "평가해줘" 실행하여 축 1 점수 변화 확인.
 ```
 
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "논문 제거" "target={파일명}.pdf" "result=archived" "dangling={N}"
+```
+
 ---
 
 ## 📦 최종 통합 (최종 통합해줘)
@@ -1157,6 +1235,12 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 👉 다음 단계:
    - "리뷰 체크해줘" → peer-reviewer 심사 시뮬레이션
    - "평가해줘" → 최종 5축 평가
+```
+
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "최종 통합" "stage=final" "target=final/complete-draft.md" "result={W}단어"
 ```
 
 ---
@@ -1222,6 +1306,12 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
    - "Chapter X 수정해줘: 새 분석 반영"
    - 모든 sync 확인: "sync 확인해줘"
    - 평가 갱신: "평가해줘"
+```
+
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "논문 재분석" "target={파일}" "result=v{N}→v{N+1}" "agents=paper-analyst"
 ```
 
 ---
@@ -1314,6 +1404,12 @@ flow.md 분석 결과:
    현 상태 유지: 그대로 평가 진행
 ```
 
+### 단계 6: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "비판 모드 설정" "ambition={level}"
+```
+
 ---
 
 ## 💬 답변 반영 (답변 반영해줘 — 경량 commitment 추출)
@@ -1362,6 +1458,12 @@ critical-companion의 Phase 1-5는 스킵하고 **Phase 6 (commitment 추출)만
 ```
 
 **이 명령의 가치**: 사용자가 답변만 쓰고 끝내는 것이 아니라, **답변이 시스템에 actionable하게 등록되었음을 즉시 확인**. writing 작업 전에 commitment 추출을 보장.
+
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "답변 반영" "result={N} commitments extracted" "agents=critical-companion"
+```
 
 ---
 
@@ -1415,6 +1517,12 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
    3. "평가해줘" → 답변·원고 정합성 점검
 ```
 
+### 단계 5: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "질문 업데이트" "result=v{N}" "ref=ref:q-{NNN}" "agents=critical-companion" "categories={list}"
+```
+
 ---
 
 ## 🎭 비판적 시각 평가 (critical-lens-evaluator, 단독 호출)
@@ -1437,6 +1545,12 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 ### 단계 3: 화면 보고
 
 축별 점수 + critical-questions.md 정합성 요약 + 심사자 예상 공격 + 개선 권장 우선순위.
+
+### 단계 4: 활동 로그 기록 (MD Layer 4)
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 6 심층" "result={score}/100" "agents=critical-lens-evaluator"
+```
 
 ---
 
@@ -1468,6 +1582,11 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
    "질문 업데이트해줘" 실행 권장.
 ```
 
+마지막으로 활동 로그 기록 (MD Layer 4):
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "논문 Mode C" "target={파일}" "result=critical reading appended" "agents=paper-analyst"
+```
+
 ---
 
 ## 독창성 심층 평가 (축 4, 단독 호출)
@@ -1480,6 +1599,11 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 
 **주요 출력**: Novelty Delta Map (선행 연구 3편 대비 차별점 테이블) + "So What?" 명시 여부 + 심사자 예상 공격.
 
+**활동 로그** (MD Layer 4):
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 4 심층" "result={score}/100" "agents=originality-evaluator"
+```
+
 ---
 
 ## 구성개념 정의 정밀도 심층 평가 (축 5, 단독 호출)
@@ -1491,6 +1615,11 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 3. 결과를 `projects/{PROJECT_NAME}/evaluations/latest/concept-clarity-report.md`에 저장
 
 **주요 출력**: 핵심 구성개념 정의 감사 테이블 + 의미 drift 탐지 + 범주/차원 선택 근거 감사.
+
+**활동 로그** (MD Layer 4):
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 5 심층" "result={score}/100" "agents=concept-clarity-evaluator"
+```
 
 ---
 
