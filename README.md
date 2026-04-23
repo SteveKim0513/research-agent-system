@@ -114,6 +114,8 @@ Claude에서:
 **상세 가이드는 [MANUAL.md](./MANUAL.md) 참고.**
 **시스템의 설계 철학·학술 글쓰기 원칙은 [PRINCIPLES.md](./PRINCIPLES.md) 참고.**
 
+📓 **활동 로그 시스템**: Claude Code hooks가 모든 명령을 `projects/{이름}/activity.log`에 자동 기록. `"작업 추천해줘"`로 로그 기반 다음 명령 추천. 자세히는 [MANUAL.md § 활동 로그](./MANUAL.md#-활동-로그-시스템-activity-log).
+
 ---
 
 ## 📁 시스템 구성
@@ -142,6 +144,7 @@ research-agent/
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow.md
+│       ├── activity.log                (📓 모든 명령 자동 로그)
 │       ├── critical-questions.md       (🎭 사용자가 답하는 Socratic 질문)
 │       ├── critical-questions.archive/ (🎭 질문·답변 버전 히스토리)
 │       ├── critical-commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
@@ -171,6 +174,7 @@ research-agent/
 | `"초안 작성해줘"` | writing-architect 초안 생성 |
 | `"Chapter X 수정해줘: ..."` | 수정 + citation-auditor 감사 |
 | `"리뷰 체크해줘"` | peer-reviewer 심사 시뮬레이션 |
+| 🧠 `"작업 추천해줘"` | activity.log 기반 다음 명령 추천 (이유 포함) |
 
 전체 명령어·사용 흐름은 [MANUAL.md](./MANUAL.md) 참고.
 

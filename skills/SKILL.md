@@ -1494,6 +1494,157 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 
 ---
 
+## 🧠 작업 추천 (작업 추천해줘)
+
+사용자가 `"작업 추천해줘"`, `"뭘 해야 해?"`, `"next step"`, `"추천해줘"` 등을 말하면:
+
+### 단계 1: activity.log 기반 분석
+
+```bash
+python3 scripts/activity_log.py recommend {PROJECT_NAME} 14
+```
+
+반환 JSON에서 `current_state` + `recommendations` 추출. 추가로 sync 상태도 병합:
+
+```bash
+python3 scripts/sync_state.py check {PROJECT_NAME}
+```
+
+### 단계 2: 종합 보고 (사용자 친화 포맷)
+
+JSON을 파싱하여 아래 형식으로 출력:
+
+```
+📍 현재 상태 (최근 14일 로그 기반)
+
+   마지막 활동: 평가 완료 (3일 전)
+   마지막 stage: v1-draft
+   평가 점수: 287/500
+   로그 엔트리: 42건
+
+   🔄 Sync 상태: P1:0 / P2:1 / P3:0 (총 1건 stale)
+
+💡 작업 추천 (우선순위 순)
+
+1. 🔴 "Chapter 5 수정해줘: 급진적 steelman 강화"
+   이유: [C-003] UNFULFILLED commitment 감지. Iconoclast 지적 예상.
+   예상 효과: critical-lens 축 6 +12점, commitment 커버리지 60%→80%
+   🔗 근거 로그: [2026-04-20 14:30] 답변 반영 | ... | 2 UNFULFILLED
+
+2. 🟡 "평가해줘"
+   이유: 초안 후 3일 경과, 전체 5축 재평가 시점
+   예상 효과: delta 기준으로 어느 축이 움직였는지 확인
+   🔗 근거 로그: [2026-04-20 11:00] 초안 작성 | ...
+
+3. 🟢 "sync 확인해줘"
+   이유: P2 stale 1건 있음 — 해소 후 다음 단계 진행 권장
+   🔗 근거 로그: sync 점검 결과 (방금)
+
+👉 위 중 하나를 실행하거나, 직접 명령을 입력하세요.
+```
+
+### 단계 3: 로깅
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "작업 추천 제시" "result=3 recommendations"
+```
+
+(이는 hook도 자동 기록하지만 MD Layer 4 fallback으로 명시)
+
+---
+
+## ⏪ Time-travel Archive 조회 (로그 라인 기반)
+
+사용자 입력에서 `ref:TYPE-NNN` 패턴이 감지되고 "이 시점 ... 보여줘" 같은 요청이 오면:
+
+### 단계 1: ref 패턴 추출
+
+사용자 입력에서 다음 정규식으로 추출:
+```
+ref:([a-z\-]+)-(\d{3})
+```
+
+### 단계 2: archive 경로 해석
+
+```bash
+python3 scripts/activity_log.py resolve-ref {PROJECT_NAME} ref:{kind}-{NNN}
+```
+
+반환되는 경로 목록 (kind별):
+- `ref:eval-NNN` → `evaluations/archive/NNN-{date}-{stage}/`
+- `ref:ch-NNN` → `chapters/archive/NNN-{date}-{trigger}/`
+- `ref:q-NNN` → `critical-questions.archive/NNN-{date}-{trigger}.md`
+- `ref:commits-NNN` → `critical-commitments.archive/NNN-{date}-{trigger}.md`
+
+### 단계 3: 사용자 요청에 따라 파일 조회·출력
+
+- "work-plan 보여줘" → `archive/{folder}/work-plan.md` Read 후 출력
+- "evaluation 보여줘" → `archive/{folder}/evaluation.md`
+- "상태 요약" → 해당 폴더 모든 파일 짧게 요약
+- "되돌려줘" / "복원" → **거부**: "archive는 읽기 전용입니다. 직접 `cp archive/{path}/* {dest}/`로 복사하시면 됩니다."
+
+### 단계 4: 로깅
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "⏪ time-travel 조회" "ref=ref:{kind}-{NNN}" "result=displayed"
+```
+
+---
+
+## 📝 MD Layer 4: Activity Log Fallback 지시
+
+**시스템 설계**: activity.log는 Claude Code hooks(harness 레벨)에서 자동 기록됩니다. 그러나 hook이 실패하거나 우회되는 경우를 대비해 각 주요 명령은 **완료 후 명시적으로 로그를 남겨야** 합니다.
+
+### 명령별 로깅 원칙
+
+모든 주요 명령 섹션은 **최종 단계**에서 다음을 실행:
+
+```bash
+python3 scripts/activity_log.py append {PROJECT_NAME} "{action_label}" \
+  "stage={stage}" "target={target}" "result={result}" \
+  "ref=ref:{kind}-{NNN}" "agents={agent_list}" \
+  "{meta_key}={meta_value}"
+```
+
+### 명령별 표준 action_label
+
+| 명령 | action_label | 핵심 필드 |
+|------|------------|----------|
+| 프로젝트 생성 | "프로젝트 생성" | target=이름, ambition 메타 |
+| 평가해줘 | "평가 완료" | stage, result=점수/판정, ref:eval-NNN, agents |
+| 레퍼런스 점검해줘 | "레퍼런스 점검 완료" | result=축1 delta |
+| flow 업데이트해줘 | "flow 업데이트" | result=제안/반영 수 |
+| 작업 시작해줘 | "HUNT·REANALYZE 실행" | result=완료 수 |
+| 새 논문 처리해줘 | "논문 처리" | target=PDF 수, agents=paper-analyst |
+| 논문 재분석해줘 | "논문 재분석" | target=파일, result=v→v+1 |
+| 논문 제거해줘 | "논문 제거" | target=파일, dangling 메타 |
+| 초안 작성해줘 | "초안 작성" | result=챕터/단어 수, ref:ch-NNN, commits 메타 |
+| Chapter X 수정해줘 | "챕터 수정" | target=ChX, result=변경 요약, ref:ch-NNN |
+| 최종 통합해줘 | "최종 통합" | result=단어 수 |
+| 리뷰 체크해줘 | "리뷰 시뮬" | result=판정 |
+| 질문 업데이트해줘 | "질문 업데이트" | result=v번호, categories 메타 |
+| 답변 반영해줘 | "답변 반영" | result=commitments count |
+| 비판 모드 설정해줘 | "비판 모드 설정" | ambition 메타 |
+| sync 확인해줘 | "sync 점검" | result=stale tier 집계 |
+| gap 분석해줘 | "gap 분석" | result=gap 수 |
+| 방법론 추천/검증 | "방법론 {A/C}" | - |
+| 독창성 평가해줘 | "축 4 심층" | result=점수 |
+| 정의 정밀도 평가해줘 | "축 5 심층" | result=점수 |
+| 비판적 시각 평가해줘 | "축 6 심층" | result=점수 |
+| 비판적으로 분석해줘 | "논문 Mode C" | target=파일 |
+| 작업 추천해줘 | "작업 추천 제시" | result=추천 수 |
+
+### 왜 Layer 4도 필요한가
+
+Hooks는 **시스템이 실행되는 환경**을 전제로 함:
+- 사용자가 `.claude/settings.json`을 수정하거나 지운 경우 → hooks 비활성
+- Claude Code 버전 차이로 hooks spec 변경 시 → 작동 안 함
+- 프로젝트 감지 실패 시 → hook이 로그를 쓰지 못함
+
+MD 지시는 **Claude가 명령 처리 중 직접 호출**하므로 hooks 장애와 무관하게 작동. **두 계층이 서로 보완**하여 신뢰도 보장.
+
+---
+
 ## 전체 명령어 요약
 
 | 명령어 | 동작 | 에이전트 | Stage |
@@ -1518,6 +1669,8 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 | 🎭 `"비판적 시각 평가해줘"` | 비판적 시각·패러다임 평가 (ambition ≥ critical) | 🤖 critical-lens-evaluator | 모든 단계 |
 | 🤔 `"질문 업데이트해줘"` | Socratic 질문 v+1 생성 + 정합성 점검 | 🤖 critical-companion | Stage 마일스톤 + 수동 |
 | 🔍 `"비판적으로 분석해줘: {파일}"` | paper-analyst Mode C — hidden assumptions 등 | 🤖 paper-analyst (Mode C) | 리서치 보조 |
+| 🧠 `"작업 추천해줘"` | activity.log 기반 다음 명령 추천 (이유 + 로그 근거) | activity_log.py | 모든 단계 |
+| ⏪ 로그 라인 복사 + "이 시점 X 보여줘" | time-travel archive 조회 (읽기 전용) | activity_log.py + Read | 모든 단계 |
 
 **주요 명령 실행 시 자동 sync 동작**:
 - `"평가해줘"` / `"작업 시작해줘"` 등 주요 명령 **시작 시** → `sync_state.py check` → stale 이슈 사용자 보고 (중대 이슈 시 중단 옵션)

@@ -133,6 +133,7 @@ projects/my-essay/
 ├── chapters/                           ← 초안 섹션별 파일
 │   └── archive/                        ← 덮어쓰기 직전 자동 스냅샷 (롤백 가능)
 ├── final/                              ← 통합본 + docx
+├── activity.log                        ← 📓 모든 주요 작업 append-only 로그
 ├── .paper-metadata.json                ← 메타데이터 + intellectual_ambition 필드
 └── .sync-state.json                    ← 아티팩트 의존성·버전 추적
 ```
@@ -815,6 +816,122 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 - **Paradigm 내부 머무름 지적**: "비판한다면서 그 게임 안에 있다"
 - **자기 배신 탐지**: critical-questions.md 답변과 원고 불일치 적발
 - **대담성 등급**: ★★★★★ 5점 척도로 평가
+
+---
+
+## 📓 활동 로그 시스템 (Activity Log)
+
+모든 주요 작업은 `projects/{PROJECT_NAME}/activity.log`에 한 줄씩 누적됩니다. 이 로그는 두 가지 용도로 활용됩니다:
+
+### 용도 1: Time-travel (과거 시점 조회)
+
+```
+# 로그 파일에서 과거 라인 복사
+[2026-04-10 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 | ref:eval-003 | ...
+
+# 채팅에 붙여넣고 요청
+"[2026-04-10 14:30:15] ... | ref:eval-003 이 시점 work-plan 보여줘"
+```
+
+→ 시스템이 `ref:eval-003`을 파싱하여 `evaluations/archive/003-2026-04-10-v1-draft/work-plan.md` 출력.
+
+**지원 패턴**:
+- `ref:eval-NNN` — 평가 스냅샷
+- `ref:ch-NNN` — chapters 스냅샷
+- `ref:q-NNN` — critical-questions 버전
+- `ref:commits-NNN` — critical-commitments 버전
+
+**자동 복원은 제공 안 함** — 읽기 전용 조회만. 복원이 필요하면 수동 `cp`.
+
+### 용도 2: 작업 추천 (`"작업 추천해줘"`)
+
+```
+🧠 "작업 추천해줘"
+```
+
+시스템이 최근 14일 로그를 분석하여:
+- **P1 차단 요소** (stale, dangling, UNFULFILLED commitment)
+- **P2 자연 다음 단계** (stage 흐름 기준)
+- **P3 장기 정체 해소** (3일+ 미활동 시 재개)
+- **P4 선택적 강화** (방법론, gap 등)
+
+각 추천에 **근거 로그 라인** 동반. 블랙박스 추천 금지.
+
+### 로그 포맷
+
+```
+[YYYY-MM-DD HH:MM:SS] ACTION | STAGE | TARGET | RESULT | ref:ID | agents:A,B | key=value
+```
+
+실제 예시:
+```
+[2026-04-23 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 (+32) | ref:eval-003 | flow-evaluator,critical-lens | ambition=critical commits=3/5
+```
+
+- 앞 4 필드 고정 (timestamp, action, stage, target)
+- 뒤 필드는 선택적 (result, ref, agents, meta)
+- 빈 필드는 `-`로 표시
+
+### 아키텍처: 4계층 방어
+
+활동 로그는 **누락 방지를 위한 4계층 구조**로 기록됩니다:
+
+| 계층 | 실행 주체 | 신뢰도 | 트리거 |
+|------|----------|-------|-------|
+| 1. UserPromptSubmit hook | Claude Code harness | 100% | 매 사용자 입력 |
+| 2. Stop hook | Claude Code harness | 100% | 매 turn 종료 |
+| 3. PostToolUse(Bash) hook | Claude Code harness | 100% | 핵심 스크립트 호출 |
+| 4. MD 지시 (fallback) | Claude | 60-80% | SKILL.md 명령 완료 시 |
+
+Layer 1-3은 **harness-level**이라 LLM 상태와 무관하게 실행. Layer 4는 보조 안전망. 이중 덮어쓰기로 **누락률을 실질적 0으로 수렴**.
+
+### Hooks 설정 파일
+
+```
+.claude/settings.json
+```
+
+프로젝트 로컬(research-agent 루트) — git 추적되어 팀원 간 공유.
+
+### Hooks 끄는 법
+
+`.claude/settings.json`의 `hooks` 섹션을 지우거나 빈 객체로 설정:
+```json
+{
+  "hooks": {}
+}
+```
+
+끄면 Layer 1-3 비활성, Layer 4(MD 지시)만 작동. 로그는 여전히 쌓이지만 누락 가능성 증가.
+
+### 로그 파일 관리
+
+- **위치**: `projects/{PROJECT_NAME}/activity.log` (가시 파일)
+- **append-only**: 수정·삭제 금지 (사용자가 수동 편집해도 시스템은 존중)
+- **로테이션**: 없음 (프로젝트 수명 기준 ~2000 라인 예상)
+- **gitignore**: `projects/`가 이미 ignore 대상
+
+### 수동 조작
+
+```bash
+# 특정 프로젝트 로그 확인
+cat projects/CDEA/activity.log
+
+# 최근 N일치만
+python3 scripts/activity_log.py recent CDEA 7
+
+# 추천 JSON (디버그)
+python3 scripts/activity_log.py recommend CDEA
+
+# 수동 append (Claude가 하는 일을 직접)
+python3 scripts/activity_log.py append CDEA "수동 로그" "result=test"
+```
+
+### 주의사항
+
+- **hook이 작동 안 한다면**: `.claude/settings.json`이 존재하는지, `$CLAUDE_PROJECT_DIR`이 올바른지 확인
+- **로그 파싱 오류**: 수동 편집으로 포맷이 깨진 라인은 skip (경고만 출력)
+- **다중 프로젝트**: 가장 최근 수정된 프로젝트로 로그가 라우팅됨. 의도와 다르면 작업 전 해당 프로젝트 폴더를 `touch`로 mtime 갱신
 
 ---
 

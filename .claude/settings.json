@@ -1,0 +1,41 @@
+{
+  "$note": "Research Agent 프로젝트 전용 hooks. activity.log 자동 기록용. 끄려면 hooks 섹션을 지우거나 빈 객체로 설정.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-prompt-submit",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-turn-end",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-bash-event",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

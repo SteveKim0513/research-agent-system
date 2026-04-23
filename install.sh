@@ -207,6 +207,31 @@ if [ "$NEEDS_PROJECTS" = true ]; then
     echo ""
 fi
 
+# Activity Log hooks 자동 구성 (Claude Code hooks)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🪝 Activity Log hooks 구성"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+HOOKS_FILE="$INSTALL_DIR/.claude/settings.json"
+if [ -f "$HOOKS_FILE" ]; then
+    if grep -q '"UserPromptSubmit"' "$HOOKS_FILE" 2>/dev/null; then
+        echo "✅ Activity Log hooks 이미 구성됨"
+        echo "   📄 $HOOKS_FILE"
+    else
+        echo "⚠️  $HOOKS_FILE 존재하나 hooks 섹션 없음."
+        echo "   → 수동 확인 필요 (기존 설정 보존을 위해 자동 덮어쓰기 안 함)"
+    fi
+else
+    echo "❌ .claude/settings.json 없음 — 레포 clone이 완전하지 않을 수 있습니다."
+    echo "   git pull 후 다시 실행하거나 수동으로 .claude/settings.json을 생성하세요."
+fi
+echo ""
+echo "💡 Hooks는 사용자의 명령·turn·bash 이벤트를 자동 로깅합니다."
+echo "   로그 파일: projects/{프로젝트}/activity.log (가시)"
+echo "   끄고 싶으면 .claude/settings.json의 hooks 섹션을 지우세요."
+echo ""
+
 # Consensus MCP 설정 (필수)
 if [ "$NEEDS_CONSENSUS" = true ]; then
     echo "📡 Consensus MCP 설정 중..."
