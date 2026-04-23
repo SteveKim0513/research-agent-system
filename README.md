@@ -43,15 +43,16 @@ critical-questions.md 답변 작성
   → 결과 완료 후 "✅ [C-001] ... Section 2에 추가" 반영 보고
 ```
 
-### 18개 서브 에이전트
+### 19개 서브 에이전트
 
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
-**생성·수정 (5)**: paper-analyst (A/B/C modes), writing-architect, chapter-editor, flow-refiner, citation-auditor
+**논문 처리 오케스트레이션 (1)**: paper-processing-orchestrator (2-pass + Tier)
+**생성·수정 (5)**: paper-analyst (Tier 1 opus / Tier 2·3 sonnet / 재분석 B / 비판적 C), writing-architect, chapter-editor, flow-refiner, citation-auditor
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
 **보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 **유틸리티 (1)**: abstract-translator (haiku — HUNT·PDF abstract 한글 번역)
 
-**평가는 병렬 delta 아키텍처** — evaluation-orchestrator가 변경된 축만 병렬 디스패치. 각 에이전트는 작업 성격에 맞는 모델로 실행됩니다 (opus = 판단, sonnet = 구조화, haiku = 기계적). 자세히는 [PRINCIPLES.md](./PRINCIPLES.md) 참고.
+**평가·논문 처리 모두 병렬 delta·2-pass 아키텍처** — 평가는 변경된 축만 병렬 재계산, 논문 처리는 triage(haiku) → Tier별(opus/sonnet/sonnet) 분기로 핵심만 깊게, 배경은 간소하게. 각 에이전트는 작업 성격에 맞는 모델로 실행됩니다 (opus = 판단, sonnet = 구조화, haiku = 기계적). 자세히는 [PRINCIPLES.md](./PRINCIPLES.md) 참고.
 
 ---
 
@@ -131,12 +132,13 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (18개 서브 에이전트)
+│   └── agents/               (19개 서브 에이전트)
 │       ├── evaluation-orchestrator.md
+│       ├── paper-processing-orchestrator.md  (2-pass + Tier)
 │       ├── claim-extractor.md
 │       ├── axis1-reference-scorer.md ~ axis6-critical-scorer.md
 │       ├── critical-companion.md         (Critical Mode — Socratic 질문)
-│       ├── paper-analyst.md              (A/B/C modes)
+│       ├── paper-analyst.md              (Tier 1/2/3 + B 재분석 + C 비판)
 │       ├── writing-architect.md
 │       ├── chapter-editor.md
 │       ├── flow-refiner.md

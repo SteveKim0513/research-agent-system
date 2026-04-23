@@ -5,7 +5,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 > - **빠르게 시작하고 싶다면** 먼저 [GUIDE.md](./GUIDE.md) (3분) 참고 — 핵심만.
 > - 설치가 되어 있지 않다면 [README.md](./README.md) 참고.
 > - "왜 이렇게 설계되었는가?" 궁금하면 [PRINCIPLES.md](./PRINCIPLES.md)(설계 철학) 참고.
-> - **이 문서(MANUAL.md)**: 18개 에이전트·**병렬 delta 평가 아키텍처**·sync·Critical Mode·활동 로그·권한 관리·모델 라우팅 등 **모든 기능 상세** + troubleshooting.
+> - **이 문서(MANUAL.md)**: 19개 에이전트·**병렬 delta 평가 + 2-pass Tier 논문 분석 아키텍처**·sync·Critical Mode·활동 로그·권한 관리·모델 라우팅 등 **모든 기능 상세** + troubleshooting.
 
 ---
 
@@ -462,7 +462,7 @@ peer-reviewer Mode B:
 
 ## 🤖 서브 에이전트 시스템
 
-총 **18개** 전문 에이전트 (8 평가 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 1 유틸리티). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
+총 **19개** 전문 에이전트 (8 평가 오케스트레이션 + 1 논문 처리 오케스트레이션 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 1 유틸리티). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
 
 **평가 아키텍처 (2026-04-23 리팩터)**: 단일 `evaluation-orchestrator` 오케스트레이터를 **병렬 delta 아키텍처**로 분해. `evaluation-orchestrator`가 delta 감지 후 6개 axis scorer를 동시 디스패치. 이전 10-12분 → 2-5분. 자세히는 `plan.md` 참고.
 
@@ -504,7 +504,8 @@ peer-reviewer Mode B:
 
 | 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
 |---------|----------|--------|---------|----------|
-| **paper-analyst** | PDF → 섹션별 인용 다발 (v1/v2/v3 버전 관리) + Mode C (Critical Reading: hidden assumptions/biases/politics/alternatives/silences) | papers/collected/*.pdf, flow.md | analyzed/*.md (append) | `새 논문 처리해줘` (A 자동) / `논문 재분석해줘` (B) / `비판적으로 분석해줘` (C, ambition ≥ critical 자동) |
+| **paper-processing-orchestrator** 📄 | 2-pass 논문 처리 — triage(haiku) → Tier 분배 → 병렬 dispatch | candidates/*.pdf, flow 요약 | analyzed/*-triage.json + analyzed/*-analysis.md | `새 논문 처리해줘` 자동 (진입점) |
+| **paper-analyst** | Tier 1 (opus, full + Critical Reading) / Tier 2 (sonnet, full) / Tier 3 (sonnet, 간소판) / Mode B 재분석 (sonnet) / Mode C 비판적 읽기 (opus) | papers/{collected or candidates}/*.pdf, flow.md | analyzed/*-analysis.md (v1/v2/v3/[critical] append) | orchestrator dispatch (자동) / `논문 재분석해줘` (B, delta 기본) / `비판적으로 분석해줘` (C, ambition ≥ critical 자동) |
 | **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, analyzed/*.md (모든 버전), on-demand PDF | chapters/0N-*.md, final/complete-draft.md(.docx) | `초안 작성해줘` |
 | **chapter-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, analyzed/*.md, on-demand PDF | 수정된 chapter 파일 | `Chapter X 수정해줘: ...` (자동) |
 | **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
@@ -1102,7 +1103,13 @@ claude --dangerously-skip-permissions
 | 명령 | 동작 |
 |------|------|
 | `"작업 시작해줘"` | work-plan.md의 🔄 REANALYZE 먼저 → 🔍 HUNT를 Consensus에 순차 투입 |
-| `"새 논문 처리해줘"` | candidates/의 PDF 메타데이터 추출 + paper-analyst Mode A 분석 + sync 갱신 |
+| `"새 논문 처리해줘"` | candidates/의 PDF를 2-pass 분석 (triage haiku → Tier 1 opus·full+Critical / Tier 2 sonnet·full / Tier 3 sonnet·간소) |
+| `"새 논문 처리해줘 --priority {파일 목록}"` | 지정 파일만 Tier 1로 처리, 나머지는 triage만 |
+| `"새 논문 처리해줘 --tier=1"` | 모든 논문 Tier 1 강제 (triage 생략) |
+| `"가볍게 처리해줘"` | 전부 Tier 3 강제 (간소판) |
+| `"논문 재분석해줘"` | **delta 기본** — flow.md 변경 섹션 영향 논문만 Mode B |
+| `"논문 재분석해줘 --full"` | 전량 Mode B 재실행 |
+| `"{파일명} 논문 재분석해줘 --tier=1"` | 해당 논문 Tier 1 승격 후 재분석 + Critical Reading 추가 |
 | 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (paper-analyst Mode B, v2 append) |
 | 🗑 `"논문 제거해줘: {파일}"` | archived/로 안전 이동 + dangling citation 자동 탐지 |
 | 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 (축 3·4 강화) |

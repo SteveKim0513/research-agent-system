@@ -58,7 +58,7 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 ## 서브 에이전트 시스템
 
-이 스킬은 18개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 **19개의 서브 에이전트**를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
 **모델 라우팅 원칙**: 작업 성격에 따라 서브에이전트를 다른 모델로 실행하여 비용·속도 최적화. 평가·글쓰기는 opus, 분석·검증은 sonnet, 번역 같은 기계적 작업은 haiku. 각 에이전트 정의 파일의 frontmatter `model` 필드에 기본값 표기. Agent 도구 호출 시 `model` 파라미터로 오버라이드 가능.
 
@@ -73,7 +73,8 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | "논문 처리" (A) / "논문 재분석" (B) / "비판적으로 분석" (C) | 자동 |
+| **paper-processing-orchestrator** 📄 | `skills/agents/paper-processing-orchestrator.md` | "새 논문 처리해줘" — triage → tier 분배 → 병렬 dispatch (opus, 오케스트레이션만) | 자동 (논문 처리 진입점) |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | Tier별 Mode (A-triage haiku / A-tier1 opus + Critical / A-tier2 sonnet / A-tier3 sonnet-short / B 재분석 / C 비판적 읽기) | 자동 (orchestrator dispatch) |
 | **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
 | **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
@@ -475,63 +476,75 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={fl
 
 ---
 
-## 논문 처리
+## 논문 처리 (2-pass + Tier)
 
-사용자가 "새 논문 처리해줘", "논문 분석해줘", "candidates 처리해줘" 등을 말하면:
+사용자가 "새 논문 처리해줘", "논문 분석해줘", "candidates 처리해줘", "가볍게 처리해줘" 등을 말하면 **`paper-processing-orchestrator`** 에이전트가 진입점이 된다. 본 섹션은 그 흐름의 메인 세션 담당 부분을 기술한다.
 
-### 단계 1: 현재 프로젝트 확인
+**명령 플래그**:
+- `새 논문 처리해줘` → 2-pass 기본 (triage → tier1/2/3 분배 분석)
+- `새 논문 처리해줘 --batch=N` → 배치 크기 오버라이드
+- `새 논문 처리해줘 --skip-triage` → triage 생략, 전부 Tier 2 취급 (경고: tier·axis_tags 미부여)
+- `새 논문 처리해줘 --tier=1` → 모두 Tier 1 강제
+- `새 논문 처리해줘 --priority Loffler_2024 Doebel_2020` → 지정 파일만 Tier 1, 나머지 triage만
+- `가볍게 처리해줘` → 전부 Tier 3 강제 (`--tier=3` alias)
 
-현재 작업 중인 프로젝트를 확인하세요. 사용자가 명시하지 않았다면 가장 최근에 수정된 프로젝트를 사용하세요.
-
-### 단계 2: candidates 폴더 스캔
+### 단계 1: 현재 프로젝트 + candidates 확인
 
 ```bash
-ls -la projects/{PROJECT_NAME}/papers/candidates/*.pdf
+ls projects/{PROJECT_NAME}/papers/candidates/*.pdf
 ```
 
-### 단계 3: 각 PDF 파일 처리
+0개면 "candidates가 비어 있습니다" 메시지 후 종료.
 
-candidates 폴더에 있는 각 PDF에 대해:
+### 단계 2: 파일명 정규화 + 메타 추출
 
-1. **메타데이터 추출**:
 ```bash
-python scripts/extract_metadata.py projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf
+python3 scripts/normalize_filename.py {PROJECT_NAME}
+python3 scripts/extract_metadata.py {PROJECT_NAME}
 ```
 
-2. **결과를 .paper-metadata.json에 추가**:
-   - 파일명
-   - 제목 (추출된 값 또는 파일명)
-   - 저자
-   - 페이지 수
-   - 추가 날짜
+### 단계 3: 🤖 paper-processing-orchestrator 호출
 
-3. **PDF를 collected/로 이동**:
+1. `skills/agents/paper-processing-orchestrator.md` 파일을 읽는다
+2. Agent 도구로 실행 (model: opus, 가볍게 오케스트레이션만):
+   - 전달: candidates 파일 목록 + flow 요약 (flow/flow.md의 thesis + 섹션 제목 + 핵심 구성개념 리스트 300-500 단어) + 플래그
+   - 수행: 단계 3-7 (Pass 1 triage → tier 분배 → Pass 2 dispatch → sync)
+
+### 단계 3.1: Pass 1 — triage 병렬 (haiku)
+
+orchestrator가 관리. `paper-analyst`를 `Mode A-triage`로 각 PDF에 대해 병렬 호출 (model=haiku, 배치 20-25편). 각 결과는 `papers/analyzed/{파일명}-triage.json`으로 저장.
+
+### 단계 3.2: Tier 분배 + 사용자 보고
+
 ```bash
-mv projects/{PROJECT_NAME}/papers/candidates/{FILENAME}.pdf projects/{PROJECT_NAME}/papers/collected/
+python3 scripts/paper_triage.py summarize {PROJECT_NAME}
 ```
 
-### 단계 4: 🤖 paper-analyst 에이전트 자동 호출
+Tier 분포를 사용자에게 먼저 보고. 사용자 개입 없이 진행 (단 `--priority` 등이 지정되었으면 그에 맞춰 재분배).
 
-각 PDF 처리 후 **자동으로** paper-analyst 서브 에이전트를 호출하여 심층 분석을 수행한다.
+### 단계 3.3: Pass 2 — Tier별 병렬 dispatch
 
-1. `skills/agents/paper-analyst.md` 파일을 읽는다
-2. 현재 프로젝트의 `flow.md`를 읽는다
-3. 각 PDF에 대해 Agent 도구로 paper-analyst를 실행한다:
-   - 에이전트에게 전달: PDF 파일 경로 + flow.md 내용 + paper-analyst.md의 전체 지침
-   - 에이전트가 수행: 논문 읽기 → 3줄 요약, 핵심 기여, 한계, 관련성 점수, 활용 방안 분석
-4. 분석 결과를 `papers/analyzed/{파일명}-analysis.md`에 저장한다
+| Tier | 모델 | 배치 | Mode |
+|------|------|------|------|
+| 1 | opus | 5 | A-tier1 (full + Critical Reading) |
+| 2 | sonnet | 10 | A-tier2 (full, Critical 제외) |
+| 3 | sonnet | 20 | A-tier3 (간소판) |
 
-**여러 논문이 있을 경우 병렬로 에이전트를 호출**하여 효율적으로 처리한다.
+Tier 1·2·3을 **병렬로** 시작. 각 워커는 `paper-analyst.md` + flow.md + triage JSON + tier별 Mode 지시를 prompt로 받음.
 
-### 단계 4b: Sync 상태 갱신
+결과: `papers/analyzed/{파일명}-analysis.md`
 
-각 PDF 분석 완료 후 반드시 실행:
+### 단계 4: sync-state + PDF 이동
 
+각 분석 완료 파일마다:
 ```bash
 python3 scripts/sync_state.py update-paper {PROJECT_NAME} {파일명}.pdf
 ```
 
-이는 `.sync-state.json`의 papers 엔트리에 pdf_hash, analyzed_version, analyzed_flow_hash_at, analyzed_updated_at을 기록한다. 재분석(Mode B)일 경우 analyzed_version이 자동으로 v2, v3... 순으로 증가한다.
+전체 완료 후 PDF 이동:
+```bash
+mv projects/{PROJECT_NAME}/papers/candidates/{파일명}.pdf projects/{PROJECT_NAME}/papers/collected/
+```
 
 ### 단계 5: 결과 보고
 
@@ -1335,25 +1348,50 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "최종 통합" "stage=fin
 
 ---
 
-## 🔄 논문 재분석 (논문 재분석해줘)
+## 🔄 논문 재분석 (논문 재분석해줘) — Delta 모드 기본
 
 사용자가 "논문 재분석해줘", "paper 재분석", "Zelazo 논문 다시 분석", "모든 논문 재스캔" 등을 말하면:
 
-### 단계 1: 대상 선정
+**플래그**:
+- `논문 재분석해줘` → **delta 기본** (flow 변경 섹션에 영향받는 논문만)
+- `논문 재분석해줘 --full` → 모든 논문 Mode B 재실행
+- `논문 재분석해줘 {파일명}` → 지정 논문만 (delta 무시)
+- `{파일명} 논문 재분석해줘 --tier=1` → 해당 논문을 Tier 1으로 승격 후 재분석
 
-사용자 입력에 따라:
-- "{파일명} 논문 재분석해줘" → 지정된 논문만
-- "논문 재분석해줘" (지정 없음) → `work-plan.md`의 `[REANALYZE-NNN]` 블록 또는 `.sync-state.json`의 `analyzed_flow_hash_at` != 현재 flow_hash인 모든 논문
+### 단계 1: Delta 대상 선정
+
+```bash
+python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
+```
+
+이것이 반환하는 JSON의 `affected_papers` 리스트가 재분석 대상. `--full` 플래그 시 `paper_reanalysis_delta.py {P} --full`로 전량 반환.
+
+출력 예시:
+```json
+{
+  "mode": "delta",
+  "changed_sections": ["Section 3: Impurity Problem", "Section 4: Four EFs"],
+  "affected_papers": ["Loffler_2024", "Doebel_2020", "BussSpencer_2014"],
+  "total_analyzed": 138,
+  "skipped": 135
+}
+```
 
 ### 단계 2: paper-analyst Mode B 호출
 
-각 대상 PDF마다:
+각 대상 PDF마다 `paper-processing-orchestrator`를 통해 병렬 호출:
 
 1. `skills/agents/paper-analyst.md` 읽기
-2. Agent 도구로 paper-analyst를 **Mode B**로 호출:
-   - 전달: PDF 경로 + **현재 flow.md** + 기존 analyzed/*.md + 재분석 각도 (work-plan.md의 REANALYZE 블록이 있으면 그 지시, 없으면 flow 변경 전반)
+2. Agent 도구로 paper-analyst를 **Mode B**로 호출 (model: sonnet, 재분석은 opus 불필요):
+   - 전달: PDF 경로 + **현재 flow/flow.md** + 기존 `analyzed/{파일명}-analysis.md` + 변경 섹션 목록 + 재분석 각도
    - 수행: PDF 재스캔 → analyzed/*.md에 `## [v{N+1}] 재분석: {각도}` append (v1 내용은 절대 수정/삭제 금지)
 3. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
+
+### 단계 2b: Tier 승격 (선택)
+
+`--tier=1` 플래그가 있으면:
+1. triage.json의 tier를 1로 승격 (`paper_triage.py promote {P} {파일명} --to=1`)
+2. Mode A-tier1 Critical Reading 섹션을 **추가로** 호출하여 append (opus)
 
 ### 단계 3: claim-extraction 반영
 

@@ -441,7 +441,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-18개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가도 마찬가지로 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)** 로 분해되어 있다. 이유:
+19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-processing-orchestrator(2-pass 디스패처) + paper-analyst(Tier별 실제 분석)** 로 분해되어 있다. 이유:
 
 - 호출 토큰 효율 (Chapter 수정 15회 × 경량 chapter-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
@@ -456,9 +456,9 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정 | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer |
-| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | paper-analyst, claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
-| **haiku** | 기계적·대량·저창의 작업 | abstract-translator |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer, **paper-analyst Tier 1 + Mode C** |
+| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst Tier 2·3 + Mode B** (기본값), claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
+| **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Mode A-triage** (Pass 1 분류) |
 
 **판단 기준**:
 - **창의성·판단력이 품질을 결정하는가?** → opus (실패 시 복구 비용이 크다)
