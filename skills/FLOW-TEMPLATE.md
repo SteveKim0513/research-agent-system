@@ -60,7 +60,7 @@ flow.md는 **자유로운 줄글**로 작성하세요. 구조적 템플릿을 �
 1. `flow.md` 작성 완료 → **"평가해줘"** 입력
 2. 시스템이 자동으로:
    - 문장 단위 주장 추출 (claim-extractor)
-   - 5축 냉정 평가 (flow-evaluator)
+   - 5축 냉정 평가 (evaluation-orchestrator가 axis1~6 scorer 병렬 디스패치 → aggregator 집계)
    - `evaluation.md` + `work-plan.md` 생성
 3. `work-plan.md` 확인 후 **"작업 시작해줘"** 입력
 4. 시스템이 work-plan.md의 HUNT 과제 목록을 따라 Consensus 자동 검색

@@ -203,6 +203,35 @@ def cmd_snapshot_chapters(project_name: str, trigger: str, chapter_filename: str
     return 0
 
 
+def cmd_snapshot_evaluation(project_name: str, trigger: str) -> int:
+    """evaluations/latest/ 전체를 evaluations/archive/{NNN}-{date}-{trigger}/로 스냅샷.
+
+    병렬 평가 아키텍처에서 orchestrator가 단계 3에서 호출.
+    """
+    import shutil
+    root = project_root(project_name)
+    latest_dir = root / "evaluations" / "latest"
+    if not latest_dir.exists():
+        print(f"ℹ️  evaluations/latest/ 없음 — 스냅샷 스킵 (첫 평가)")
+        return 0
+
+    archive_dir = root / "evaluations" / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    existing = sorted([p for p in archive_dir.iterdir() if p.is_dir() and p.name[:3].isdigit()])
+    next_n = len(existing) + 1
+    next_tag = f"{next_n:03d}"
+    date = datetime.now().strftime("%Y-%m-%d")
+    folder_name = f"{next_tag}-{date}-{trigger}"
+    dest_dir = archive_dir / folder_name
+
+    # 재귀 복사
+    shutil.copytree(latest_dir, dest_dir)
+    n_files = sum(1 for _ in dest_dir.rglob("*") if _.is_file())
+    print(f"✅ 평가 스냅샷: {dest_dir} ({n_files}개 파일)")
+    return 0
+
+
 def cmd_snapshot_critical_commitments(project_name: str, trigger: str) -> int:
     """critical-commitments.md를 critical-commitments.archive/{NNN}-{date}-{trigger}.md로 보존."""
     root = project_root(project_name)
@@ -598,6 +627,8 @@ def main(argv: list[str]) -> int:
             return cmd_update_final(args[0])
         if cmd == "remove-paper" and len(args) == 2:
             return cmd_remove_paper(args[0], args[1])
+        if cmd == "snapshot-evaluation" and len(args) == 2:
+            return cmd_snapshot_evaluation(args[0], args[1])
         if cmd == "snapshot-chapters" and 2 <= len(args) <= 3:
             chapter_fn = args[2] if len(args) == 3 else None
             return cmd_snapshot_chapters(args[0], args[1], chapter_fn)

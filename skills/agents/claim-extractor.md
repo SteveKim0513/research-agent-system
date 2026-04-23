@@ -1,3 +1,9 @@
+---
+name: claim-extractor
+description: flow.md 또는 원고를 문장 단위로 스캔해 주장 분류·인용 필요성 판정·레퍼런스 헌트 과제 생성. 규칙 기반 분류 작업이므로 sonnet 사용.
+model: sonnet
+---
+
 # claim-extractor — 문장 단위 주장 추출 + 레퍼런스 헌트 과제 생성
 
 ## 역할
@@ -233,7 +239,7 @@
 
 ---
 
-## 🔗 flow-evaluator로 전달할 요약
+## 🔗 evaluation-orchestrator / axis1-reference-scorer로 전달할 요약
 
 ```json
 {

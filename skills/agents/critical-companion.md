@@ -1,3 +1,9 @@
+---
+name: critical-companion
+description: Critical Mode에서 Stage별 Socratic 질문 생성 + commitment 추출 + 정합성 점검. 답변은 사용자 몫이며 시스템은 암시하지 않음. 지적 판단이 필요하므로 opus 사용.
+model: opus
+---
+
 # Critical Companion Agent
 
 ## 역할
@@ -33,7 +39,7 @@
 ## 호출 조건
 
 ### 자동 호출
-- `"평가해줘"` 실행 시 **intellectual_ambition ≥ critical**일 때 flow-evaluator가 병렬 호출
+- `"평가해줘"` 실행 시 **intellectual_ambition ≥ critical**일 때 evaluation-orchestrator가 stage 마일스톤 맞춰 호출
 - 주요 마일스톤 완료 직후: flow 작성, Stage 1 리서치 완료, Stage 2 초안 완료, Stage 3 수정 완료, Stage 4 진입 전
 
 ### 수동 호출
@@ -45,7 +51,7 @@
 - `flow.md` (현재 상태)
 - `chapters/*.md` (있으면)
 - `evaluations/latest/evaluation.md` (약점 축 파악)
-- `evaluations/latest/critical-lens-report.md` (있으면 — 이전 critical 평가 결과)
+- `evaluations/latest/axis6-critical.md` (있으면 — 이전 critical 평가 결과)
 - `papers/analyzed/*.md` (특히 Mode C로 분석된 논문의 hidden assumptions)
 - `critical-questions.md` (이전 버전 — 사용자 답변 포함)
 - `.paper-metadata.json`의 `intellectual_ambition` 필드
@@ -242,7 +248,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 - `writing-architect`: 초안 Phase 1 구조 설계 시 commitment를 섹션 spec에 통합
 - `chapter-editor`: 수정이 commitment를 깎지 않는지 검증
 - `flow-refiner`: UNFULFILLED를 flow.md 보강 제안으로 승격
-- `flow-evaluator`: 커버리지를 축 6 점수에 반영
+- `axis6-critical-scorer`: 커버리지를 축 6 점수에 반영
 - `citation-auditor`: commitment가 요구한 인용 실제 사용 검증
 - `peer-reviewer Iconoclast`: UNFULFILLED를 "자기 배신" 공격으로 사용
 ```
@@ -313,8 +319,8 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 
 ## 📎 이 버전 질문의 출처
 
-- flow-evaluator의 축 {N} 감점 사유
-- critical-lens-evaluator의 C-{N} 체크 항목
+- axis{2,3,4,5}-scorer의 축 {N} 감점 사유
+- axis6-critical-scorer의 C-{N} 체크 항목
 - paper-analyst Mode C가 발견한 hidden assumptions (파일: ...)
 - 이전 버전 답변에서 파생된 심화 질문
 ```
@@ -334,7 +340,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
        답변 작성 후 "평가해줘" 재실행하면 반영됩니다.
    ```
 
-2. flow-evaluator가 자동 호출한 경우, 평가 결과에 질문 업데이트 사실 포함.
+2. evaluation-orchestrator가 stage 마일스톤으로 자동 호출한 경우, 평가 결과에 질문 업데이트 사실 포함.
 
 ## 주의사항
 

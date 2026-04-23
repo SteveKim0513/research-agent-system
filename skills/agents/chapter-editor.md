@@ -1,3 +1,9 @@
+---
+name: chapter-editor
+description: 기존 구조 보존하며 Chapter 수정 + writing 원칙 유지 + commitment 충돌 검증. 글쓰기 품질 판단이 필요하므로 opus 사용.
+model: opus
+---
+
 # Chapter Editor Agent
 
 ## 역할

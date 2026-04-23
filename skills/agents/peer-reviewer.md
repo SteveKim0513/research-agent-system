@@ -1,3 +1,9 @@
+---
+name: peer-reviewer
+description: 심사자 페르소나 3인 시뮬레이션 (Reviewer 1·2·3) + Iconoclast 페르소나 (timidity 지적). 심사 엄격도 판단이 필요하므로 opus 사용.
+model: opus
+---
+
 # Peer Reviewer Agent
 
 ## 역할
@@ -87,7 +93,7 @@
 **입력 참조**:
 - **`critical-commitments.md`** (우선, 있으면) — 사용자의 commitment 반영 상태
 - `critical-questions.md` (사용자가 답변한 내용)
-- `evaluations/latest/critical-lens-report.md` (있으면)
+- `evaluations/latest/axis6-critical.md` (있으면)
 
 **commitment 기반 공격 패턴** (critical-commitments.md 활용):
 - UNFULFILLED commitment가 있으면: "v3에서 X라고 답했는데 원고에서 이행되지 않았다. 왜 타협했나?"

@@ -117,8 +117,8 @@
 
 **구현**:
 - Consensus MCP 검색 결과의 **저널 등급·인용 수·발행 연도** 메타데이터 활용
-- `flow-evaluator` 축 1-3 채점에서 세미널 누락·최신 부재 모두 감점
-- `originality-evaluator`의 Delta Map이 "유사 선행 연구 TOP 3"를 명시적으로 요구하여 누락 방지
+- `axis1-reference-scorer` 축 1-3 채점에서 세미널 누락·최신 부재 모두 감점
+- `axis4-originality-scorer`의 Delta Map이 "유사 선행 연구 TOP 3"를 명시적으로 요구하여 누락 방지
 
 #### 1-4. Balance — Disconfirming evidence 포함
 
@@ -145,7 +145,7 @@
 
 **구현**:
 - `writing-architect` Phase 1에서 각 문단의 "주장 → 근거 → 연결"을 명시적으로 설계
-- `flow-evaluator`가 warrant 누락을 축 2-1 감점으로 처리
+- `axis2-logic-scorer`가 warrant 누락을 축 2-1 감점으로 처리
 - `chapter-editor`는 기존 사슬을 보존하며 수정
 
 #### 2-2. Section Transition — 섹션 간 논리적 다리
@@ -154,7 +154,7 @@
 
 **구현**:
 - `writing-architect` Phase 1 설계 시 각 섹션에 "다음 섹션 연결" 명시
-- `flow-evaluator`가 섹션 간 Logic jump를 축 2-2 감점으로 지적
+- `axis2-logic-scorer`가 섹션 간 Logic jump를 축 2-2 감점으로 지적
 - `chapter-editor`가 수정 후 자동 일관성 체크 (Phase 4)
 
 #### 2-3. Thesis Alignment — 모든 단락이 thesis에 기여
@@ -163,7 +163,7 @@
 
 **구현**:
 - `flow.md` 작성 시 **thesis를 한 문장으로 명시** 강제 (claim-extractor가 탐지)
-- `flow-evaluator`가 각 문단에 대해 "이 문단이 thesis에 기여하는가?" 체크
+- `axis2-logic-scorer`가 각 문단에 대해 "이 문단이 thesis에 기여하는가?" 체크
 - 탈선 문단은 축 2-3 감점 + 삭제 권고
 
 #### 2-4. Scope Closure — RQ에 실제로 답함
@@ -172,7 +172,7 @@
 
 **구현**:
 - `claim-extractor`가 prose flow에서 RQ를 명시적으로 추출
-- `flow-evaluator`의 "Mirror Introduction" 원칙 (Conclusion 섹션 전략)
+- `axis2-logic-scorer`의 "Mirror Introduction" 원칙 (Conclusion 섹션 전략)
 - 평가 시 RQ와 Conclusion이 동일 subject/verb 구조인지 체크
 
 ---
@@ -192,7 +192,7 @@ Top-tier 저널 심사자의 핵심 태도는 "이 주장이 틀렸다면 어떻
 **구현**:
 - `peer-reviewer` Mode A의 "Reviewer 2 (분야 전문가)" 페르소나가 steelman 버전 제시
 - `flow-refiner`가 새 논문 발견 시 steelman 보강 제안
-- `flow-evaluator` 축 3-1 감점 사유: "이 반론의 더 강한 버전은 X"
+- `axis3-defense-scorer` 축 3-1 감점 사유: "이 반론의 더 강한 버전은 X"
 
 #### 3-2. Falsifiability — 주장이 틀릴 조건 명시
 
@@ -200,7 +200,7 @@ Top-tier 저널 심사자의 핵심 태도는 "이 주장이 틀렸다면 어떻
 
 **구현**:
 - Section 5 (Implications & Counterarguments)에서 반증 조건 명시 요구
-- `flow-evaluator` 축 3-2 감점: "이 주장이 틀렸다고 판단할 조건이 명시되지 않음"
+- `axis3-defense-scorer` 축 3-2 감점: "이 주장이 틀렸다고 판단할 조건이 명시되지 않음"
 
 #### 3-3. Productive Limitations — 한계를 자산으로
 
@@ -235,7 +235,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 **원칙**: "이 논문이 존재하지 않았다면 분야는 무엇을 잃는가?"에 **구체적으로** 답해야 한다. "이 주제는 중요하다" 같은 일반론은 통하지 않음.
 
 **구현**:
-- `originality-evaluator`가 Introduction·Conclusion에서 "So What?" 증거 문장 탐색
+- `axis4-originality-scorer`가 Introduction·Conclusion에서 "So What?" 증거 문장 탐색
 - 부재 시 축 4-1 −15점 감점
 - 개선 방향 제시: "이 연구가 없으면 [구체적 공백]이 해결되지 않는다" 형식 권장
 
@@ -244,7 +244,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 **원칙**: "기존 연구와 다르게"는 너무 약하다. **가장 유사한 선행 연구 3편을 지명**하고 각각과의 구체적 차별점을 명시해야 한다.
 
 **구현**:
-- `originality-evaluator`가 **Delta Map 테이블** 자동 생성:
+- `axis4-originality-scorer`가 **Delta Map 테이블** 자동 생성:
   ```
   | 선행 | 이미 한 것 | 이 논문의 Delta | 강도 |
   ```
@@ -255,7 +255,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 **원칙**: "이 논문의 기여는 **개념적**이다 — 기존 cool EF 중심 연구를 규칙 속성 4분면으로 재개념화"처럼 기여 층위가 명시되고 일관되어야 한다. 이론 에세이에서 경험적 주장을 섞는 층위 혼재는 심사자 불안 유발.
 
 **구현**:
-- `originality-evaluator`의 4-3 체크: "기여 층위가 명시되고 일관되는가?"
+- `axis4-originality-scorer`의 4-3 체크: "기여 층위가 명시되고 일관되는가?"
 - 층위 혼재 시 수정 권고
 
 #### 4-4. Downstream Implications — 후속 경로 구체화
@@ -264,7 +264,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 **구현**:
 - Conclusion 전략에 "What Next?" 섹션 필수
-- `originality-evaluator`가 implications 구체성 평가
+- `axis4-originality-scorer`가 implications 구체성 평가
 
 ---
 
@@ -281,7 +281,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 **원칙**: 핵심 용어는 **첫 등장 시점**에 정의되어야 하며, 이후 **일관되게** 사용되어야 한다. 같은 용어가 다른 섹션에서 다른 의미로 쓰이면 concept drift.
 
 **구현**:
-- `concept-clarity-evaluator`가 **용어 정의 감사 테이블** 작성:
+- `axis5-concept-scorer`가 **용어 정의 감사 테이블** 작성:
   ```
   | 용어 | 첫 등장 | 명시 정의? | 후속 사용 drift? | 감점 |
   ```
@@ -292,7 +292,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 **원칙**: 추상 개념이라도 "이런 행동은 개념 A, 저런 행동은 개념 B"의 **구체적 예시와 non-example**이 있어야 한다.
 
 **구현**:
-- `concept-clarity-evaluator` 5-2 체크리스트
+- `axis5-concept-scorer` 5-2 체크리스트
 - `paper-analyst`의 섹션별 인용 다발에 "구체적 수치·예시" 필드
 
 #### 5-3. Boundary Conditions — 적용 범위 명확화
@@ -301,14 +301,14 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 **구현**:
 - Section 4 또는 5에 **적용 경계 박스** 권장
-- `concept-clarity-evaluator` 5-3 감점
+- `axis5-concept-scorer` 5-3 감점
 
 #### 5-4. Categorical vs Dimensional — 선택 근거 명시
 
 **원칙**: 분류 축을 범주적(discrete)으로 쓰는지 연속적(continuous)으로 쓰는지, 그리고 **그 선택의 근거**를 밝혀야 한다. 최소한 "heuristic 채택" 같은 disclaimer 필수.
 
 **구현**:
-- `concept-clarity-evaluator` 5-4 체크
+- `axis5-concept-scorer` 5-4 체크
 - flow.md Section 4 등 핵심 개념 도입 시 범주/차원 선택 명시 요구
 
 ---
@@ -359,16 +359,16 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 | 1 | **Over-claim** (correlation → causation) | paper 요약만 보고 원문 조건 무시 | paper-analyst의 "조건·한계" 필드 + citation-auditor PDF 대조 |
 | 2 | **Strawman 반론** | 약한 반론을 공격해서 논증 강화한 것처럼 보이려 함 | peer-reviewer Mode A의 Reviewer 2 steelman 요구 |
 | 3 | **Reference inflation** | 저널 심사 통과 목적으로 관련 없는 인용 남발 | claim-extractor가 문장별 인용 매핑 — 각 인용이 실제로 어떤 주장 뒷받침하는지 추적 |
-| 4 | **Circular argument** | A 때문에 B, B 때문에 A (같은 주장 반복) | flow-evaluator 축 2-1 argument chain 검사 |
+| 4 | **Circular argument** | A 때문에 B, B 때문에 A (같은 주장 반복) | axis2-logic-scorer 축 2-1 argument chain 검사 |
 | 5 | **Moving goalpost** | RQ와 Thesis, Conclusion이 서로 다름 | claim-extractor가 RQ·Thesis 추출 강제 + 축 2-4 Scope Closure |
-| 6 | **Construct concept drift** | 같은 용어를 섹션마다 다른 의미로 사용 | concept-clarity-evaluator 정의 감사 테이블 |
+| 6 | **Construct concept drift** | 같은 용어를 섹션마다 다른 의미로 사용 | axis5-concept-scorer 정의 감사 테이블 |
 | 7 | **Placeholder citation** | `[Smith]`, `[논문 이름 미정]` 같은 임시 표기 | claim-extractor의 UNMATCHED 탐지 → HUNT 과제 자동 생성 |
-| 8 | **Missing key references** | 세미널 논문 누락 | flow-evaluator 축 1-3 Authority + Consensus MCP의 인용수 필터링 |
+| 8 | **Missing key references** | 세미널 논문 누락 | axis1-reference-scorer 축 1-3 Authority + Consensus MCP의 인용수 필터링 |
 | 9 | **Confirmation bias** | 자기 주장 뒷받침 문헌만 인용, 반대 증거 배제 | 축 1-4 Balance 채점 + peer-reviewer의 반대 증거 시뮬레이션 |
 | 10 | **Logic jump** | A에서 C로 점프, 전제 B 생략 | writing-architect Phase 1의 "premise → warrant → claim" 설계 |
-| 11 | **Scope creep** | Section이 주제에서 벗어나 방황 | flow-evaluator 축 2-3 Thesis Alignment |
-| 12 | **Vague operationalization** | 추상 개념만 나열, 관찰 가능 지표 없음 | concept-clarity-evaluator 축 5-2 체크리스트 |
-| 13 | **"So What?" 답 부재** | 왜 이 연구가 중요한지 본문에 설명 없음 | originality-evaluator 축 4-1 first-question test |
+| 11 | **Scope creep** | Section이 주제에서 벗어나 방황 | axis2-logic-scorer 축 2-3 Thesis Alignment |
+| 12 | **Vague operationalization** | 추상 개념만 나열, 관찰 가능 지표 없음 | axis5-concept-scorer 축 5-2 체크리스트 |
+| 13 | **"So What?" 답 부재** | 왜 이 연구가 중요한지 본문에 설명 없음 | axis4-originality-scorer 축 4-1 first-question test |
 
 ---
 
@@ -441,11 +441,36 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-14개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강 — 기능이 겹치지 않음. 이유:
+18개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가도 마찬가지로 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)** 로 분해되어 있다. 이유:
 
 - 호출 토큰 효율 (Chapter 수정 15회 × 경량 chapter-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
 - 역할 경계가 사용자에게 명확
+- **작업별로 다른 모델 할당 가능** (다음 섹션 참조)
+
+### 5a. 모델 라우팅 (비용·속도 최적화)
+
+단일 책임 원칙이 **모델 차별화**를 가능하게 한다. 서브에이전트는 Agent 도구 호출 시 `model` 파라미터로 `haiku`·`sonnet`·`opus` 중 선택 가능하며, 각 에이전트 정의 파일 frontmatter의 `model` 필드가 기본값을 지정한다.
+
+**할당 원칙**:
+
+| 모델 | 대상 작업 | 에이전트 예시 |
+|------|----------|-------------|
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정 | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer |
+| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | paper-analyst, claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
+| **haiku** | 기계적·대량·저창의 작업 | abstract-translator |
+
+**판단 기준**:
+- **창의성·판단력이 품질을 결정하는가?** → opus (실패 시 복구 비용이 크다)
+- **명확한 절차·스키마가 있는가?** → sonnet (opus까진 과함)
+- **매핑·변환이 본질인가?** → haiku (1/10 비용)
+
+**메인 세션(opus)은 오케스트레이션 전담**: HUNT 단계 2에서 메인 opus가 abstract를 직접 번역하는 것은 낭비 — 번역은 haiku 서브에이전트에 위임하고 메인은 큐레이션·annotation·액션 아이템 작성에만 집중. 평가도 동일: 메인 opus는 evaluation-orchestrator 호출만, 실제 채점은 axis scorer들이 병렬 수행.
+
+**평가 축별 모델 근거** (2026-04-23 리팩터 시 결정):
+- **axis1 (sonnet)**: Coverage·Accuracy·Authority·Balance는 claim-extraction 집계 + PDF spot-check로 규칙 기반. 대부분 카운팅 + 간단 대조이므로 sonnet 충분.
+- **axis2·3·4·6 (opus)**: 논증 품질·반박 질·독창성·비판적 시각은 미묘한 판단을 요구 — sonnet으로 다운그레이드 시 감점 사유 식별 품질 하락.
+- **axis5 (sonnet)**: 정의 존재·조작화·경계·범주형 여부는 체크리스트 기반. 판단보다 구조 확인이 주.
 
 ### 6. Prose over Template
 
@@ -470,13 +495,16 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 | 에이전트 | 구현 원칙 | 방어하는 실수 |
 |---------|---------|------------|
-| **flow-evaluator** | 5축 전체 + cold evaluation + delta 추적 + sync gate | 관대한 평가, 다른 에이전트가 놓친 축 간 상호작용 |
+| **evaluation-orchestrator** | 병렬 delta 아키텍처 + 모델 라우팅 + Archive 스냅샷 + sync gate | 순차 체이닝 낭비, 변경 없는 축 재계산, 관대한 평가 |
+| **axis1-reference-scorer** | 1-1~1-4 (Coverage·Accuracy·Authority·Balance) + PDF spot-check | 세미널 누락, placeholder citation, confirmation bias |
+| **axis2-logic-scorer** | 2-1~2-4 (Argument Chain·Transition·Thesis·Scope) | Warrant 누락, 섹션 간 logic jump |
+| **axis3-defense-scorer** | 3-1~3-4 (Steelman·Falsifiability·Limitations·Attack Surface) | Strawman, 반증 조건 부재 |
+| **axis4-originality-scorer** | 4-1~4-4 (So What·Novelty·Layer·Implications) + Delta Map | "So What?" 답 부재, Novelty 드리프트 |
+| **axis5-concept-scorer** | 5-1~5-4 (Definition·Operationalization·Boundary·Categorical) | Concept drift, Vague operationalization |
+| **axis6-critical-scorer** | 축 6 (C-1 Paradigm ~ C-4 Minority Recovery) + 자기 배신 탐지 | orthodox 편향, timidity, 소수 의견 배제 |
 | **claim-extractor** | 1-1 Coverage, 1-2 Accuracy 예비, 5-1 Definition 탐지 | #7 Placeholder citation, #5 Moving goalpost |
-| **originality-evaluator** | 4-1 ~ 4-4 | #13 "So What?" 답 부재 |
-| **concept-clarity-evaluator** | 5-1 ~ 5-4 | #6 Concept drift, #12 Vague operationalization |
-| **critical-lens-evaluator** | 축 6 (C-1 Paradigm Mapping ~ C-4 Minority Recovery) | orthodox 편향, 소수 의견 배제, timidity |
 | **critical-companion** | Socratic 질문 (답변 생산 금지) + commitment 추출 + 정합성 점검 | 지적 자기 배신 (답변 → 원고 누락), 회피 중인 질문 |
-| **paper-analyst** | 인용 재료의 "조건·한계" 필드 + Mode C (hidden assumptions) | #1 Over-claim (근본 예방), confirmation bias 재생산 |
+| **paper-analyst** | 인용 재료의 "조건·한계" 필드 + axis_tags + Mode C (hidden assumptions) | #1 Over-claim (근본 예방), confirmation bias 재생산 |
 | **writing-architect** | Topic Sentence First, Synthesis, Hedging, Evidence→Analysis | #4 Circular, #10 Logic jump |
 | **chapter-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
 | **flow-refiner** | 4-2 Novelty Positioning, 3-1 Steelman 보강 | Novelty 드리프트 |
@@ -484,6 +512,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 | **gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
 | **methodology-advisor** | (empirical 전용) 방법론 정당화 | 방법론 임의 선택 |
 | **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface, Iconoclast (timidity 지적) | #2 Strawman, reject 유발 major issue, 자기 배신 미탐지 |
+| **abstract-translator** | 모델 라우팅 (원칙 5a): 번역은 haiku에 위임 | 메인 opus 세션의 기계적 번역 낭비 |
 
 ---
 
@@ -618,7 +647,7 @@ Critical Mode는 다음 학술 비판 전통에 근거:
 이 모드는 기본 5축에 **덧붙은 것**이 아니라, 기본 철학을 **극한까지 밀고 간 형태**입니다. 시스템의 근본 원칙은 "사용자의 지적 주체성 보존"이며, Critical Mode는 특히 **비판적 주체성**을 보호합니다.
 
 - **Cold evaluation**은 관대하지 않지만, **critical-companion은 질문만 하고 답은 안 함** — 관대함과 다른 차원의 존중
-- **단일 책임 원칙**은 critical-lens-evaluator와 originality-evaluator를 분리 — 전자는 paradigm 밖, 후자는 분야 내
+- **단일 책임 원칙**은 axis6-critical-scorer와 axis4-originality-scorer를 분리 — 전자는 paradigm 밖, 후자는 분야 내
 - **Safe backtracking**은 critical-questions.archive로 확장 — 사용자의 지적 진화 전체를 보존
 
 ---

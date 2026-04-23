@@ -24,6 +24,9 @@ echo "1️⃣  Claude Code (CLI) 확인"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# 쉘 hash 캐시 무효화 — 방금 설치된 바이너리를 놓치는 false negative 방지
+hash -r 2>/dev/null || true
+
 if command -v claude &> /dev/null; then
     CLAUDE_VERSION=$(claude --version 2>/dev/null || echo "unknown")
     echo "✅ Claude Code 이미 설치됨: $CLAUDE_VERSION"
@@ -155,11 +158,36 @@ if [ "$NEEDS_CLAUDE" = true ]; then
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         if command -v npm &> /dev/null; then
+            # 이전 부분 설치 잔존물 사전 정리 (ENOTEMPTY 에러 예방)
+            NPM_PREFIX=$(npm config get prefix 2>/dev/null)
+            CLAUDE_PKG_DIR="$NPM_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
+            CLAUDE_PKG_PARENT="$NPM_PREFIX/lib/node_modules/@anthropic-ai"
+            if [ -d "$CLAUDE_PKG_DIR" ]; then
+                echo "   🧹 이전 설치 디렉토리 정리 중..."
+                rm -rf "$CLAUDE_PKG_DIR" 2>/dev/null || sudo rm -rf "$CLAUDE_PKG_DIR"
+            fi
+            # npm이 rename 시 사용하는 임시 디렉토리 잔존물도 제거
+            if [ -d "$CLAUDE_PKG_PARENT" ]; then
+                find "$CLAUDE_PKG_PARENT" -maxdepth 1 -name '.claude-code-*' -type d -exec rm -rf {} + 2>/dev/null || true
+            fi
+
             echo "   설치 중..."
             if npm install -g @anthropic-ai/claude-code; then
+                hash -r 2>/dev/null || true
                 echo "✅ Claude Code 설치 완료"
             else
-                echo "❌ 설치 실패"
+                echo ""
+                echo "❌ 설치 실패 (npm error)"
+                echo ""
+                echo "가장 흔한 원인: 이전 설치 잔존물 또는 권한 문제."
+                echo "아래 명령으로 수동 복구 후 재시도하세요:"
+                echo ""
+                echo "   sudo rm -rf \"$CLAUDE_PKG_DIR\""
+                echo "   npm install -g @anthropic-ai/claude-code"
+                echo ""
+                echo "그래도 실패하면:"
+                echo "   sudo chown -R \$(whoami) \"$NPM_PREFIX/lib/node_modules\""
+                echo "   npm install -g @anthropic-ai/claude-code"
                 exit 1
             fi
         else

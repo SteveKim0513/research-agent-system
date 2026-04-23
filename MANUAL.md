@@ -5,7 +5,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 > - **빠르게 시작하고 싶다면** 먼저 [GUIDE.md](./GUIDE.md) (3분) 참고 — 핵심만.
 > - 설치가 되어 있지 않다면 [README.md](./README.md) 참고.
 > - "왜 이렇게 설계되었는가?" 궁금하면 [PRINCIPLES.md](./PRINCIPLES.md)(설계 철학) 참고.
-> - **이 문서(MANUAL.md)**: 14개 에이전트·sync 아키텍처·Critical Mode·활동 로그·권한 관리 등 **모든 기능 상세** + troubleshooting.
+> - **이 문서(MANUAL.md)**: 18개 에이전트·**병렬 delta 평가 아키텍처**·sync·Critical Mode·활동 로그·권한 관리·모델 라우팅 등 **모든 기능 상세** + troubleshooting.
 
 ---
 
@@ -70,25 +70,25 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 |------|------|-------------|-------------------------|--------|
 | 1. 프로젝트 생성 | `"[이름] 프로젝트 만들어줘"` | — | sync_state.py init | 폴더 구조 + 빈 flow.md |
 | 2. flow.md 작성 | (사용자 직접) | — | — | flow.md (prose) |
-| 3. 1차 평가 | `평가해줘` | **flow-evaluator** (오케스트레이터) | claim-extractor + originality-evaluator + concept-clarity-evaluator + (ambition ≥ critical: critical-lens-evaluator + critical-companion) + (v1-draft/revised/final: citation-auditor 단계별 샘플링) | evaluation.md, work-plan.md, claim-extraction.md, originality-report.md, concept-clarity-report.md, (+critical-lens-report.md, critical-questions.md v+1) |
+| 3. 1차 평가 | `평가해줘` | **evaluation-orchestrator** (delta 감지·병렬 디스패치) | claim-extractor (axis1 선행, prose 시) + axis1~axis6 scorers 병렬 + evaluation_aggregator.py + (ambition ≥ critical: critical-companion stage 마일스톤) + (v1-draft/revised/final: citation-auditor 샘플링) | axis1-reference.md ~ axis6-critical.md, evaluation.md(aggregator 생성), work-plan.md, claim-extraction.md, (+critical-questions.md v+1) |
 | 4a. 리서치 실행 | `작업 시작해줘` | — (MCP 직접 호출) | **paper-analyst Mode B** (REANALYZE 과제), Consensus MCP (HUNT 과제) | consensus-results.md 누적, analyzed/*.md v2+ append |
-| 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 |
-| 5a. 경량 점검 | `레퍼런스 점검해줘` | **flow-evaluator** (axis-1 mode) | PDF 2-3편 샘플링 자동 검증 | evaluation.md 축 1만 갱신 |
+| 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 (axis_tags 포함) |
+| 5a. 경량 점검 | `레퍼런스 점검해줘` | **evaluation-orchestrator** (axis1만) | **axis1-reference-scorer**, archive 스냅샷 생략 | axis1-reference.md + evaluation.md 축 1 블록만 갱신 |
 | 5b. flow 보강 | `flow 업데이트해줘` | **flow-refiner** | — | flow.md 업데이트 제안 → 승인 시 flow.md 갱신 |
 | 6. 1차 초안 | `초안 작성해줘` | **writing-architect** (Phase 1 → 사용자 승인 → Phase 2) | (ambition ≥ critical: commitment 추출 prehook 자동) + on-demand PDF 접근 | chapters/*.md, final/complete-draft.md, .docx, critical-commitments.md 갱신 |
-| 7. 2차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 30% 샘플** | archive/002 + 갱신된 evaluations/latest/ |
+| 7. 2차 평가 | `평가해줘` | **evaluation-orchestrator** (delta 모드, flow.md 변경 축만) | stale axis scorers + **citation-auditor 30% 샘플** | archive/NNN + 갱신된 evaluations/latest/ |
 | 8. 챕터 수정 | `Chapter X 수정해줘: ...` | **chapter-editor** | (ambition ≥ critical: commitment prehook) + **citation-auditor** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 + critical-commitments.md 상태 갱신 |
-| 9. 3차 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + axis-4/5 + **citation-auditor 전량** | archive/003 |
+| 9. 3차 평가 | `평가해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-auditor 전량** | archive/NNN |
 | 10a. 최종 통합 | `최종 통합해줘` | — | — | final/complete-draft.md + .docx 재생성 |
 | 10b. 심사 시뮬 | `리뷰 체크해줘` | **peer-reviewer** (Mode A) | — | 리뷰어 3명 시뮬 리포트 |
-| 10c. 최종 평가 | `평가해줘` | **flow-evaluator** | claim-extractor + **citation-auditor 전량 + 이전 archive 대비 new error** | archive/004 |
+| 10c. 최종 평가 | `평가해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-auditor 전량 + 이전 archive 대비 new error** | archive/NNN |
 | 언제든 (보조) | `gap 분석해줘` | **gap-finder** | — | gaps-analysis.md |
 | 언제든 (empirical만) | `방법론 추천/검증해줘` | **methodology-advisor** | — | 화면 보고 |
 | 언제든 | `sync 확인해줘` | sync_state.py | — | stale 리스트 + 해결 가이드 |
 | 언제든 | `논문 제거해줘: {파일}` | sync_state.py + (자동) citation-auditor | — | archived/ 이동 + dangling 경고 |
 | 언제든 | `논문 재분석해줘` | **paper-analyst** (Mode B) | — | analyzed/*.md v2+ append |
-| 단독 심층 평가 | `독창성 평가해줘` | **originality-evaluator** | — | originality-report.md |
-| 단독 심층 평가 | `정의 정밀도 평가해줘` | **concept-clarity-evaluator** | — | concept-clarity-report.md |
+| 단독 축 재평가 | `평가해줘 axis4` 또는 `평가해줘 axis3,4` | **evaluation-orchestrator** | 명시 축만 dispatch | 해당 axis{N}-*.md 갱신 |
+| 전체 강제 재평가 | `평가해줘 --full` | **evaluation-orchestrator** | `evaluation_delta.py reset` → 6축 전부 stale → 병렬 실행 | archive 스냅샷 + evaluations/latest 전량 갱신 |
 
 ### 상세 단계별 가이드
 
@@ -123,12 +123,15 @@ projects/my-essay/
 ├── critical-commitments.archive/       ← 🎭 commitment 상태 버전 히스토리
 ├── evaluations/
 │   ├── latest/                         ← 평가 결과 (최신본)
-│   │   ├── evaluation.md
-│   │   ├── work-plan.md
-│   │   ├── claim-extraction.md
-│   │   ├── originality-report.md
-│   │   ├── concept-clarity-report.md
-│   │   └── critical-lens-report.md     ← 🎭 (Critical Mode 활성 시)
+│   │   ├── evaluation.md               ← 종합 요약 (aggregator 생성, 다운스트림 진입점)
+│   │   ├── work-plan.md                ← 감점 사유 → 작업 항목 (HUNT·수정 과제)
+│   │   ├── claim-extraction.md         ← 문장 단위 주장·MATCHED/UNMATCHED (prose flow)
+│   │   ├── axis1-reference.md          ← 축 1 레퍼런스 충실도
+│   │   ├── axis2-logic.md              ← 축 2 논리 전개
+│   │   ├── axis3-defense.md            ← 축 3 반박·강화
+│   │   ├── axis4-originality.md        ← 축 4 독창성
+│   │   ├── axis5-concept.md            ← 축 5 구성개념 정의
+│   │   └── axis6-critical.md           ← 🎭 축 6 비판 렌즈 (Critical Mode 활성 시)
 │   └── archive/                        ← 평가 스냅샷 히스토리
 ├── papers/
 │   ├── candidates/                     ← 다운로드한 PDF 임시 보관
@@ -187,12 +190,12 @@ projects/my-essay/
 - Over-claim / Under-claim 경고 생성
 - 저장: `evaluations/latest/claim-extraction.md`
 
-**3-3. flow-evaluator 실행** (5축 평가)
-- 축 1~5 각 100점 만점, 하위 기준 25점씩
-- 각 감점 사유를 섹션·문장 단위로 구체적으로 기록
-- 축 간 상호작용 문제(예: 구성개념 모호 → 심사자 공격 표면 확대) 점검
-- originality-evaluator(축 4), concept-clarity-evaluator(축 5) 병렬 자동 호출
-- 저장: `evaluations/latest/evaluation.md`
+**3-3. evaluation-orchestrator 실행** (6축 평가, 병렬 delta 아키텍처)
+- `evaluation_delta.py check`로 변경된 축(stale)만 선별
+- 각 stale 축을 axis{N}-scorer에 병렬 디스패치 (서로 독립 실행)
+- 축 간 상호작용 문제는 aggregator 단계 + critical-companion이 감지
+- `evaluation_aggregator.py`가 축별 파일을 읽어 `evaluation.md` 생성
+- 저장: `evaluations/latest/axis1-reference.md ~ axis6-critical.md` + `evaluation.md`(aggregated summary)
 
 **3-4. 작업 지시서 생성**
 - 4단계(리서치 / 1차작성 / 수정 / 최종)별 작업 큐 구성
@@ -426,7 +429,7 @@ peer-reviewer Mode B:
 | 4-3 Contribution Layer | 개념/이론/방법론/경험 층위 명확? | "층위 혼재" −8 |
 | 4-4 Implications | 후속 경로가 구체적? | "일반론 수준" −7 |
 
-**담당 에이전트**: originality-evaluator
+**담당 에이전트**: axis4-originality-scorer
 
 ### 축 5. 구성개념 정의 정밀도
 
@@ -437,35 +440,49 @@ peer-reviewer Mode B:
 | 5-3 Boundary | 적용/비적용 범위 명확? | "경계 조건 부재" −8 |
 | 5-4 Categorical/Dimensional | 범주/연속 선택 근거? | "이분법 사용하며 근거 없음" −10 |
 
-**담당 에이전트**: concept-clarity-evaluator
+**담당 에이전트**: axis5-concept-scorer
 
 ---
 
 ## 🤖 서브 에이전트 시스템
 
-총 **14개** 전문 에이전트 (12 기본 + 2 Critical Mode). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
+총 **18개** 전문 에이전트 (8 평가 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 1 유틸리티). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
 
-**Critical Mode**는 프로젝트의 `intellectual_ambition`이 `critical` 또는 `paradigm-shifting`일 때 활성화되며, 비판적 시각·새로운 관점·패러다임 도전을 능동적으로 지원한다 (Oxford·Cambridge·프랑스 고등연구원 style).
+**평가 아키텍처 (2026-04-23 리팩터)**: 단일 `evaluation-orchestrator` 오케스트레이터를 **병렬 delta 아키텍처**로 분해. `evaluation-orchestrator`가 delta 감지 후 6개 axis scorer를 동시 디스패치. 이전 10-12분 → 2-5분. 자세히는 `plan.md` 참고.
 
-### 📊 에이전트 분류 (3 카테고리)
+**모델 라우팅**: 각 에이전트는 작업 성격에 맞는 모델로 실행된다 — 판단·글쓰기는 `opus`, 구조화 분석·검증은 `sonnet`, 기계적 번역은 `haiku`. 각 에이전트 파일의 frontmatter `model` 필드에 기본값. 비용·속도 근거는 [PRINCIPLES.md — 모델 라우팅](./PRINCIPLES.md#모델-라우팅-비용속도-최적화) 참고.
 
-#### 평가 전용 (4개)
+**Critical Mode**는 프로젝트의 `intellectual_ambition`이 `critical` 또는 `paradigm-shifting`일 때 활성화되며, 비판적 시각·새로운 관점·패러다임 도전을 능동적으로 지원한다.
 
-| 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
-|---------|----------|--------|---------|----------|
-| **flow-evaluator** | 5축 평가 오케스트레이션, work-plan.md 생성, sync gate | flow.md, claim-extraction.md, analyzed/*.md, chapters/*, consensus-results.md | evaluation.md, work-plan.md, archive/ 스냅샷 | `평가해줘` |
-| **claim-extractor** | 문장 단위 주장 추출·5종 분류·3-way(MATCHED/INTERNAL/EXTERNAL) 매칭 | flow.md 또는 chapters/*, analyzed/*.md (모든 버전), consensus-results.md | claim-extraction.md (REANALYZE+HUNT 과제 포함) | flow-evaluator 자동 호출 (prose flow) |
-| **originality-evaluator** | 축 4 심층 평가, 선행 연구 Delta Map | flow 또는 초안, analyzed/*.md | originality-report.md | flow-evaluator 자동 / `독창성 평가해줘` 단독 |
-| **concept-clarity-evaluator** | 축 5 심층 평가, 구성개념 정의 감사 테이블 | flow 또는 초안 | concept-clarity-report.md | flow-evaluator 자동 / `정의 정밀도 평가해줘` 단독 |
+### 📊 에이전트 분류 (5 카테고리)
 
-#### Critical Mode 전용 (2개) — ambition ≥ critical 시 활성화
+#### 평가 오케스트레이션 (8개) — 병렬 delta 아키텍처
 
-| 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
-|---------|----------|--------|---------|----------|
-| **critical-lens-evaluator** 🎭 | 축 6 비판적 시각 (C-1 Paradigm Mapping, C-2 Fault-line, C-3 Bold Defense, C-4 Minority Recovery) | flow/chapters, critical-questions.md 답변, Mode C 분석 | critical-lens-report.md | flow-evaluator 자동 / `비판적 시각 평가해줘` 단독 |
-| **critical-companion** 🤔 | Socratic 질문 생성 (답변 절대 금지) + 이전 답변-원고 정합성 점검 | flow/chapters, evaluations, 이전 critical-questions.md | critical-questions.md (신규 버전), archive/에 이전 버전 | Stage 마일스톤 자동 / `질문 업데이트해줘` 수동 |
+| 에이전트 | 단일 책임 | 모델 | 호출 시점 |
+|---------|----------|------|----------|
+| **evaluation-orchestrator** 🎯 | Delta 감지 + stale 축 병렬 디스패치 + aggregator 호출. 스스로 채점하지 않음 | opus | `평가해줘` 진입점 |
+| **axis1-reference-scorer** | 축 1 레퍼런스 충실도 (Coverage·Accuracy·Authority·Balance). claim-extraction 집계 + PDF spot-check | sonnet | orchestrator 자동 / `레퍼런스 점검해줘` alias |
+| **axis2-logic-scorer** | 축 2 논리 전개 (Argument·Transition·Thesis·Scope). **flow.md만** 읽음 | opus | orchestrator 자동 |
+| **axis3-defense-scorer** | 축 3 반박·강화 (Steelman·Falsifiability·Limitations·Attack Surface). `axis_tags: steelman` 논문 3-5편만 | opus | orchestrator 자동 |
+| **axis4-originality-scorer** | 축 4 독창성 (So What·Novelty·Layer·Implications). `axis_tags: delta` 논문 3-5편만 | opus | orchestrator 자동 |
+| **axis5-concept-scorer** | 축 5 구성개념 정의 (Definition·Operationalization·Boundary·Categorical). **flow.md만** | sonnet | orchestrator 자동 |
+| **axis6-critical-scorer** 🎭 | 축 6 비판적 시각 (Paradigm·Fault-line·Bold Defense·Minority Recovery). `axis_tags: minority` 논문 + critical-questions/commitments | opus | ambition ≥ critical 시 orchestrator 자동 |
+| **claim-extractor** 📝 | 문장 단위 주장 추출·5종 분류·3-way 매칭 | sonnet | axis1이 stale일 때 orchestrator가 선행 호출 |
+
+스크립트 동반:
+- `scripts/evaluation_delta.py` — 축별 입력 해시 기반 stale 감지. `check` / `mark-done` / `reset` 서브커맨드
+- `scripts/evaluation_aggregator.py` — 축별 md 파일을 합쳐 `evaluation.md` 생성 (summary + delta 표 + 심사 판정)
+- `scripts/sync_state.py snapshot-evaluation {project} {trigger}` — `evaluations/latest/` 전체를 archive로 복사
+
+#### Critical Mode 전용 (1개) — ambition ≥ critical 시 활성화
+
+| 에이전트 | 단일 책임 | 모델 | 호출 시점 |
+|---------|----------|------|----------|
+| **critical-companion** 🤔 | Socratic 질문 생성 (답변 절대 금지) + 이전 답변-원고 정합성 점검 | opus | Stage 마일스톤 자동 / `질문 업데이트해줘` |
 
 **critical-companion의 절대 원칙**: 질문만 생성하고 **답변 예시·초안·암시·leading question 절대 금지**. 답을 찾는 과정 자체가 새로운 관점의 발견이며, 그 과정은 사용자의 것이어야 한다.
+
+(축 6 심사는 `axis6-critical-scorer`가 담당. critical-companion은 질문 생성 전담.)
 
 #### 생성·수정 (5개)
 
@@ -485,21 +502,27 @@ peer-reviewer Mode B:
 | **methodology-advisor** | 방법론 추천(Advisor 3가지 비교) 또는 검증(Critic) | `방법론 추천/검증해줘` | ⚠️ **empirical 프로젝트 전용** — theoretical essay에서는 사용 안 함 |
 | **peer-reviewer** | Mode A 가상 심사자 2~3명 + **Reviewer 4 Iconoclast (ambition ≥ critical 시 자동 추가)** / Mode B 실제 리뷰 대응 | `리뷰 체크해줘` / `리뷰 답변 도와줘` | Stage 4 최종 품질 게이트. Iconoclast는 timidity·paradigm 내부 머무름·자기 배신 탐지 |
 
+#### 유틸리티 (1개, 자동)
+
+| 에이전트 | 단일 책임 | 모델 | 호출 시점 | 노트 |
+|---------|----------|------|----------|------|
+| **abstract-translator** 🌐 | 논문 영어 abstract 원문 → 한글 번역 (요약 금지, 전문 번역) | **haiku** | HUNT 단계 2 자동 / paper-analyst 후 PDF abstract 번역 | 비용·속도 최적화 — 메인 opus 세션이 직접 번역하지 않고 위임 |
+
 ---
 
 ### 🔍 혼동하기 쉬운 쌍 명확화
 
-#### gap-finder vs originality-evaluator
+#### gap-finder vs axis4-originality-scorer
 
-| 항목 | gap-finder | originality-evaluator |
+| 항목 | gap-finder | axis4-originality-scorer |
 |------|-----------|---------------------|
 | **주어** | **분야(field)** | **이 논문(this paper)** |
 | **질문** | "분야 전반에서 뭐가 안 다뤄졌는가?" | "이 논문이 분야에 **새로** 뭐를 더하는가?" |
 | **용도** | 후속 연구 아이디어, 미래 방향 | 현 논문의 novelty positioning, "So What?" 검증 |
-| **출력** | gaps-analysis.md (5종 Gap + 난이도·임팩트) | originality-report.md (Delta Map + 축 4 점수) |
-| **호출 시점** | 수동, 아이디어 발상 단계 | flow-evaluator 자동 (모든 평가 시) |
+| **출력** | gaps-analysis.md (5종 Gap + 난이도·임팩트) | axis4-originality.md (Delta Map + 축 4 점수) |
+| **호출 시점** | 수동, 아이디어 발상 단계 | evaluation-orchestrator 자동 (stale 시) |
 
-둘 다 "빠진 것"을 다루지만 **주어가 다름**. 혼동 시 gap-finder를 "미래 연구 제안 도구", originality-evaluator를 "현 논문 기여 심사 도구"로 기억.
+둘 다 "빠진 것"을 다루지만 **주어가 다름**. 혼동 시 gap-finder를 "미래 연구 제안 도구", axis4-originality-scorer를 "현 논문 기여 심사 도구"로 기억.
 
 #### writing-architect vs chapter-editor vs flow-refiner
 
@@ -721,7 +744,7 @@ chapters/*.md → final/complete-draft.md + .docx 재생성.
 
 3단계 값:
 - `"incremental"` (기본): 분야 내 점진적 기여. Critical Mode 비활성
-- `"critical"`: 비판적 시각 능동 지원. critical-companion·critical-lens-evaluator·Iconoclast 자동 체이닝
+- `"critical"`: 비판적 시각 능동 지원. critical-companion·axis6-critical-scorer·Iconoclast 자동 체이닝
 - `"paradigm-shifting"`: 패러다임 도전 전용. Hedging 관대, 비주류 인용 환영, Iconoclast를 주 심사자로 승격
 
 ### critical-questions.md 자동 업데이트 트리거 (ambition ≥ critical 시)
@@ -787,7 +810,7 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 답변을 건너뛰어도 시스템은 계속 작동하지만:
 - 해당 질문은 **carry-over**되어 다음 버전에도 등장
 - 2회 연속 미답변 → 🔴 "회피 중일 수 있음" 표시
-- critical-lens-evaluator가 미답변을 **축 6 soft cap**으로 반영 (예: 답변 없으면 C-1 점수 60점 상한)
+- axis6-critical-scorer가 미답변을 **축 6 soft cap**으로 반영 (예: 답변 없으면 C-1 점수 60점 상한)
 - critical-commitments.md에 commitment 등록은 **안 됨** (답변이 명시적이어야만)
 
 → 답변 없음은 **미반영**으로 이어지며, 시스템이 그 사실을 숨기지 않는다.
@@ -805,7 +828,7 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 | 7 | 5년 후 독자 | "5년 후 이 논문의 embarrassing할 부분은?" |
 | 8 | 숨은 가정 | "당신 자신이 당연하게 받아들이는 것은?" |
 
-### critical-lens-evaluator의 4축 (축 6)
+### axis6-critical-scorer의 4 하위 기준 (축 6)
 
 | 기준 | 평가 내용 |
 |------|---------|
@@ -870,7 +893,7 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 
 실제 예시:
 ```
-[2026-04-23 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 (+32) | ref:eval-003 | flow-evaluator,critical-lens | ambition=critical commits=3/5
+[2026-04-23 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 (+32) | ref:eval-003 | evaluation-orchestrator,axis1-6 | ambition=critical commits=3/5
 ```
 
 - 앞 4 필드 고정 (timestamp, action, stage, target)
@@ -1017,12 +1040,15 @@ claude --dangerously-skip-permissions
 | `.sync-state.json` | 프로젝트 생성 시 | **아티팩트 의존성·버전 추적** (sync 아키텍처의 핵심) |
 | `critical-questions.md` | Stage 마일스톤 (ambition ≥ critical) | **사용자가 답변하는 Socratic 질문** — 답변 없이는 평가 불완전 |
 | `critical-questions.archive/` | 매 critical-companion 재실행 | **질문·답변 버전 히스토리** (지적 여정 기록) |
-| `evaluations/latest/critical-lens-report.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 축 6 심층, paradigm 평가 + 답변 정합성 점검 |
-| `evaluations/latest/evaluation.md` | "평가해줘" | 5축 점수 + 감점 사유 + delta |
+| `evaluations/latest/evaluation.md` | "평가해줘" (aggregator 집계) | 종합 요약 + 5축 점수 + 감점 사유 + delta (다운스트림 진입점) |
 | `evaluations/latest/work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
 | `evaluations/latest/claim-extraction.md` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
-| `evaluations/latest/originality-report.md` | "평가해줘" (선택) | 축 4 심층, Novelty Delta Map |
-| `evaluations/latest/concept-clarity-report.md` | "평가해줘" (선택) | 축 5 심층, 정의 감사 테이블 |
+| `evaluations/latest/axis1-reference.md` | "평가해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
+| `evaluations/latest/axis2-logic.md` | "평가해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |
+| `evaluations/latest/axis3-defense.md` | "평가해줘" | 축 3: Steelman·Falsifiability·Limitations·Reviewer attack |
+| `evaluations/latest/axis4-originality.md` | "평가해줘" / "독창성 평가해줘" | 축 4: "So What?"·Novelty Delta Map·Contribution layer |
+| `evaluations/latest/axis5-concept.md` | "평가해줘" / "정의 정밀도 평가해줘" | 축 5: Definition·Operationalization·Boundary |
+| `evaluations/latest/axis6-critical.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 🎭 축 6: Paradigm·Fault-line·Bold Defense·Minority Recovery |
 | `evaluations/archive/{NNN}-{date}-{stage}/` | 매 평가 실행 직전 | 이전 평가 스냅샷 (delta 추적용) |
 | `papers/consensus-results.md` | "작업 시작해줘" | HUNT 검색 결과 누적 |
 | `papers/collected/*.pdf` | "새 논문 처리해줘" | 처리 완료 PDF |
@@ -1052,8 +1078,8 @@ claude --dangerously-skip-permissions
 |------|------|---------|
 | 🎯 `"평가해줘"` | 전체 5축 평가 + claim-extraction + work-plan 생성 | ✅ 스냅샷 생성 |
 | 🔍 `"레퍼런스 점검해줘"` | 축 1 전용 경량 재평가 | ❌ (경량) |
-| `"독창성 평가해줘"` | 축 4 단독 심층 | originality-report.md만 갱신 |
-| `"정의 정밀도 평가해줘"` | 축 5 단독 심층 | concept-clarity-report.md만 갱신 |
+| `"독창성 평가해줘"` | 축 4 단독 심층 | axis4-originality.md만 갱신 |
+| `"정의 정밀도 평가해줘"` | 축 5 단독 심층 | axis5-concept.md만 갱신 |
 
 ### 리서치 (Stage 1)
 
@@ -1104,7 +1130,7 @@ claude --dangerously-skip-permissions
   → 🎯 평가해줘 (1차)
      ├── sync 체크 (시작 gate)
      ├── claim-extractor → INTERNAL / EXTERNAL 분류
-     ├── flow-evaluator → 5축 평가
+     ├── evaluation-orchestrator → 6축 병렬 delta 평가
      ├── work-plan.md: 🔄 REANALYZE + 🔍 HUNT
      └── archive/001-{date}-flow/
 
@@ -1212,7 +1238,7 @@ Consensus 무료 계정 로그인 안 된 상태. 브라우저에서 [consensus.
 줄글 중에 연구 질문과 핵심 주장을 한 문장씩 명시하세요. "~이다" 같은 단정 형식 권장.
 
 **"평가가 너무 관대하다"**
-flow-evaluator는 Top-tier 저널 엄격도로 설정되어 있습니다. 만약 점수가 지속적으로 높다면 실제로 좋은 상태일 수 있으나, 심층 평가(`"독창성 평가해줘"`, `"정의 정밀도 평가해줘"`)를 추가로 돌려보세요.
+axis 스코어러들은 Top-tier 저널 엄격도로 설정되어 있습니다. 만약 점수가 지속적으로 높다면 실제로 좋은 상태일 수 있으나, 특정 축만 강제 재실행(`"평가해줘 axis4"`) 또는 `"평가해줘 --full"`로 전체 재평가를 돌려보세요.
 
 **"HUNT 과제가 너무 많다"**
 첫 평가 시 UNMATCHED가 수십 건 나오는 것은 정상입니다. `"작업 시작해줘"` 한 번으로 전량 일괄 처리 가능합니다.

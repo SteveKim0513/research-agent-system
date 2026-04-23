@@ -229,7 +229,7 @@ bash install.sh
 |------|------|
 | [README.md](./README.md) | 시스템 개요, 설치, 사전 준비 |
 | **GUIDE.md** (이 문서) | 3분 빠른 사용법 |
-| [MANUAL.md](./MANUAL.md) | **전체 참고** — 14개 에이전트 상세, sync 아키텍처, Critical Mode, 활동 로그, 권한 관리, 모든 명령, troubleshooting |
+| [MANUAL.md](./MANUAL.md) | **전체 참고** — 18개 에이전트 상세, **병렬 delta 평가 아키텍처**, sync, Critical Mode, 활동 로그, 권한 관리, 모델 라우팅, 모든 명령, troubleshooting |
 | [PRINCIPLES.md](./PRINCIPLES.md) | 설계 철학 + 학술 글쓰기 원칙 (5축의 학술적 근거, Kuhn·Popper·Foucault 전통) |
 
 ---

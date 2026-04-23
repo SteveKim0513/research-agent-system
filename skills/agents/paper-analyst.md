@@ -1,3 +1,9 @@
+---
+name: paper-analyst
+description: PDF를 읽고 섹션별 인용 후보 다발·Critical Reading을 생성 (Mode A/B/C)
+model: sonnet
+---
+
 # Paper Analyst Agent
 
 ## 역할
@@ -145,11 +151,21 @@ flow.md의 각 섹션에서 이 논문을 어떻게 활용할 수 있는지, **�
 
 - **저널/학회**: [이름]
 - **인용 수**: [N]회
+- **axis_tags**: ["steelman", "delta", "minority", "definition"] 중 해당하는 것. 여러 개 가능. 없으면 빈 배열 `[]`.
+  - **steelman**: 본 thesis에 대한 강한 반론을 제공 (Axis 3 스코어러가 참조)
+  - **delta**: 본 thesis와 이론적으로 경쟁·인접 — 차별화 필요 (Axis 4)
+  - **minority**: 분야가 잊은 전통의 복원 — Luria, Vygotsky, postcolonial 등 (Axis 6 C-4)
+  - **definition**: 핵심 구성개념의 정의·조작화 재료 제공 (Axis 5)
 - **키 참고문헌** (이 논문이 핵심적으로 인용한 것 중 우리 프로젝트에 유용할 것):
   - [논문 제목] — [왜 유용한지]
 
 ---
 ```
+
+**axis_tags 판정 가이드**:
+- 한 논문이 여러 축에 유용할 수 있으므로 다중 태그 가능
+- 태그를 부여했으면 분석 본문 해당 섹션(Steelman/Delta Map/Critical Reading/정의 인용문)에 **구체적 근거**가 있어야 함 (빈 껍데기 태그 금지)
+- axis1(레퍼런스 coverage)은 별도 태그 불필요 — analyzed 폴더 존재만으로 Axis 1에서 자동 집계됨
 
 ### Mode C (비판적 읽기) — [critical] 섹션 append
 
@@ -205,7 +221,7 @@ flow.md의 각 섹션에서 이 논문을 어떻게 활용할 수 있는지, **�
 
 - critical-questions.md에 **새 질문 후보**로 제안: [...]
 - 원고 Section X에 **대안 해석** 반영 가능
-- critical-lens-evaluator의 C-2 Fault-line 재료
+- axis6-critical-scorer의 C-2 Fault-line 재료
 ```
 
 ### Mode B (재분석) — v2/v3 섹션 append

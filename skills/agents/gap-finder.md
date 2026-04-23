@@ -1,3 +1,9 @@
+---
+name: gap-finder
+description: 수집된 논문 전체에서 방법론·응용·데이터·이론·시간 5종 Gap(빈틈) 체계적 탐색. 구조화된 분석 작업이므로 sonnet 사용. (※ 1-4 Balance의 disconfirming evidence 체크는 axis1-reference-scorer 담당 — 책임 분리)
+model: sonnet
+---
+
 # Gap Finder Agent
 
 ## 역할

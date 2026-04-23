@@ -1,3 +1,9 @@
+---
+name: writing-architect
+description: 초안 구조 설계 + premise → warrant → claim 명시적 설계 + Topic Sentence First·Synthesis·Hedging·Evidence→Analysis. 글쓰기 품질 결정이 필요하므로 opus 사용.
+model: opus
+---
+
 # Writing Architect Agent
 
 ## 역할

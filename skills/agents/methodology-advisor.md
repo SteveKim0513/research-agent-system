@@ -1,3 +1,9 @@
+---
+name: methodology-advisor
+description: empirical 연구에서 방법론 정당화 + 대안 제시. 구조화된 분석 작업이므로 sonnet 사용.
+model: sonnet
+---
+
 # Methodology Advisor Agent
 
 ## 역할

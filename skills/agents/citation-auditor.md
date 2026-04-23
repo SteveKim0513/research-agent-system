@@ -1,3 +1,9 @@
+---
+name: citation-auditor
+description: 인용마다 PDF 원문 대조해 over-claim·misattribution 탐지. 규칙 기반 검증 작업이므로 sonnet 사용.
+model: sonnet
+---
+
 # Citation Auditor Agent
 
 ## 역할

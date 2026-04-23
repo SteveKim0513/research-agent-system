@@ -1,3 +1,9 @@
+---
+name: flow-refiner
+description: 새 논문 발견 시 flow.md 보강 제안 (4-2 Novelty Positioning, 3-1 Steelman). 글쓰기 판단이 필요하므로 opus 사용.
+model: opus
+---
+
 # Flow Refiner Agent
 
 ## 역할

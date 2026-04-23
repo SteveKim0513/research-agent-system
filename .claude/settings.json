@@ -7,8 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-prompt-submit",
-            "timeout": 5
+            "command": "bash $CLAUDE_PROJECT_DIR/scripts/activity_log_async.sh on-prompt-submit",
+            "timeout": 2
           }
         ]
       }
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-turn-end",
-            "timeout": 5
+            "command": "bash $CLAUDE_PROJECT_DIR/scripts/activity_log_async.sh on-turn-end",
+            "timeout": 2
           }
         ]
       }
@@ -31,8 +31,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $CLAUDE_PROJECT_DIR/scripts/activity_log.py on-bash-event",
-            "timeout": 3
+            "command": "bash $CLAUDE_PROJECT_DIR/scripts/activity_log_async.sh on-bash-event",
+            "timeout": 2
           }
         ]
       }
@@ -43,6 +43,7 @@
       "Bash(python3 scripts/*)",
       "Bash(python3 $CLAUDE_PROJECT_DIR/scripts/*)",
       "Bash(bash scripts/*)",
+      "Bash(bash $CLAUDE_PROJECT_DIR/scripts/*)",
       "Bash(bash install.sh*)",
       "Bash(chmod +x *)",
       "Bash(chmod 644 *)",
