@@ -116,6 +116,8 @@ Claude에서:
 
 📓 **활동 로그 시스템**: Claude Code hooks가 모든 명령을 `projects/{이름}/activity.log`에 자동 기록. `"작업 추천해줘"`로 로그 기반 다음 명령 추천. 자세히는 [MANUAL.md § 활동 로그](./MANUAL.md#-활동-로그-시스템-activity-log).
 
+🔐 **권한 자동 승인** (`.claude/settings.json`): clone 즉시 이 프로젝트의 스크립트·git 기본 작업·파일 읽기/쓰기가 **사전 승인**되어 반복 권한 prompt가 뜨지 않습니다. 위험한 명령(`rm -rf`, `git push --force`, `git reset --hard` 등)은 **deny 목록으로 명시적 차단** — 실수로 실행 불가. 설정 변경 원하면 `.claude/settings.json`의 `permissions` 섹션 편집.
+
 ---
 
 ## 📁 시스템 구성

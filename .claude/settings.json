@@ -1,5 +1,5 @@
 {
-  "$note": "Research Agent 프로젝트 전용 hooks. activity.log 자동 기록용. 끄려면 hooks 섹션을 지우거나 빈 객체로 설정.",
+  "$note": "Research Agent 프로젝트 공유 설정. git 추적되어 clone한 모든 사용자에게 자동 적용. (1) hooks: activity.log 자동 기록. (2) permissions: 이 프로젝트에서 자주 쓰는 안전한 명령 사전 승인 — 매번 prompt 뜨지 않음. 위험한 명령(rm -rf, force push, hard reset 등)은 deny 목록으로 의도적 차단.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -36,6 +36,70 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/*)",
+      "Bash(python3 $CLAUDE_PROJECT_DIR/scripts/*)",
+      "Bash(bash scripts/*)",
+      "Bash(bash install.sh*)",
+      "Bash(chmod +x *)",
+      "Bash(chmod 644 *)",
+      "Bash(chmod 755 *)",
+      "Bash(git add *)",
+      "Bash(git add -A*)",
+      "Bash(git commit *)",
+      "Bash(git commit -m *)",
+      "Bash(git push)",
+      "Bash(git push origin *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git remote*)",
+      "Bash(git ls-files*)",
+      "Bash(claude mcp *)",
+      "Bash(ls *)",
+      "Bash(ls)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(file *)",
+      "Bash(grep *)",
+      "Bash(sed -n *)",
+      "Bash(awk *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(mkdir -p *)",
+      "Bash(mkdir *)",
+      "Bash(touch *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(find projects -*)",
+      "Bash(find skills -*)",
+      "Bash(find scripts -*)",
+      "Bash(find docs -*)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(pwd)",
+      "Bash(command -v *)",
+      "Bash(which *)",
+      "Bash(npm install -g @anthropic-ai/claude-code*)",
+      "Bash(pip3 install *)",
+      "mcp__consensus__search",
+      "mcp__consensus__*"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -r /*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean -*)"
     ]
   }
 }
