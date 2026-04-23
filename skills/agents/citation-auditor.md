@@ -113,8 +113,17 @@ collected/에 있지만 한 번도 인용되지 않은 논문:
 
 ## 호출 조건
 
-"챕터 수정" 명령 시 **자동 호출**.
-기존 일관성 체크에 인용 감사를 추가한다.
+- **"챕터 수정" 명령 시 자동 호출** (chapter-editor Phase 7 체이닝)
+- **draft-stage 평가 시 축 1이 실행되면 자동 체이닝** (orchestrator 단계 7)
+- **draft-stage `"평가해줘"` 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
+
+## 입력 경로
+
+- 챕터 원문: `chapters/*.md` (claim-extraction-draft.md 제외)
+- **인용 매핑 테이블**: `chapters/claim-extraction-draft.md` — 각 MATCHED 문장이 어느 논문을 지목하는지 확인 후 PDF와 대조
+- 원문 대조: `papers/collected/*.pdf` 또는 `papers/analyzed/*.md`의 섹션별 인용 다발
+
+claim-extraction-draft의 MATCHED 라벨이 기본 audit target이며, 모든 인용을 처음부터 다시 파싱하지 않도록 매핑 테이블을 활용.
 
 ## 주의사항
 

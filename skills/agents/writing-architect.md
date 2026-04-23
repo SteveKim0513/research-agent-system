@@ -138,10 +138,21 @@ PDF를 읽은 뒤에는:
 ## 출력 파일
 
 - 구조: 화면 출력 (사용자 확인용)
-- 초안: `chapters/0{N}-{section-name}.md`
+- 초안 각 섹션: `chapters/0{N}-{section-name}.md`
 - 통합본: `final/complete-draft.md`
 - Word: `final/complete-draft.docx`
 - **Commitment 반영 보고**: 화면 출력 (아래 형식)
+
+## Phase 2 완료 후 자동 체이닝 (필수)
+
+모든 chapter 파일이 생성된 직후 SKILL.md 명령 호출자가 다음을 순차 실행해야 한다 (writing-architect 본인이 실행하거나, orchestrator 호출자가 수행):
+
+1. `python3 scripts/sync_state.py snapshot-chapters {PROJECT} post-v1-draft` — 모든 chapters + 비어 있는 draft 분석 상태 초기 스냅샷
+2. **claim-extractor(stage=draft) 호출** — `chapters/claim-extraction-draft.md` 생성. flow 단계의 claim-extraction-flow.md를 seed로 상속, 초안에서 새로 등장한 문장만 신규 분류
+3. `python3 scripts/sync_state.py update-chapter {PROJECT} {chapter}` 각 챕터마다 호출 (sync-state 해시 갱신)
+4. `python3 scripts/sync_state.py update-final {PROJECT}` (final/complete-draft.* 생성 후)
+
+이 체이닝 없이 초안만 저장하면 axis1의 draft-stage 평가가 비어 있는 claim-extraction-draft를 읽어 오류.
 
 ## Commitment 반영 보고 형식 (초안 완료 후 반드시 출력)
 

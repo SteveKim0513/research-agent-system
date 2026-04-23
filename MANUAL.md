@@ -113,42 +113,58 @@ Claude에서:
 자동 생성되는 구조:
 ```
 projects/my-essay/
-├── flow.md                             ← 당신이 자유 줄글로 작성
-├── FLOW-TEMPLATE.md                    ← 작성 가이드 (수정 금지)
-├── critical-questions.md               ← 🎭 Critical Mode: 사용자가 답하는 Socratic 질문
-│                                         (intellectual_ambition ≥ critical일 때만 생성)
-├── critical-questions.archive/         ← 🎭 질문·답변 버전 히스토리 (v1, v2, ...)
-├── critical-commitments.md             ← 🎭 답변에서 자동 추출한 actionable commitment
-│                                         (writing 에이전트가 필수 참조)
-├── critical-commitments.archive/       ← 🎭 commitment 상태 버전 히스토리
+├── flow/                                🆕 flow 전용 공간
+│   ├── flow.md                          ← 당신이 자유 줄글로 작성
+│   ├── FLOW-TEMPLATE.md                 ← 작성 가이드 (수정 금지)
+│   ├── claim-extraction-flow.md         ← flow 문장 단위 분석 (자동 생성)
+│   └── history/                         ← flow 수정 직전 쌍 보존
+│       └── {NNN}-{date}-{trigger}/
+│           ├── flow.md
+│           └── claim-extraction-flow.md
+├── chapters/                            ← 초안 섹션별 파일
+│   ├── 0N-*.md                          ← 각 챕터
+│   ├── claim-extraction-draft.md        ← 전체 챕터 통합 분석 (자동 생성, 단일)
+│   └── history/                         ← 챕터 수정 직전 쌍 보존
+│       └── {chapter_id}/
+│           └── {NNN}-{date}-{trigger}/
+│               ├── {chapter_id}.md
+│               └── claim-extraction-draft.md
+├── work-plan.md                         🆕 루트 — HUNT·DRAFT 단일 발급처
+├── work-plan.archive/                   🆕 변경 시에만 스냅샷
+│   └── {NNN}-{date}-{trigger}.md
+├── critical-questions.md                ← 🎭 Critical Mode: 사용자가 답하는 Socratic 질문
+│                                          (intellectual_ambition ≥ critical일 때만 생성)
+├── critical-questions.archive/          ← 🎭 질문·답변 버전 히스토리 (v1, v2, ...)
+├── critical-commitments.md              ← 🎭 답변에서 자동 추출한 actionable commitment
+├── critical-commitments.archive/        ← 🎭 commitment 상태 버전 히스토리
 ├── evaluations/
-│   ├── latest/                         ← 평가 결과 (최신본)
-│   │   ├── evaluation.md               ← 종합 요약 (aggregator 생성, 다운스트림 진입점)
-│   │   ├── work-plan.md                ← 감점 사유 → 작업 항목 (HUNT·수정 과제)
-│   │   ├── claim-extraction.md         ← 문장 단위 주장·MATCHED/UNMATCHED (prose flow)
-│   │   ├── axis1-reference.md          ← 축 1 레퍼런스 충실도
-│   │   ├── axis2-logic.md              ← 축 2 논리 전개
-│   │   ├── axis3-defense.md            ← 축 3 반박·강화
-│   │   ├── axis4-originality.md        ← 축 4 독창성
-│   │   ├── axis5-concept.md            ← 축 5 구성개념 정의
-│   │   └── axis6-critical.md           ← 🎭 축 6 비판 렌즈 (Critical Mode 활성 시)
-│   └── archive/                        ← 평가 스냅샷 히스토리
+│   ├── latest/                          ← 평가 결과 (최신본, 순수 평가 산출물만)
+│   │   ├── evaluation.md                ← 종합 요약 (aggregator 생성)
+│   │   ├── axis1-reference.md           ← 축 1 레퍼런스 충실도
+│   │   ├── axis2-logic.md               ← 축 2 논리 전개
+│   │   ├── axis3-defense.md             ← 축 3 반박·강화
+│   │   ├── axis4-originality.md         ← 축 4 독창성
+│   │   ├── axis5-concept.md             ← 축 5 구성개념 정의
+│   │   └── axis6-critical.md            ← 🎭 축 6 (Critical Mode 활성 시)
+│   └── archive/                         ← 평가 스냅샷 (증분 + manifest.json)
+│       └── {NNN}-{date}-{trigger}/
+│           ├── evaluation.md            (항상 복사)
+│           ├── axis*-*.md               (변경된 축만 실제 복사)
+│           └── manifest.json            (각 축 실제 파일 경로)
 ├── papers/
-│   ├── candidates/                     ← 다운로드한 PDF 임시 보관
-│   ├── collected/                      ← 처리 완료된 PDF
-│   ├── analyzed/                       ← paper-analyst 분석 (v1/v2/v3/[critical] append)
-│   └── archived/                       ← "논문 제거해줘"로 이동된 PDF + 분석
-├── chapters/                           ← 초안 섹션별 파일
-│   └── archive/                        ← 덮어쓰기 직전 자동 스냅샷 (롤백 가능)
-├── final/                              ← 통합본 + docx
-├── activity.log                        ← 📓 모든 주요 작업 append-only 로그
-├── .paper-metadata.json                ← 메타데이터 + intellectual_ambition 필드
-└── .sync-state.json                    ← 아티팩트 의존성·버전 추적
+│   ├── candidates/                      ← 다운로드한 PDF 임시 보관
+│   ├── collected/                       ← 처리 완료된 PDF
+│   ├── analyzed/                        ← paper-analyst 분석 (v1/v2/v3/[critical] append)
+│   └── archived/                        ← "논문 제거해줘"로 이동된 PDF + 분석
+├── final/                               ← 통합본 + docx
+├── activity.log                         ← 📓 모든 주요 작업 append-only 로그
+├── .paper-metadata.json                 ← 메타데이터 + intellectual_ambition 필드
+└── .sync-state.json                     ← 아티팩트 의존성·버전 추적
 ```
 
 ### 단계 2 — flow.md 작성 (자유 줄글)
 
-에디터로 `projects/my-essay/flow.md`를 열어 **자유 줄글**로 작성합니다. 템플릿 빈칸을 채우는 방식이 아닙니다.
+에디터로 `projects/my-essay/flow/flow.md`를 열어 **자유 줄글**로 작성합니다. 템플릿 빈칸을 채우는 방식이 아닙니다.
 
 **최소 요구사항**:
 - 메타데이터 5줄 (과제명·코스·마감·분량·인용 스타일)
@@ -188,7 +204,7 @@ projects/my-essay/
   - 🟢 NO_CITATION (F 저자 기여 / G 연결·메타)
 - `papers/consensus-results.md` pool과 매칭하여 MATCHED / UNMATCHED 판정
 - Over-claim / Under-claim 경고 생성
-- 저장: `evaluations/latest/claim-extraction.md`
+- 저장: `flow/claim-extraction-flow.md (flow stage) 또는 chapters/claim-extraction-draft.md (draft stage)`
 
 **3-3. evaluation-orchestrator 실행** (6축 평가, 병렬 delta 아키텍처)
 - `evaluation_delta.py check`로 변경된 축(stale)만 선별
@@ -201,7 +217,7 @@ projects/my-essay/
 - 4단계(리서치 / 1차작성 / 수정 / 최종)별 작업 큐 구성
 - 각 작업에 `[RESEARCH/DRAFT/REVISION/FINAL]` 태그 + 담당 에이전트 + 예상 점수 회복
 - **핵심**: Stage 1 섹션에 **HUNT 체크박스 목록**이 자동 생성됨 — UNMATCHED 문장마다 검색 키워드·기대 논문 프로필 포함
-- 저장: `evaluations/latest/work-plan.md`
+- 저장: `work-plan.md`
 
 **3-5. 화면 보고** — 축별 점수·등급·심사 판정·작업 수 요약.
 
@@ -213,7 +229,7 @@ projects/my-essay/
 > "작업 시작해줘"
 ```
 
-시스템이 `evaluations/latest/work-plan.md`의 미완료 `[HUNT-NNN]` 체크박스를 전량 파싱하여 순차 Consensus 검색을 실행합니다:
+시스템이 `work-plan.md`의 미완료 `[HUNT-NNN]` 체크박스를 전량 파싱하여 순차 Consensus 검색을 실행합니다:
 
 - 쿼리는 **3개씩 병렬 배치** (MCP rate limit 회피)
 - Rate limit 발생 시 30초 대기 후 재시도
@@ -1041,8 +1057,8 @@ claude --dangerously-skip-permissions
 | `critical-questions.md` | Stage 마일스톤 (ambition ≥ critical) | **사용자가 답변하는 Socratic 질문** — 답변 없이는 평가 불완전 |
 | `critical-questions.archive/` | 매 critical-companion 재실행 | **질문·답변 버전 히스토리** (지적 여정 기록) |
 | `evaluations/latest/evaluation.md` | "평가해줘" (aggregator 집계) | 종합 요약 + 5축 점수 + 감점 사유 + delta (다운스트림 진입점) |
-| `evaluations/latest/work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
-| `evaluations/latest/claim-extraction.md` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
+| `work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
+| `flow/claim-extraction-flow.md (flow stage) 또는 chapters/claim-extraction-draft.md (draft stage)` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `evaluations/latest/axis1-reference.md` | "평가해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
 | `evaluations/latest/axis2-logic.md` | "평가해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |
 | `evaluations/latest/axis3-defense.md` | "평가해줘" | 축 3: Steelman·Falsifiability·Limitations·Reviewer attack |

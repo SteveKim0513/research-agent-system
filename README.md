@@ -106,7 +106,7 @@ Claude에서:
 > "my-essay 프로젝트 만들어줘"
 ```
 
-그다음 `projects/my-essay/flow.md`를 열어 자유 줄글로 연구 방향을 작성하고:
+그다음 `projects/my-essay/flow/flow.md`를 열어 자유 줄글로 연구 방향을 작성하고:
 ```
 > "평가해줘"      ← 5축 평가 + 작업지시서 생성
 > "작업 시작해줘" ← HUNT 과제 자동 Consensus 검색
@@ -147,15 +147,17 @@ research-agent/
 ├── scripts/                   (메타데이터 추출 등 시스템 스크립트)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
-│       ├── flow.md
+│       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + history/)
+│       ├── chapters/          (0N-*.md + claim-extraction-draft.md 통합 + history/{chapter_id}/)
+│       ├── work-plan.md       (HUNT·DRAFT 단일 ID 발급처)
+│       ├── work-plan.archive/ (변경 시에만 스냅샷)
 │       ├── activity.log                (📓 모든 명령 자동 로그)
 │       ├── critical-questions.md       (🎭 사용자가 답하는 Socratic 질문)
 │       ├── critical-questions.archive/ (🎭 질문·답변 버전 히스토리)
 │       ├── critical-commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
 │       ├── critical-commitments.archive/ (🎭 commitment 상태 히스토리)
-│       ├── evaluations/       (latest/ + archive/)
+│       ├── evaluations/       (latest/ + archive/{NNN}/ + manifest.json 증분)
 │       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/)
-│       ├── chapters/          (+ archive/ for draft rollback)
 │       └── final/
 ├── install.sh
 ├── README.md                  (이 파일 — 설치·개요)

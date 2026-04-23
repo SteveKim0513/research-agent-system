@@ -38,6 +38,24 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 **병렬 delta 오케스트레이션**: `evaluation-orchestrator`가 변경된 축만 병렬 디스패치. stale 판정은 `scripts/evaluation_delta.py`의 입력 해시 비교. 축 6은 Critical Mode 활성 시에만 포함. 감사(citation-auditor) · 구조 설계(writing-architect) · 심사 시뮬레이션(peer-reviewer)은 별개 명령으로 호출되며 채점 주체가 아님.
 
+## 자동 재분석 규칙 (Stage-aware claim-extraction)
+
+`평가해줘`, `초안 작성해줘`, `Chapter X 수정해줘`, `flow 업데이트해줘` 명령은 다음 조건에서 **자동으로 claim-extractor를 체이닝**한다 (사용자가 별도 명령 없이도 항상 최신 분석 유지):
+
+| 명령 | 자동 재분석 조건 | 대상 | 출력 |
+|------|----------------|-----|-----|
+| `평가해줘` | 해당 stage의 원고 mtime > claim-extraction mtime | flow | `flow/claim-extraction-flow.md` |
+| `평가해줘` (draft) | 어떤 chapter든 mtime > `chapters/claim-extraction-draft.md` mtime | chapters 통합 | `chapters/claim-extraction-draft.md` |
+| `초안 작성해줘` | writing-architect Phase 2 완료 후 | chapters 전체 | `chapters/claim-extraction-draft.md` |
+| `Chapter X 수정해줘` | chapter-editor 수정 후 | chapters 통합 | `chapters/claim-extraction-draft.md` |
+| `flow 업데이트해줘` | flow-refiner 승인 반영 후 | flow | `flow/claim-extraction-flow.md` |
+
+**자동 체이닝 직전 history snapshot 의무**:
+- flow 수정: `sync_state.py snapshot-flow {P} {trigger}` — 이전 flow.md + claim-extraction-flow.md 쌍 보존
+- chapter 수정: `sync_state.py snapshot-chapter {P} {trigger} {chapter}` — 해당 챕터 + 당시 claim-extraction-draft.md 쌍 보존
+
+**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator/aggregator가 `work-plan.md`의 다음 HUNT-NNN·DRAFT-NNN 번호를 발급하고, claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+
 ## 서브 에이전트 시스템
 
 이 스킬은 18개의 서브 에이전트를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
@@ -97,8 +115,11 @@ mkdir -p projects
 mkdir -p projects/{PROJECT_NAME}/papers/collected
 mkdir -p projects/{PROJECT_NAME}/papers/candidates
 mkdir -p projects/{PROJECT_NAME}/papers/analyzed
+mkdir -p projects/{PROJECT_NAME}/flow
 mkdir -p projects/{PROJECT_NAME}/chapters
+mkdir -p projects/{PROJECT_NAME}/chapters/history
 mkdir -p projects/{PROJECT_NAME}/final
+mkdir -p projects/{PROJECT_NAME}/work-plan.archive
 ```
 
 ### 단계 2b: evaluations 폴더 구조 생성
@@ -108,10 +129,13 @@ mkdir -p projects/{PROJECT_NAME}/evaluations/latest
 mkdir -p projects/{PROJECT_NAME}/evaluations/archive
 ```
 
-**경로 규약**:
-- 모든 평가 산출물은 `projects/{PROJECT_NAME}/evaluations/latest/`에 저장 (덮어쓰기)
-- 매 평가 실행 시 실행 직전의 latest/를 `archive/{NNN}-{YYYY-MM-DD}-{stage}/`로 스냅샷 복사
-- 모든 하위 명령(`작업 시작해줘` 등)은 `evaluations/latest/`를 참조
+**v2 경로 규약** (2026-04-23 리팩터 이후):
+- **`flow/`**: flow.md, FLOW-TEMPLATE.md, claim-extraction-flow.md, history/
+- **`chapters/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-draft.md (**통합 1개**), history/{chapter_id}/
+- **`evaluations/latest/`**: evaluation.md + axis1~6-*.md만 (claim-extraction 파일은 여기 두지 않음)
+- **`evaluations/archive/{NNN}/`**: 증분 스냅샷 + manifest.json (변경 없는 축은 이전 경로 참조)
+- **`work-plan.md`**: **루트** 위치 (HUNT/DRAFT ID 단일 발급처)
+- **`work-plan.archive/`**: 변경 시에만 스냅샷 (매 평가마다 복사 아님)
 
 ### 단계 2c: .sync-state.json 초기화
 
@@ -123,7 +147,7 @@ python3 scripts/sync_state.py init {PROJECT_NAME}
 
 ### 단계 3: FLOW-TEMPLATE.md (가이드) 및 flow.md (작성용) 생성
 
-projects/{PROJECT_NAME}/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow.md 두 파일을 생성하세요.
+projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/flow.md 두 파일을 생성하세요.
 
 - **FLOW-TEMPLATE.md**: `skills/FLOW-TEMPLATE.md`의 내용을 복사. 줄글(prose) 작성 가이드.
 - **flow.md**: **빈 파일** 또는 메타데이터 골격만 있는 파일로 생성:
@@ -194,8 +218,17 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    research-agent/
    └── projects/
        └── {PROJECT_NAME}/
-           ├── flow.md                          (실제 작성용 — 이 파일을 수정)
-           ├── FLOW-TEMPLATE.md                 (가이드 — 수정 금지)
+           ├── flow/
+           │   ├── flow.md                      (실제 작성용 — 이 파일을 수정)
+           │   ├── FLOW-TEMPLATE.md             (가이드 — 수정 금지)
+           │   ├── claim-extraction-flow.md     (flow 문장 단위 분석 — 자동 생성)
+           │   └── history/                     (flow 수정 직전 쌍 보존)
+           ├── chapters/
+           │   ├── 0N-*.md                      (초안 각 섹션)
+           │   ├── claim-extraction-draft.md    (전체 챕터 통합 분석 — 자동 생성)
+           │   └── history/{chapter_id}/        (챕터별 수정 직전 쌍 보존)
+           ├── work-plan.md                     (HUNT·DRAFT 단일 발급처, 루트)
+           ├── work-plan.archive/                (변경 시에만 스냅샷)
            ├── critical-questions.md            (🎭 Critical Mode 활성 시 생성)
            ├── critical-questions.archive/      (🎭 질문·답변 버전 히스토리)
            ├── critical-commitments.md          (🎭 답변에서 추출한 actionable spec)
@@ -208,19 +241,18 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            │   ├── collected/                   (처리 완료된 PDF)
            │   ├── analyzed/                    (paper-analyst 분석 v1/v2/v3/[critical])
            │   └── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
-           ├── chapters/
-           │   └── archive/                     (덮어쓰기 직전 자동 스냅샷)
            ├── final/
+           ├── activity.log                     (모든 명령 자동 로그)
            ├── .paper-metadata.json             (메타데이터 + intellectual_ambition)
            └── .sync-state.json                 (아티팩트 의존성·버전 추적)
 
 👉 다음 단계:
-   1. projects/{PROJECT_NAME}/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
+   1. projects/{PROJECT_NAME}/flow/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
       - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
       - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
       - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
-   2. "평가해줘" 입력 → claim-extractor(문장 단위 주장 추출) + 5축 냉정 평가 실행
-      - 생성 파일: evaluation.md, work-plan.md, claim-extraction.md
+   2. "평가해줘" 입력 → claim-extractor(stage=flow, 문장 단위 주장 추출) + 6축 평가 실행
+      - 생성 파일: evaluations/latest/evaluation.md + axis1~6-*.md, work-plan.md (루트), flow/claim-extraction-flow.md
    3. "작업 시작해줘" 입력 → work-plan.md의 HUNT 과제로 Consensus 자동 검색
    4. "새 논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
    5. "평가해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
@@ -275,9 +307,18 @@ python3 scripts/sync_state.py snapshot-evaluation {PROJECT_NAME} {stage}
 ```
 기존 `evaluations/latest/`를 `evaluations/archive/{NNN}-{date}-{stage}/`로 복사. 이후 새 점수는 `latest/`에 덮어쓴다.
 
-### 단계 4: claim-extractor 선행 호출 (axis1이 stale일 때만)
+### 단계 4: claim-extractor 선행 호출 (자동 재분석)
 
-`stale_axes`에 `axis1`이 포함되고 평가 대상이 prose flow이면 `claim-extractor`를 먼저 실행해 `claim-extraction.md`를 최신화. 이미 최신이면 스킵.
+**Stage 감지**: `chapters/`에 실제 챕터 파일이 있으면 `stage=draft`, 없으면 `stage=flow`.
+
+Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행한다:
+
+| Stage | 조건 | 호출 전 snapshot | 호출 | 출력 |
+|-------|------|------------------|------|------|
+| flow  | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` mtime (또는 후자 부재) | `sync_state.py snapshot-flow {P} pre-claim-extract` | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
+| draft | 어느 `chapters/*.md` mtime > `chapters/claim-extraction-draft.md` mtime (또는 후자 부재) | 변경된 각 챕터마다 `sync_state.py snapshot-chapter {P} pre-claim-extract {chapter}` | claim-extractor(stage=draft) | `chapters/claim-extraction-draft.md` |
+
+이미 최신이면 스킵.
 
 ### 단계 5: 축별 워커 병렬 디스패치
 
@@ -285,22 +326,30 @@ python3 scripts/sync_state.py snapshot-evaluation {PROJECT_NAME} {stage}
 
 | 축 | 에이전트 파일 | 모델 | 출력 파일 |
 |----|--------------|------|----------|
-| axis1 | `axis1-reference-scorer.md` | sonnet | `axis1-reference.md` |
+| axis1 | `axis1-reference-scorer.md` | sonnet | `evaluations/latest/axis1-reference.md` |
 | axis2 | `axis2-logic-scorer.md` | opus | `axis2-logic.md` |
 | axis3 | `axis3-defense-scorer.md` | opus | `axis3-defense.md` |
 | axis4 | `axis4-originality-scorer.md` | opus | `axis4-originality.md` |
 | axis5 | `axis5-concept-scorer.md` | sonnet | `axis5-concept.md` |
 | axis6 | `axis6-critical-scorer.md` | opus | `axis6-critical.md` |
 
-각 Agent 호출에 해당 `axis{N}-*-scorer.md` 전체 내용 + `flow.md` + 해당 축이 요구하는 selective 입력만 전달 (아래 Axis-input map 참조).
+각 Agent 호출에 해당 `axis{N}-*-scorer.md` 전체 내용 + 선로드 context + 축이 요구하는 selective 입력만 전달.
 
-**Axis-input map** (축별 selective scope — 불필요한 파일 로딩 금지):
-- axis1: `flow.md` + `claim-extraction.md` + `papers/analyzed/*.md` (전체, 카운팅용)
-- axis2: `flow.md`만
-- axis3: `flow.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"steelman"` 포함 파일만 (약 14편)
-- axis4: `flow.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"delta"` 포함 파일만 (약 13편)
-- axis5: `flow.md`만
-- axis6: `flow.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"minority"` 포함 파일만 (약 18편)
+**Axis-input map (Stage `flow`)**:
+- axis1: `flow/flow.md` + `flow/claim-extraction-flow.md` + `papers/analyzed/*.md` (전체)
+- axis2: `flow/flow.md`만
+- axis3: `flow/flow.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"steelman"`
+- axis4: `flow/flow.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"delta"`
+- axis5: `flow/flow.md`만
+- axis6: `flow/flow.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"minority"`
+
+**Axis-input map (Stage `draft`)**:
+- axis1: `chapters/*.md` + `chapters/claim-extraction-draft.md` + `papers/analyzed/*.md`
+- axis2: `chapters/*.md`만
+- axis3: `chapters/*.md` + `papers/analyzed/*.md` 중 `"steelman"`
+- axis4: `chapters/*.md` + `papers/analyzed/*.md` 중 `"delta"`
+- axis5: `chapters/*.md`만
+- axis6: `chapters/*.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `"minority"`
 
 **stale_axes에 없는 축**은 이전 archive의 동명 파일(`axis{N}-*.md`)을 그대로 `latest/`에 유지(복사). 재계산 없음.
 
@@ -383,17 +432,19 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 🔧 Stage 3 (수정): {N}개 작업 — 예상 회복 +{X}
 ✅ Stage 4 (최종): {N}개 작업 — 예상 회복 +{X}
 
-💾 저장 (모두 evaluations/latest/ 하위):
+💾 저장 결과:
    ✓ evaluations/latest/evaluation.md              (종합 요약·aggregator)
-   ✓ evaluations/latest/work-plan.md
-   ✓ evaluations/latest/claim-extraction.md        (prose flow)
    ✓ evaluations/latest/axis1-reference.md         (축 1)
    ✓ evaluations/latest/axis2-logic.md             (축 2)
    ✓ evaluations/latest/axis3-defense.md           (축 3)
    ✓ evaluations/latest/axis4-originality.md       (축 4)
    ✓ evaluations/latest/axis5-concept.md           (축 5)
-   ✓ evaluations/latest/axis6-critical.md          (축 6, Critical Mode)
-   📦 이전 평가 → evaluations/archive/{NNN}-{date}-{stage}/ 자동 스냅샷
+   ✓ evaluations/latest/axis6-critical.md          (축 6, Critical Mode 활성 시)
+   ✓ work-plan.md                                   (루트, HUNT·DRAFT ID 단일 발급처)
+   ✓ flow/claim-extraction-flow.md                  (stage=flow 시)
+   ✓ chapters/claim-extraction-draft.md             (stage=draft 시)
+   📦 이전 평가 → evaluations/archive/{NNN}-{date}-{stage}/ 증분 스냅샷 (manifest.json)
+   📦 work-plan 변경 시 → work-plan.archive/{NNN}-{date}-{stage}.md
 
 👉 다음 단계:
    1. work-plan.md 검토
@@ -522,7 +573,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
 
 ### 단계 1: 선행 조건 확인
 
-1. `projects/{PROJECT_NAME}/evaluations/latest/work-plan.md` 존재 여부 확인
+1. `projects/{PROJECT_NAME}/work-plan.md` 존재 여부 확인
    - 없으면: "먼저 `평가해줘`를 실행하여 work-plan.md를 생성하세요"로 안내 후 중단
 2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **두 종류 작업**을 파싱:
    - `[REANALYZE-NNN]` 블록 — 기존 PDF 재분석 과제
@@ -539,7 +590,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
    - 전달: PDF 경로 + 현재 flow.md + 기존 analyzed/*.md + 재분석 각도 지시
    - 수행: PDF 재스캔 → analyzed/*.md에 `## [v2 — {date}] 재분석: {각도}` append
 4. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
-5. `claim-extraction.md`에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
+5. `claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
 6. `work-plan.md`의 REANALYZE 체크박스를 `- [x]`로 갱신
 
 ### 단계 2b: HUNT 과제를 Consensus MCP에 투입
@@ -576,11 +627,11 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
    - 반환된 번역을 `consensus-results.md` 해당 논문 아래에 삽입
    - Abstract가 없는 논문은 `> (abstract 없음)` 표기 (번역 호출 불필요)
 
-3. **claim-extraction.md 매칭 상태 갱신** (`evaluations/latest/claim-extraction.md`):
+3. **claim-extraction 매칭 상태 갱신** (`flow/claim-extraction-flow.md 또는 chapters/claim-extraction-draft.md`):
    - 해당 문장의 MATCHED 상태를 ✅로 변경
    - 찾은 대표 논문 2-3편을 인용 후보로 기록
 
-4. **work-plan.md 진척 갱신** (`evaluations/latest/work-plan.md`):
+4. **work-plan.md 진척 갱신** (`work-plan.md`):
    - 완료된 HUNT는 `- [x]` 체크
    - 찾은 논문이 기대 프로필에 못 미치면 `⚠️ 재검색 필요` 주석 추가
 
@@ -598,7 +649,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
    ⚠️  재검색 권장: {R}개 (기대 프로필 미달)
 
 📄 papers/consensus-results.md에 {L}편 추가
-🔄 evaluations/latest/claim-extraction.md 매칭 갱신: {T}건
+🔄 flow/claim-extraction-flow.md 또는 chapters/claim-extraction-draft.md 매칭 갱신: {T}건
 
 👉 다음 단계:
    1. consensus-results.md 링크에서 필요한 논문 PDF 다운로드
@@ -681,7 +732,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "레퍼런스 점검 완�
 
 1. `skills/agents/flow-refiner.md` 파일을 읽는다
 2. Agent 도구로 flow-refiner를 호출:
-   - 전달: flow.md + `.sync-state.json` + 신규 analyzed/*.md + evaluations/latest/evaluation.md + claim-extraction.md
+   - 전달: flow/flow.md + `.sync-state.json` + 신규 analyzed/*.md + evaluations/latest/evaluation.md + flow/claim-extraction-flow.md
    - 수행: Phase 1 새 논문 집계 → Phase 2-4 축 3·4·기타 보강 후보 탐색 → Phase 5 diff 제안 작성
 3. 에이전트가 제안 리스트를 화면에 출력
 
@@ -1174,7 +1225,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "sync 점검" "result=stal
   - papers/collected/에서 archived/로 이동
   - papers/analyzed/Zelazo_2022-analysis.md를 archived/analyzed/로 이동
   - .paper-metadata.json 엔트리 제거
-  - claim-extraction.md에서 관련 MATCHED 3건이 UNMATCHED-EXTERNAL로 전환
+  - 해당 stage의 claim-extraction에서 관련 MATCHED 3건이 UNMATCHED-EXTERNAL로 전환
   - Chapter 2, Chapter 4에 dangling citation 가능성 (사후 citation-auditor로 확인 권장)
 
 진행할까요? [예 / 아니오]
@@ -1197,7 +1248,7 @@ mv projects/{PROJECT_NAME}/papers/analyzed/{파일명}-analysis.md \
 
 1. `.paper-metadata.json`에서 해당 엔트리 제거
 2. `python3 scripts/sync_state.py remove-paper {PROJECT} {파일명}` 실행
-3. `claim-extraction.md`에서 해당 논문을 인용하던 MATCHED 문장을 UNMATCHED-EXTERNAL 또는 UNMATCHED-INTERNAL(다른 PDF로 대체 가능 여부 판별)로 재분류
+3. `claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 해당 논문을 인용하던 MATCHED 문장을 UNMATCHED-EXTERNAL 또는 UNMATCHED-INTERNAL(다른 PDF로 대체 가능 여부 판별)로 재분류
 
 ### 단계 5: dangling 경고 + 수정 가이드
 
@@ -1306,7 +1357,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "최종 통합" "stage=fin
 
 ### 단계 3: claim-extraction 반영
 
-`claim-extraction.md`에서 UNMATCHED-INTERNAL이었던 문장들을 재확인:
+`claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 UNMATCHED-INTERNAL이었던 문장들을 재확인:
 - 재분석 결과 새 v{N+1}에 해당 주장이 커버되었으면 → MATCHED로 전환
 - 여전히 커버 못하면 → UNMATCHED-EXTERNAL로 재분류 (HUNT 필요)
 
@@ -1335,7 +1386,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "최종 통합" "stage=fin
    - Kroupin_2025.pdf: v1 → v2 (+ Section 4 pretend play 각도 추가)
    - Zelazo_2022.pdf: v1 → v2 (+ hot EF 보편성 수치 추가)
 
-🔄 claim-extraction.md 반영:
+🔄 claim-extraction 반영:
    - UNMATCHED-INTERNAL {N}건 → MATCHED 전환
    - 잔존 UNMATCHED-INTERNAL: {N}건 (추가 재분석 또는 HUNT 필요)
 

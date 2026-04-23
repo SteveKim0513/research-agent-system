@@ -23,10 +23,10 @@ model: opus
 
 ## 입력
 
-- **필수**: `flow.md` (현재 상태)
+- **필수**: `flow/flow.md` (현재 상태)
 - **필수**: 새로 확보된 `papers/analyzed/*.md` — `.sync-state.json`의 `analyzed_updated_at`을 기준으로 **flow 작성 시점 이후에 추가된** 논문만 식별
 - **맥락**: `evaluations/latest/evaluation.md` — 축 3·4 감점 사유 (보강 타겟)
-- **맥락**: `evaluations/latest/claim-extraction.md` — 새로 MATCHED된 문장·UNMATCHED에서 전환된 항목
+- **맥락**: `flow/claim-extraction-flow.md` — 새로 MATCHED된 문장·UNMATCHED에서 전환된 항목
 
 ## 실행 절차
 
@@ -117,11 +117,19 @@ model: opus
 
 ### Phase 7: 반영 (사용자 승인 시에만)
 
-사용자가 수락한 제안만 `flow.md`에 반영. 반영 후:
+사용자가 수락한 제안을 `flow/flow.md`에 반영한다. 순서:
 
-```bash
-python3 scripts/sync_state.py update-flow {PROJECT_NAME}
-```
+1. **수정 직전 history 스냅샷**:
+   ```bash
+   python3 scripts/sync_state.py snapshot-flow {PROJECT_NAME} pre-refine
+   ```
+   → `flow/history/{NNN}-{date}-pre-refine/`에 이전 flow.md + claim-extraction-flow.md 쌍 보존
+2. `flow/flow.md` 수정 적용
+3. **claim-extractor(stage=flow) 자동 호출** — `flow/claim-extraction-flow.md` 재생성 (flow 내용이 바뀌었으므로 stale)
+4. sync 갱신:
+   ```bash
+   python3 scripts/sync_state.py update-flow {PROJECT_NAME}
+   ```
 
 반영 완료 후 사용자에게 **"평가해줘" 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
 

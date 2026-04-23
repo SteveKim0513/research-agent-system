@@ -10,26 +10,36 @@ model: sonnet
 
 claim-extraction.md 집계 + analyzed/* authority 체크 + disconfirming 증거 존재 여부 확인. **카운팅·규칙 기반** 작업이므로 sonnet 사용.
 
-## 입력 (Selective)
+## 입력 (Stage-aware, Selective)
 
-> **선로드 context 우선**: orchestrator가 prompt에 `<flow.md>`, `<claim-extraction.md>`를 인라인 주입한 경우 **해당 파일은 Read로 다시 읽지 말 것**. 주입된 내용을 그대로 사용. 주입이 없을 때만 아래 경로에서 직접 Read.
+> **선로드 context 우선**: orchestrator가 prompt에 원고·claim-extraction을 인라인 주입한 경우 **해당 파일은 Read로 다시 읽지 말 것**. 주입 없을 때만 아래 경로에서 직접 Read.
 
-1. `flow.md`
-2. `evaluations/latest/claim-extraction.md` — MATCHED/UNMATCHED 집계의 primary source
+**Stage `flow`** (chapters/ 비어 있음):
+1. `flow/flow.md`
+2. `flow/claim-extraction-flow.md` — MATCHED/UNMATCHED 집계의 primary source
 3. `papers/analyzed/*.md` — authority·balance 검증용 (전체 스캔 OK, 가벼움). 선로드 대상 아님 — 직접 Read.
-4. `evaluations/archive/{최신}/axis1-reference.md` — delta 계산용 (이전 점수). 직접 Read.
+4. `evaluations/archive/{최신}/axis1-reference.md` (또는 manifest.json의 참조) — delta 계산용
+
+**Stage `draft` (v1-draft / revised / final)** (chapters/ 존재):
+1. `chapters/*.md` 전체 (claim-extraction-draft.md 제외)
+2. `chapters/claim-extraction-draft.md` — MATCHED/UNMATCHED 집계의 primary source
+3. `flow/claim-extraction-flow.md` — 보조 (flow 단계 seed 비교)
+4. `papers/analyzed/*.md`
+5. `evaluations/archive/{최신}/axis1-reference.md` (또는 manifest)
 
 ## 하위 기준 (각 25점)
 
 ### 1-1 Coverage (25)
-- `claim-extraction.md`에서 `needs_citation` 주장 대비 MATCHED 비율 측정
+- 해당 stage의 claim-extraction (`claim-extraction-flow.md` 또는 `claim-extraction-draft.md`)에서 `needs_citation` 주장 대비 MATCHED 비율 측정
 - `MATCHED / (needs_citation - UNMATCHED-INTERNAL) × 25`
-- UNMATCHED-EXTERNAL (HUNT 필요) 건마다 -2점
+- UNMATCHED-EXTERNAL (HUNT 필요) 건마다 −2점
+- **Draft stage 추가 규칙**: flow 단계에서 MATCHED였던 claim이 초안에서 그대로 유지되면 MATCHED 승계. 초안에서 **새로 등장한 문장**만 별도 채점 대상
 
 ### 1-2 Accuracy (25)
-- MATCHED 건 중 2-3편 **랜덤 spot-check** (분량 가벼우면 생략, flow.md 단계에서는 샘플 기반)
+- MATCHED 건 중 2-3편 **랜덤 spot-check**
 - over-claim / misattribution / hallucinated quote 발견 시 축 감점 기록
-- flow.md의 인용 표현 강도(`demonstrates` vs `suggests`) vs 원논문 hedge 비교
+- 인용 표현 강도(`demonstrates` vs `suggests`) vs 원논문 hedge 비교
+- **Draft stage 추가 체크**: flow에서 hedge `suggests`였던 claim이 초안에서 `demonstrates`로 강화되었는데 근거 변경 없으면 over-claim 감점
 
 ### 1-3 Authority (25)
 - MATCHED 논문의 quality heuristic:
@@ -39,7 +49,7 @@ claim-extraction.md 집계 + analyzed/* authority 체크 + disconfirming 증거 
 
 ### 1-4 Balance (25)
 - **disconfirming evidence** 인용 여부 (Steelman, 자기 주장에 치명적인 반론)
-- flow.md의 Section 3(반박 섹션)에 실제로 반대 논문이 등장하는지 확인
+- 원고의 반박 섹션에 실제로 반대 논문이 등장하는지 확인
 - confirmation bias 지표: MATCHED 중 본 thesis에 **부합하는** 논문만 있으면 감점
 
 ## 출력 파일
@@ -88,4 +98,5 @@ claim-extraction.md 집계 + analyzed/* authority 체크 + disconfirming 증거 
 ## 금지
 
 - 축 2-6의 역할 침범 금지 (논리·독창성·정의·비판적 시각은 다른 축 책임)
-- flow.md 내용에 대한 직접 품질 판단 금지 (레퍼런스 연결 품질만)
+- 원고 내용에 대한 직접 품질 판단 금지 (레퍼런스 연결 품질만)
+- claim-extraction을 스스로 재생성하지 말 것 — 반드시 orchestrator가 최신 claim-extraction을 먼저 생성하도록 기다린 뒤 그 결과를 소비만 한다

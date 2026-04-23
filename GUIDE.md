@@ -34,7 +34,7 @@ claude
 
 ### ② flow.md 작성
 
-`projects/my-essay/flow.md` 파일을 에디터로 열어 **자유 줄글**로 씁니다:
+`projects/my-essay/flow/flow.md` 파일을 에디터로 열어 **자유 줄글**로 씁니다:
 
 - **필수 2가지**:
   - 연구 질문 한 문장: `"이 글은 X를 묻는다"`

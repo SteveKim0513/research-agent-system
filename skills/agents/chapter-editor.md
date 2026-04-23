@@ -22,11 +22,11 @@ model: opus
 
 - **필수**: 대상 챕터 파일 경로 (예: `chapters/02-background.md`)
 - **필수**: 사용자의 수정 지시 (자연어)
-- **맥락**: `flow.md` (기준 문서)
+- **맥락**: `flow/flow.md` (기준 문서)
 - **맥락**: `papers/analyzed/*.md` (최신 버전 — 섹션별 인용 다발 포함)
 - **맥락**: 해당 수정에 관련될 수 있는 `papers/collected/*.pdf` (필요 시 Read)
 - **맥락**: 다른 챕터 파일 (일관성 체크용)
-- **맥락**: `evaluations/latest/claim-extraction.md` (수정이 MATCHED 문장에 영향 주는지 확인)
+- **맥락**: `chapters/claim-extraction-draft.md` (수정이 MATCHED 문장에 영향 주는지 확인)
 
 ## 실행 절차
 
@@ -68,11 +68,29 @@ model: opus
 3. **중복 내용** — 수정 과정에서 다른 섹션 내용과 겹치지 않는가
 4. **Thesis 정렬** — 수정이 전체 thesis 방향에서 벗어나지 않는가
 
-### Phase 5: citation-auditor 자동 체이닝
+### Phase 5: 수정 직전 history 스냅샷
 
-수정 완료 후 즉시 citation-auditor를 호출하여 수정된 인용들이 PDF 원문과 정확히 일치하는지 검증. (이 단계는 SKILL.md의 `"Chapter X 수정해줘"` 정의에 명시되어 있으며 chapter-editor 실행 후 자동 진행.)
+수정을 **파일에 쓰기 전에** 반드시 실행:
 
-### Phase 6: Sync 갱신
+```bash
+python3 scripts/sync_state.py snapshot-chapter {PROJECT_NAME} ch{X}-edit 0{X}-{name}.md
+```
+
+이렇게 하면 `chapters/history/0{X}-{name}/{NNN}-{date}-ch{X}-edit/`에 수정 직전 챕터 파일과 당시 `claim-extraction-draft.md`가 쌍으로 보존됨.
+
+### Phase 6: 수정 적용 + 자동 claim-extractor 재실행
+
+수정된 새 `chapters/0{X}-{name}.md`를 파일에 쓴 직후:
+
+1. `chapters/claim-extraction-draft.md`가 stale이 됨 (해당 챕터 mtime > 분석 mtime)
+2. **claim-extractor(stage=draft) 자동 호출** — 통합 draft 분석 갱신. 해당 챕터의 문장만 재분류하고 나머지 챕터 분류는 보존
+3. 결과를 `chapters/claim-extraction-draft.md`로 덮어쓰기 (Phase 5 snapshot이 이미 이전 버전 보존)
+
+### Phase 7: citation-auditor 자동 체이닝
+
+claim-extractor 재실행 후 citation-auditor를 호출하여 수정된 인용들이 PDF 원문과 정확히 일치하는지 검증.
+
+### Phase 8: Sync 갱신
 
 ```bash
 python3 scripts/sync_state.py update-chapter {PROJECT_NAME} 0{X}-{name}.md

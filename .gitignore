@@ -23,6 +23,7 @@ papers/
 chapters/
 final/
 projects/
+plan.md
 
 # IDE
 .vscode/
@@ -34,6 +35,4 @@ projects/
 .claude/settings.local.json
 
 # 개발용 설계 문서 (내부 작업 문서 — 공식 문서는 README·MANUAL·PRINCIPLES로 승격됨)
-# docs/ 폴더 자체는 공유하지 않지만, plan.md는 설계 아카이브로 추적 예외
-docs/*
-!docs/plan.md
+docs/

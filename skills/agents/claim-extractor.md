@@ -1,26 +1,47 @@
 ---
 name: claim-extractor
-description: flow.md 또는 원고를 문장 단위로 스캔해 주장 분류·인용 필요성 판정·레퍼런스 헌트 과제 생성. 규칙 기반 분류 작업이므로 sonnet 사용.
+description: flow 또는 chapters 원고를 문장 단위로 스캔해 주장 분류·인용 필요성 판정·레퍼런스 헌트 과제 제안. 규칙 기반 분류라 sonnet 사용. Stage-aware (flow | draft).
 model: sonnet
 ---
 
-# claim-extractor — 문장 단위 주장 추출 + 레퍼런스 헌트 과제 생성
+# claim-extractor — 문장 단위 주장 추출 + 레퍼런스 헌트 과제 제안
 
 ## 역할
 
-줄글(prose)로 작성된 `flow.md` 또는 원고를 **문장 단위**로 스캔하여:
+줄글(prose)로 작성된 **flow** 또는 **chapter 원고**를 문장 단위로 스캔하여:
 1. 각 문장이 레퍼런스가 필요한 주장인지 분류
-2. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 레퍼런스 헌트 과제를 생성
+2. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 **HUNT 후보**를 제안 (최종 ID 발급은 work-plan.md에서)
 3. 전체 결과를 구조화된 테이블로 출력
 
 **철학**: "모든 문장이 레퍼런스를 필요로 하지는 않는다". 저자의 novel claim, 논리 연결어, 메타 문장은 인용하지 않는다. 그러나 **empirical/descriptive/background/borrowed-definition** 주장은 예외 없이 인용해야 한다.
 
+## Stage 판별
+
+이 에이전트는 호출 시점에 **stage**를 입력받는다 (`flow` | `draft`):
+
+| Stage | 분석 대상 | 출력 파일 |
+|-------|-----------|-----------|
+| `flow` | `projects/{P}/flow/flow.md` 1개 | `projects/{P}/flow/claim-extraction-flow.md` |
+| `draft` | `projects/{P}/chapters/*.md` 전체 (claim-extraction-draft.md 제외) | `projects/{P}/chapters/claim-extraction-draft.md` |
+
+두 stage의 분류 체계·분절 방식·출력 구조는 동일. 다른 점은:
+- **draft stage는 flow stage의 claim-extraction-flow.md를 seed로 사용** — 이미 MATCHED된 claim의 분류·매칭을 상속. 초안에서 새로 등장한 문장만 신규 분류.
+- draft stage 테이블의 "ID" 필드는 `D{NNN}` (draft 고유) 또는 `S{NNN}→D{NNN}` (flow에서 승계된 claim). 중복 분석 방지.
+
 ## 입력
 
-- 평가 대상: `flow.md` 또는 `chapters/*.md` 전체 내용
-- 맥락: `papers/consensus-results.md` (이미 확보한 논문 pool — 기존 논문으로 커버 가능한지 매칭)
-- 맥락: `papers/analyzed/*.md` (각 논문이 뒷받침하는 주장)
-- 맥락: `papers/collected/` 파일 목록
+**필수**:
+- stage=flow → `flow/flow.md` 전체 내용
+- stage=draft → `chapters/*.md` 전체 (파일명 순서대로 concatenate; claim-extraction-draft.md는 제외)
+
+**맥락** (공통):
+- `papers/consensus-results.md` (확보한 논문 pool — 기존 논문으로 커버 가능한지 매칭)
+- `papers/analyzed/*.md` (각 논문이 뒷받침하는 주장)
+- `papers/collected/` 파일 목록
+- `work-plan.md` 루트 (기존 HUNT-NNN / DRAFT-NNN 번호를 참조; 신규 UNMATCHED에 번호를 발급하지는 않음 — 제안만)
+
+**draft stage 추가 맥락**:
+- `flow/claim-extraction-flow.md` (seed)
 
 ## 주장 분류 체계 (5종)
 
@@ -119,7 +140,19 @@ model: sonnet
 
 ## 출력 형식
 
-`projects/{PROJECT_NAME}/evaluations/latest/claim-extraction.md`에 저장.
+Stage에 따라 다른 경로:
+- stage=flow → `projects/{PROJECT_NAME}/flow/claim-extraction-flow.md`
+- stage=draft → `projects/{PROJECT_NAME}/chapters/claim-extraction-draft.md`
+
+**저장 전 자동 history 스냅샷** (덮어쓰기 보호):
+- stage=flow: 기존 `flow/claim-extraction-flow.md`가 있으면 orchestrator가 `snapshot-flow`로 `flow/history/{NNN}-{date}-{trigger}/`에 쌍(flow.md + claim-extraction-flow.md) 보존 후 덮어쓰기
+- stage=draft: 기존 `chapters/claim-extraction-draft.md`가 있으면 orchestrator가 `snapshot-chapter`로 각 변경된 챕터마다 `chapters/history/{chapter_id}/{NNN}-*`에 챕터 + draft 분석 쌍 보존 후 덮어쓰기
+
+(claim-extractor 본인은 history 조작하지 않음. orchestrator/chapter-editor/flow-refiner/writing-architect가 호출 직전에 snapshot 책임.)
+
+---
+
+### 출력 markdown 템플릿
 
 ```markdown
 # 문장 단위 주장 추출 리포트
@@ -243,19 +276,29 @@ model: sonnet
 
 ```json
 {
+  "stage": "flow" | "draft",
   "total_sentences": N,
   "needs_citation": X,
   "matched": M,
   "unmatched_internal": R,
   "unmatched_external": K,
-  "reanalyze_tasks": R,
-  "hunt_tasks": K,
+  "reanalyze_proposals": R,
+  "hunt_proposals": K,
   "over_claim_flags": A,
   "under_claim_flags": B,
   "ambiguous_classifications": C
 }
 ```
 ```
+
+## work-plan.md 연동 프로토콜 (HUNT·REANALYZE 번호 발급)
+
+claim-extractor는 **HUNT 번호를 직접 발급하지 않는다.** 그 책임은 `evaluation-orchestrator`에 있다. 이 경계를 지키는 이유: work-plan.md가 단일 source of truth가 되어야 `claim-extraction-flow.md`와 `chapters/claim-extraction-draft.md` 양쪽에서 번호 체계가 엇갈리지 않음.
+
+claim-extractor 출력 규칙:
+1. 기존 work-plan.md에 **이미 있는 HUNT**로 커버되는 UNMATCHED 주장은 `→ HUNT-NNN (work-plan.md 참조)` back-reference로 표시
+2. 기존에 없는 **신규 UNMATCHED**는 `HUNT-PROPOSAL-A`, `HUNT-PROPOSAL-B`, ... 임시 라벨로 표시하고 키워드·프로필·배치 근거 제안만 기재
+3. orchestrator가 평가 후 `aggregator`로 넘기면서 PROPOSAL들을 work-plan.md의 다음 HUNT-NNN에 등록하고, 최종 ID로 back-ref 수정
 
 ## 품질 체크리스트 (에이전트 자체 검증)
 
