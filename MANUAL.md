@@ -14,10 +14,13 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 3. [5축 평가 기준 상세](#-5축-평가-기준-상세)
 4. [서브 에이전트 시스템](#-서브-에이전트-시스템)
 5. [Sync 아키텍처](#-sync-아키텍처)
-6. [파일 구조와 역할](#-파일-구조와-역할)
-7. [명령어 레퍼런스](#-명령어-레퍼런스)
-8. [작성 팁](#-작성-팁)
-9. [트러블슈팅](#-트러블슈팅)
+6. [Critical Mode (비판적 시각 지원)](#-critical-mode-비판적-시각-지원)
+7. [활동 로그 시스템](#-활동-로그-시스템-activity-log)
+8. [권한 자동 승인](#-권한-자동-승인-permissions)
+9. [파일 구조와 역할](#-파일-구조와-역할)
+10. [명령어 레퍼런스](#-명령어-레퍼런스)
+11. [작성 팁](#-작성-팁)
+12. [트러블슈팅](#-트러블슈팅)
 
 ---
 
@@ -932,6 +935,66 @@ python3 scripts/activity_log.py append CDEA "수동 로그" "result=test"
 - **hook이 작동 안 한다면**: `.claude/settings.json`이 존재하는지, `$CLAUDE_PROJECT_DIR`이 올바른지 확인
 - **로그 파싱 오류**: 수동 편집으로 포맷이 깨진 라인은 skip (경고만 출력)
 - **다중 프로젝트**: 가장 최근 수정된 프로젝트로 로그가 라우팅됨. 의도와 다르면 작업 전 해당 프로젝트 폴더를 `touch`로 mtime 갱신
+
+---
+
+## 🔐 권한 자동 승인 (Permissions)
+
+Claude Code의 반복적 "yes" 확인 prompt를 줄이기 위해 이 프로젝트는 **안전한 명령 패턴을 사전 승인**합니다.
+
+### 작동 방식
+
+프로젝트 루트의 `.claude/settings.json`에 `permissions` 섹션이 있으며, clone하는 모든 사용자에게 자동 적용됩니다.
+
+```json
+{
+  "permissions": {
+    "allow": [ "Bash(python3 scripts/*)", "Bash(git add *)", ... ],
+    "deny": [ "Bash(rm -rf *)", "Bash(git push --force*)", ... ]
+  }
+}
+```
+
+### ✅ 사전 승인 범위 (prompt 없음)
+
+- **프로젝트 스크립트**: `python3 scripts/sync_state.py`, `activity_log.py`, `extract_metadata.py`
+- **Git 기본**: add / commit / push / status / diff / log / show / branch / remote
+- **파일 읽기·탐색**: ls / cat / head / tail / grep / sed -n / awk / sort
+- **파일 조작**: mkdir / touch / cp / mv / chmod
+- **Consensus MCP**: `mcp__consensus__search` 포함 전체
+- **패키지 설치**: `npm install claude-code`, `pip3 install`
+
+### 🚫 명시적 차단 (deny)
+
+다음은 **실수로도 실행되지 않도록** deny 목록에 등록:
+- `rm -rf *`, `rm -r /*`
+- `git push --force*`, `git push -f *`
+- `git reset --hard *`
+- `git checkout -- *` (변경사항 폐기)
+- `git clean -*`
+
+deny는 `--dangerously-skip-permissions` flag로도 우회되지 않습니다.
+
+### 사용자 개인 설정
+
+자신만의 추가 허용·거부 패턴은 `.claude/settings.local.json`에 작성. 이 파일은 `.gitignore` 대상이라 공유되지 않습니다.
+
+```json
+{
+  "permissions": {
+    "allow": [ "Bash(my-custom-command *)" ],
+    "deny": []
+  }
+}
+```
+
+### 전체 무제한 모드 (⚠️ 비권장)
+
+특수한 경우 모든 권한 prompt를 생략:
+```bash
+claude --dangerously-skip-permissions
+```
+`rm -rf` 같은 위험 명령도 질문 없이 실행됨. **신뢰된 환경에서만** 사용.
 
 ---
 

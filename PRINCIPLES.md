@@ -23,6 +23,9 @@
 11. [시스템 설계 철학](#-시스템-설계-철학)
 12. [에이전트별 원칙 매핑](#-에이전트별-원칙-매핑)
 13. [학술 전통과 근거 문헌](#-학술-전통과-근거-문헌)
+14. [Critical Mode — 새로운 관점·비판적 시각의 능동적 지원](#-critical-mode--새로운-관점비판적-시각의-능동적-지원)
+15. [활동 로그와 4계층 방어 철학](#-활동-로그와-4계층-방어-철학)
+16. [결론](#-결론)
 
 ---
 
@@ -438,7 +441,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-12개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강 — 기능이 겹치지 않음. 이유:
+14개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강 — 기능이 겹치지 않음. 이유:
 
 - 호출 토큰 효율 (Chapter 수정 15회 × 경량 chapter-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
@@ -471,14 +474,16 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 | **claim-extractor** | 1-1 Coverage, 1-2 Accuracy 예비, 5-1 Definition 탐지 | #7 Placeholder citation, #5 Moving goalpost |
 | **originality-evaluator** | 4-1 ~ 4-4 | #13 "So What?" 답 부재 |
 | **concept-clarity-evaluator** | 5-1 ~ 5-4 | #6 Concept drift, #12 Vague operationalization |
-| **paper-analyst** | 인용 재료의 "조건·한계" 필드 | #1 Over-claim (근본 예방) |
+| **critical-lens-evaluator** | 축 6 (C-1 Paradigm Mapping ~ C-4 Minority Recovery) | orthodox 편향, 소수 의견 배제, timidity |
+| **critical-companion** | Socratic 질문 (답변 생산 금지) + commitment 추출 + 정합성 점검 | 지적 자기 배신 (답변 → 원고 누락), 회피 중인 질문 |
+| **paper-analyst** | 인용 재료의 "조건·한계" 필드 + Mode C (hidden assumptions) | #1 Over-claim (근본 예방), confirmation bias 재생산 |
 | **writing-architect** | Topic Sentence First, Synthesis, Hedging, Evidence→Analysis | #4 Circular, #10 Logic jump |
-| **chapter-editor** | 기존 구조 보존 + writing 원칙 유지 | 수정 과정의 구조 붕괴 |
+| **chapter-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
 | **flow-refiner** | 4-2 Novelty Positioning, 3-1 Steelman 보강 | Novelty 드리프트 |
 | **citation-auditor** | 1-2 Accuracy (PDF 원문 대조) | #1 Over-claim (실시간 탐지), misattribution |
 | **gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
 | **methodology-advisor** | (empirical 전용) 방법론 정당화 | 방법론 임의 선택 |
-| **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface | #2 Strawman, reject 유발 major issue |
+| **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface, Iconoclast (timidity 지적) | #2 Strawman, reject 유발 major issue, 자기 배신 미탐지 |
 
 ---
 
