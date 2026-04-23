@@ -33,3 +33,6 @@ plan.md
 
 # Claude Code — 사용자별 개인 설정 (공유 설정은 .claude/settings.json 파일만 git 추적)
 .claude/settings.local.json
+
+# 개발용 설계 문서 (내부 작업 문서 — 공식 문서는 README·MANUAL·PRINCIPLES로 승격됨)
+docs/
