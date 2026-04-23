@@ -157,6 +157,15 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
   "stale={N}/6"
 ```
 
+## work-plan.md 조작 규율
+
+평가는 **신규 task 발급이 주**. 기존 active/in-progress/blocked task는 건드리지 않음.
+
+- aggregator가 각 scorer의 감점 사유를 분석해 HUNT/REANALYZE/DRAFT/EDIT/FIX 카드 생성 → 🟡 Active에 append
+- claim-extractor의 HUNT-PROPOSAL-A/B/C → 다음 HUNT-NNN 번호로 치환 → claim-extraction-*.md에 back-reference
+- 대시보드 재계산 (Stage 진척도·상태 카운트·축별 잔여·다음 권장 명령)
+- 포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수. 카드 스키마·필드 순서·이모지 5종·섹션 구조 어김 금지.
+
 ## 중요 원칙
 
 1. **비동기 금지** — 축 워커 모두 결과 도착 후 aggregator 호출. 부분 완료로 aggregator 실행 금지.

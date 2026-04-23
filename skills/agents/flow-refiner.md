@@ -133,6 +133,20 @@ model: opus
 
 반영 완료 후 사용자에게 **"평가해줘" 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
 
+## work-plan.md 조작 규율
+
+`skills/WORK-PLAN-FORMAT.md` 준수.
+
+**Phase 0 (commitment 검토) 시작 전**:
+1. `work-plan.md` 🟡 Active 섹션에서 `FIX-NNN` task 수집
+2. 모든 FIX task를 🟡 → 🔵 in-progress로 전환 + 진행 로그 append
+
+**Phase 7 (반영) 후**:
+- 사용자가 수락한 제안에 대응하는 FIX task → 🟢 Recent completed + 진행 로그 `✅ completed: flow/flow.md에 반영` append
+- 사용자가 거부한 제안의 FIX task → ⚪ Deferred + `note: 사용자 거부`
+- **새 논문 기반 제안 자체는** orchestrator/aggregator가 아니라 flow-refiner가 직접 FIX task를 발급해도 됨: 다음 FIX-NNN 번호로 🟡 Active에 append. 제안이 승인되면 그 자리에서 🟢로 이동
+- 대시보드 재계산
+
 ## 비파괴 원칙 (Non-Destructive)
 
 - `flow.md`를 **사용자 승인 없이 변경하지 않는다**

@@ -96,6 +96,21 @@ claim-extractor 재실행 후 citation-auditor를 호출하여 수정된 인용�
 python3 scripts/sync_state.py update-chapter {PROJECT_NAME} 0{X}-{name}.md
 ```
 
+## work-plan.md 조작 규율
+
+`skills/WORK-PLAN-FORMAT.md` 준수.
+
+**Phase 1 (수정 지시 해석) 시작 전**:
+1. `work-plan.md` 🟡 Active 섹션에서 해당 챕터에 속한 `EDIT-NNN` task 수집 (카드의 `**대상 챕터**`가 매칭되는 것)
+2. 명령에 `EDIT-NNN` 명시되었으면 그 task만, 없으면 사용자 자연어 지시 + 해당 챕터 active EDIT 전체
+3. 대상 task를 🟡 → 🔵 in-progress로 전환 + `in-progress: chapter-editor` append
+
+**Phase 7 (citation-auditor) 후 + Phase 8 (sync 갱신) 전**:
+- 반영 완료된 EDIT task → 🟢 Recent completed, 진행 로그 `✅ completed: {변경 요약}` append
+- 부분 반영된 EDIT → 🟡 active로 되돌리고 메모. 사용자 재지시 필요
+- **citation-auditor가 새 over-claim 발견 시**: 신규 `EDIT-NNN` task를 🟡 Active에 append (담당 명령: `"Chapter {X} 수정해줘: EDIT-{NNN}"`)
+- 대시보드 재계산
+
 ## 공통 글쓰기 원칙 (chapter-editor에서도 준수)
 
 수정 시 다음 writing-architect 공통 원칙을 유지한다:

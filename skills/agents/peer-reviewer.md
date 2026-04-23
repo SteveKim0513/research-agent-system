@@ -225,3 +225,21 @@ model: opus
 - Mode B: 답변은 정중하되 학술적으로 정확하게
 - 리뷰어의 요구가 비합리적일 때도 감정적 대응 금지
 - 각 코멘트에 대해 "수용/부분수용/정중한 반박" 중 하나 권고
+
+## work-plan.md 조작 규율
+
+`skills/WORK-PLAN-FORMAT.md` 준수.
+
+**Mode A (심사 시뮬레이션) 완료 시**:
+각 Major issue마다 신규 `EDIT-NNN` task를 🟡 Active에 append:
+- **대상 챕터**: `chapters/{파일명}.md` (리뷰어가 지적한 섹션에 해당)
+- **수정 내용**: 리뷰어 코멘트 요약 + 권고 대응
+- **원인**: `peer-reviewer Mode A · Reviewer {1|2|3|Iconoclast}`
+- **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
+- **예상 회복**: 축 3-4 Reviewer attack surface +{N}
+
+Minor issue는 task 생성하지 않고 리뷰 리포트에 요약만.
+
+**Mode B (리뷰 답변)** 시에는 work-plan 수정 없음 (답변 초안 생성만).
+
+ID 발급 규칙은 기존 work-plan에서 최대 EDIT 번호 +1.

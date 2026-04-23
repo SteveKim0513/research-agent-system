@@ -291,14 +291,18 @@ Stage에 따라 다른 경로:
 ```
 ```
 
-## work-plan.md 연동 프로토콜 (HUNT·REANALYZE 번호 발급)
+## work-plan.md 연동 프로토콜
 
-claim-extractor는 **HUNT 번호를 직접 발급하지 않는다.** 그 책임은 `evaluation-orchestrator`에 있다. 이 경계를 지키는 이유: work-plan.md가 단일 source of truth가 되어야 `claim-extraction-flow.md`와 `chapters/claim-extraction-draft.md` 양쪽에서 번호 체계가 엇갈리지 않음.
+claim-extractor는 **work-plan.md를 직접 수정하지 않는다.** 읽기만 (기존 HUNT 번호 확인 목적). 쓰기 책임은 `evaluation-orchestrator` + `evaluation_aggregator.py`에 있다.
 
-claim-extractor 출력 규칙:
-1. 기존 work-plan.md에 **이미 있는 HUNT**로 커버되는 UNMATCHED 주장은 `→ HUNT-NNN (work-plan.md 참조)` back-reference로 표시
-2. 기존에 없는 **신규 UNMATCHED**는 `HUNT-PROPOSAL-A`, `HUNT-PROPOSAL-B`, ... 임시 라벨로 표시하고 키워드·프로필·배치 근거 제안만 기재
-3. orchestrator가 평가 후 `aggregator`로 넘기면서 PROPOSAL들을 work-plan.md의 다음 HUNT-NNN에 등록하고, 최종 ID로 back-ref 수정
+**읽기 의무** (출력 생성 직전):
+1. `work-plan.md`에서 현재 존재하는 HUNT/REANALYZE ID 목록을 grep 추출
+2. UNMATCHED 주장이 기존 HUNT로 이미 커버되면 `→ HUNT-NNN (work-plan.md 참조)` back-reference
+3. 신규 UNMATCHED는 `HUNT-PROPOSAL-A/B/C` 임시 라벨로만 제안 (번호 발급 X)
+
+orchestrator/aggregator가 PROPOSAL을 work-plan.md의 다음 HUNT-NNN으로 치환하고 🟡 Active에 등록한다.
+
+**포맷 규율**: `skills/WORK-PLAN-FORMAT.md` 참조 (HUNT·REANALYZE 카드의 필수 필드: 검색 키워드·기대 프로필·배치 위치).
 
 ## 품질 체크리스트 (에이전트 자체 검증)
 

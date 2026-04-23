@@ -145,7 +145,7 @@ PDF를 읽은 뒤에는:
 
 ## Phase 2 완료 후 자동 체이닝 (필수)
 
-모든 chapter 파일이 생성된 직후 SKILL.md 명령 호출자가 다음을 순차 실행해야 한다 (writing-architect 본인이 실행하거나, orchestrator 호출자가 수행):
+모든 chapter 파일이 생성된 직후 SKILL.md 명령 호출자가 다음을 순차 실행해야 한다:
 
 1. `python3 scripts/sync_state.py snapshot-chapters {PROJECT} post-v1-draft` — 모든 chapters + 비어 있는 draft 분석 상태 초기 스냅샷
 2. **claim-extractor(stage=draft) 호출** — `chapters/claim-extraction-draft.md` 생성. flow 단계의 claim-extraction-flow.md를 seed로 상속, 초안에서 새로 등장한 문장만 신규 분류
@@ -153,6 +153,23 @@ PDF를 읽은 뒤에는:
 4. `python3 scripts/sync_state.py update-final {PROJECT}` (final/complete-draft.* 생성 후)
 
 이 체이닝 없이 초안만 저장하면 axis1의 draft-stage 평가가 비어 있는 claim-extraction-draft를 읽어 오류.
+
+## work-plan.md 조작 규율
+
+`skills/WORK-PLAN-FORMAT.md` 준수.
+
+**Phase 1 시작 전**:
+1. `work-plan.md` 🟡 Active 섹션에서 모든 `DRAFT-NNN` task 수집
+2. 각 DRAFT task를 🟡 → 🔵 in-progress로 전환, 진행 로그에 `in-progress: writing-architect Phase 1` append
+
+**Phase 2 각 chapter 완료 시**:
+- 해당 chapter가 반영한 DRAFT task들을 🔵 → 🟢 Recent completed로 이동
+- 진행 로그에 `✅ completed: chapters/{file}에 반영 — {요약}` append
+- Recent completed 16개 초과 시 가장 오래된 것을 `📜 Older completed` 상단으로 이동
+- 대시보드 재계산
+
+**반영 실패한 DRAFT** (예: commitment 부족, 재료 부족):
+- 🔵 → 🟡 active로 되돌리고 진행 로그에 `note: {사유}` append. 사용자가 추가 지시 필요.
 
 ## Commitment 반영 보고 형식 (초안 완료 후 반드시 출력)
 

@@ -130,3 +130,19 @@ claim-extraction-draft의 MATCHED 라벨이 기본 audit target이며, 모든 �
 - 원문 PDF를 직접 읽어서 대조할 것 (analyzed/ 파일만으로 판단하지 않기)
 - 오인용 지적 시 반드시 수정 제안을 함께 제공
 - 검증 불가한 인용은 삭제를 권하지 말고 원문 확보를 권고
+
+## work-plan.md 조작 규율
+
+`skills/WORK-PLAN-FORMAT.md` 준수.
+
+감사 결과 **과 1회 이상의 "⚠️ 수정 필요" 항목**이 발견되면 각 항목마다 신규 `EDIT-NNN` task를 work-plan.md 🟡 Active 섹션에 append:
+
+- **대상 챕터**: `chapters/{파일명}.md`
+- **수정 내용**: 구체적 문장·인용구·원문 대조 결과
+- **원인**: `citation-auditor #{NNN}`
+- **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
+- **예상 회복**: 축 1-2 Accuracy +{N} (오인용 개수에 비례)
+
+ID 발급: 기존 work-plan.md에서 `grep -oE "\[EDIT-[0-9]+\]"` 최대값+1.
+
+대시보드의 🟡 active 카운트와 축 1 잔여 회복량 재계산.

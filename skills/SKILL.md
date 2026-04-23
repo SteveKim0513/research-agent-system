@@ -56,6 +56,59 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 
 **HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator/aggregator가 `work-plan.md`의 다음 HUNT-NNN·DRAFT-NNN 번호를 발급하고, claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
 
+## work-plan.md 사용 사이클 (공통)
+
+`projects/{P}/work-plan.md`는 **현재 해야 할 일 + 담당 명령 + 진행 로그**의 단일 소스입니다. 모든 명령이 이 파일을 참조·갱신합니다. **포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수**.
+
+### Task 타입 (5종, 담당 명령 1:1)
+
+| Type | 담당 명령 | 담당 에이전트 |
+|------|---------|--------------|
+| **HUNT** | `"작업 시작해줘"` | Consensus MCP |
+| **REANALYZE** | `"논문 재분석해줘"` (delta 기본) | paper-analyst Mode B |
+| **DRAFT** | `"초안 작성해줘"` / `"Chapter X 수정해줘"` | writing-architect / chapter-editor |
+| **EDIT** | `"Chapter X 수정해줘: EDIT-NNN"` | chapter-editor |
+| **FIX** | `"flow 업데이트해줘"` | flow-refiner |
+
+### 공통 실행 사이클
+
+모든 작업 명령(평가 제외)은 다음 6단계를 따릅니다:
+
+```
+① work-plan.md 읽기 → 🟡 Active 중 담당 task 식별
+② 대상 task 상태 전환: 🟡 → 🔵 in-progress + 진행 로그 append
+③ 실제 작업 (에이전트 실행)
+④ 결과:
+   - 성공 → 🔵 → 🟢 Recent completed + 결과 요약 로그
+   - 근본 문제 → 🔵 → 🔴 Blocked + 사유 로그
+   - 일시 실패 → 🔵 → 🟡 active + 재시도 메모
+⑤ 대시보드 재계산 (상태별 카운트, Stage 진척도, 축별 잔여 회복, 다음 권장 명령)
+⑥ 필요 시 sync_state.py snapshot-work-plan (내용 변경 시)
+```
+
+**평가 명령(`평가해줘`)은 신규 task 발급이 핵심**:
+- evaluation_aggregator.py가 감점 사유를 분석해 HUNT/REANALYZE/DRAFT/EDIT/FIX task 카드를 🟡 Active에 append
+- HUNT·REANALYZE는 claim-extractor의 PROPOSAL을 받아 번호 할당
+- DRAFT/EDIT는 각 axis scorer의 감점 사유로부터 파생
+- 기존 task 상태는 유지 (평가가 진행 중 작업을 덮어쓰지 않음)
+
+### 파싱 규칙 (에이전트가 읽을 때)
+
+- 🟡 Active 섹션은 `## 🟡 Active` 헤더부터 다음 `---` 또는 `## ` 전까지
+- Task 카드는 `### [TYPE-NNN]`로 시작
+- 담당 명령 매칭: 각 카드 내 `**담당 명령**:` 라인의 백틱 안 문자열
+- ID 발급: 기존 번호 grep 후 최대값+1
+
+### 상태 이모지 5종 (고정)
+
+🟡 active · 🔵 in-progress · 🔴 blocked · 🟢 completed · ⚪ deferred
+
+**다른 이모지 사용 금지** (상태 전이 파서가 이 5종만 인식).
+
+### 자세한 포맷 규율
+
+`skills/WORK-PLAN-FORMAT.md` 참조. 모든 에이전트가 work-plan 조작 전 반드시 읽을 것.
+
 ## 서브 에이전트 시스템
 
 이 스킬은 **19개의 서브 에이전트**를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
