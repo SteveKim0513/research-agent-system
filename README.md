@@ -30,15 +30,15 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 
 - **축 6 critical-lens**: Paradigm Mapping / Fault-line / Bold Defense / Minority Recovery
 - **critical-companion**: Stage마다 Socratic 질문 자동 생성 (답은 사용자 몫 — 시스템이 절대 암시하지 않음)
-- **critical-commitments.md**: 사용자 답변을 **actionable spec으로 자동 추출** → 모든 writing 에이전트가 필수 참조 → 작업 완료 후 반영 결과 투명 보고 (답변이 허공에 묻히지 않음)
+- **{stage}/critical/commitments.md**: 사용자 답변을 **actionable spec으로 자동 추출** → 모든 writing 에이전트가 필수 참조 → 작업 완료 후 반영 결과 투명 보고 (답변이 허공에 묻히지 않음)
 - **peer-reviewer Iconoclast**: "충분히 대담한가?" 심사자 페르소나
 - **paper-analyst Mode C**: hidden assumptions / methodological biases / field politics 발굴
 
 **답변 → 반영 → 확인 흐름**:
 ```
-critical-questions.md 답변 작성
+{stage}/critical/questions.md 답변 작성
   → "답변 반영해줘" (또는 writing 명령 시 자동)
-  → critical-commitments.md에 actionable 추출
+  → {stage}/critical/commitments.md에 actionable 추출
   → 초안/수정 명령 실행
   → 결과 완료 후 "✅ [C-001] ... Section 2에 추가" 반영 보고
 ```
@@ -47,10 +47,10 @@ critical-questions.md 답변 작성
 
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
 **논문 처리 오케스트레이션 (1)**: paper-processing-orchestrator (2-pass + Tier)
-**생성·수정 (5)**: paper-analyst (Pass 1 triage haiku / Pass 2 Tier 1 opus+Critical / Tier 2·3 sonnet / Mode B 재분석 sonnet / Mode C 비판 opus), writing-architect, chapter-editor, flow-refiner, citation-auditor
+**생성·수정 (5)**: paper-analyst (Pass 1 triage haiku / Pass 2 Tier 1 opus+Critical / Tier 2·3 sonnet / Mode B 재분석 sonnet / Mode C 비판 opus), writing-architect, output-editor, flow-refiner, citation-auditor
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
 **보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
-**유틸리티 (1)**: abstract-translator (haiku — HUNT·PDF abstract 한글 번역)
+**유틸리티 (1)**: abstract-translator (haiku — RESEARCH·PDF abstract 한글 번역)
 
 **평가·논문 처리 모두 병렬 delta·2-pass 아키텍처** — 평가는 변경된 축만 병렬 재계산, 논문 처리는 triage(haiku) → Tier별(opus/sonnet/sonnet) 분기로 핵심만 깊게, 배경은 간소하게. 각 에이전트는 작업 성격에 맞는 모델로 실행됩니다 (opus = 판단, sonnet = 구조화, haiku = 기계적). 자세히는 [PRINCIPLES.md](./PRINCIPLES.md) 참고.
 
@@ -109,8 +109,8 @@ Claude에서:
 
 그다음 `projects/my-essay/flow/flow.md`를 열어 자유 줄글로 연구 방향을 작성하고:
 ```
-> "평가해줘"      ← 5축 평가 + 작업지시서 생성
-> "작업 시작해줘" ← HUNT 과제 자동 Consensus 검색
+> "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"      ← 5축 평가 + 작업지시서 생성
+> "리서치 진행해줘" ← RESEARCH 과제 자동 Consensus 검색
 > "새 논문 처리해줘" ← PDF 처리 + 심층 분석
 > "초안 작성해줘" ← writing-architect가 구조 설계 → 초안
 ```
@@ -140,7 +140,7 @@ research-agent/
 │       ├── critical-companion.md         (Critical Mode — Socratic 질문)
 │       ├── paper-analyst.md              (Tier 1/2/3 + B 재분석 + C 비판)
 │       ├── writing-architect.md
-│       ├── chapter-editor.md
+│       ├── output-editor.md
 │       ├── flow-refiner.md
 │       ├── citation-auditor.md
 │       ├── gap-finder.md
@@ -153,25 +153,25 @@ research-agent/
 │   ├── paper_triage.py        (Pass 1 결과 집계·tier 승격)
 │   ├── paper_reanalysis_delta.py (flow 변경 기반 영향 논문 필터)
 │   ├── activity_log.py + activity_log_async.sh (활동 로그·hook)
-│   ├── hunt_postcheck.py      (HUNT 4-stage 파이프라인 검증)
+│   ├── research_postcheck.py      (RESEARCH 4-stage 파이프라인 검증)
 │   ├── extract_metadata.py, normalize_filename.py
 │   └── archive/               (일회성 migration: migrate_v2, backfill_axis_tags, rename_to_full_title)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + history/)
-│       ├── chapters/          (0N-*.md + claim-extraction-draft.md 통합 + history/{chapter_id}/)
-│       ├── work-plan.md       (HUNT·DRAFT 단일 ID 발급처)
-│       ├── work-plan.archive/ (변경 시에만 스냅샷)
+│       ├── output/          (0N-*.md + claim-extraction-output.md 통합 + history/{chapter_id}/)
+│       ├── work-plan.md       (RESEARCH·WRITE 단일 ID 발급처)
+│       ├── history/work-plan/ (변경 시에만 스냅샷)
 │       ├── activity.log                (📓 모든 명령 자동 로그)
-│       ├── critical-questions.md       (🎭 사용자가 답하는 Socratic 질문)
-│       ├── critical-questions.archive/ (🎭 질문·답변 버전 히스토리)
-│       ├── critical-commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
-│       ├── critical-commitments.archive/ (🎭 commitment 상태 히스토리)
+│       ├── {stage}/critical/questions.md       (🎭 사용자가 답하는 Socratic 질문)
+│       ├── history/{stage}/critical/ (🎭 질문·답변 버전 히스토리)
+│       ├── {stage}/critical/commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
+│       ├── history/{stage}/critical/ (🎭 commitment 상태 히스토리)
 │       ├── evaluations/       (latest/ + archive/{NNN}/ + manifest.json 증분)
 │       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/
-│       │                       + .hunt-raw/      — Stage A MCP 원본 JSON (SSOT)
+│       │                       + .research-raw/      — Stage A MCP 원본 JSON (SSOT)
 │       │                       + .translations/  — Stage B haiku 한글 번역
-│       │                       + .curation/      — Stage C 6-카테고리 curation per HUNT
+│       │                       + .curation/      — Stage C 6-카테고리 curation per RESEARCH
 │       │                       + .context-pack.md — workers 공용 입력
 │       │                       + consensus-results.md — Stage D concat + 누적 요약
 │       │                       + consensus-results.archive/ 주요 버전 스냅샷)

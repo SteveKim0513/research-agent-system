@@ -93,7 +93,7 @@ model: opus
 **입력 참조**:
 - **`critical-commitments.md`** (우선, 있으면) — 사용자의 commitment 반영 상태
 - `critical-questions.md` (사용자가 답변한 내용)
-- `evaluations/latest/axis6-critical.md` (있으면)
+- `{stage}/evaluations/latest/axis6-critical.md` (있으면)
 
 **commitment 기반 공격 패턴** (critical-commitments.md 활용):
 - UNFULFILLED commitment가 있으면: "v3에서 X라고 답했는데 원고에서 이행되지 않았다. 왜 타협했나?"
@@ -231,15 +231,26 @@ model: opus
 `skills/WORK-PLAN-FORMAT.md` 준수.
 
 **Mode A (심사 시뮬레이션) 완료 시**:
-각 Major issue마다 신규 `EDIT-NNN` task를 🟡 Active에 append:
-- **대상 챕터**: `chapters/{파일명}.md` (리뷰어가 지적한 섹션에 해당)
+각 Major issue마다 신규 **WRITE 카드 (mode=modify)**를 🟡 Active에 append:
+- **mode**: modify
+- **대상 챕터**: `output/{파일명}.md` (리뷰어가 지적한 섹션)
 - **수정 내용**: 리뷰어 코멘트 요약 + 권고 대응
 - **원인**: `peer-reviewer Mode A · Reviewer {1|2|3|Iconoclast}`
-- **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
+- **담당 명령**: `"Chapter {X} 수정해줘: WRITE-{NNN}"`
 - **영향 축**: axis3 (Attack Surface Preparedness)
 
-Minor issue는 task 생성하지 않고 리뷰 리포트에 요약만.
+Minor issue는 카드 생성하지 않고 리뷰 리포트에 요약만.
 
 **Mode B (리뷰 답변)** 시에는 work-plan 수정 없음 (답변 초안 생성만).
 
-ID 발급 규칙은 기존 work-plan에서 최대 EDIT 번호 +1.
+**ID 발급 (필수 — self-grep 금지)**: `card_registry.py issue` CLI 호출.
+
+```bash
+NEW_ID=$(python3 scripts/card_registry.py issue {project} write modify \
+   --dedup-key "{대상 챕터 파일명}" "{리뷰어 코멘트 핵심 요지 한 줄}" \
+   --field "무엇={무엇 본문}" \
+   --field "대상 챕터={output/X.md}" \
+   --field "원인=peer-reviewer Mode A · Reviewer {N}")
+```
+
+CLI가 동일 dedup_key 기존 WRITE 카드를 발견하면 그 ID를 반환 + stderr `⏭ skip` 또는 `↻ reactivated`. 신규 ID (`✅ issued`)일 때만 work-plan 🟡 Active에 카드 append. citation-auditor와 같은 수정 요구를 두 번 발급하는 race를 `output/.registry.json`이 차단함.

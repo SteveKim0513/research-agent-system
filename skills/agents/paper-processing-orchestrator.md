@@ -170,19 +170,19 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 `skills/WORK-PLAN-FORMAT.md` 준수.
 
 **단계 1 (candidates 식별) 후**:
-1. `work-plan.md` 🟡 Active 섹션의 `HUNT-NNN` task 카드를 파싱
-2. 각 HUNT의 검색 키워드와 candidates PDF 제목/저자 매칭:
-   - 매칭되면 해당 HUNT를 🟡 → 🔵 in-progress로 전환 + 진행 로그 `in-progress: candidate PDF 발견 — Pass 1 triage 대기`
-   - 매칭 안 되는 candidates는 HUNT와 독립 처리 (보충 논문)
+1. `work-plan.md` 🟡 Active 섹션의 `RESEARCH-NNN` (mode=search) 카드를 파싱
+2. 각 카드의 검색 키워드와 candidates PDF 제목/저자 매칭:
+   - 매칭되면 해당 카드를 🟡 → 🔵 in-progress로 전환 + 진행 로그 `in-progress: candidate PDF 발견 — Pass 1 triage 대기`
+   - 매칭 안 되는 candidates는 카드와 독립 처리 (보충 논문)
 
 **Pass 2 완료 후**:
-- 각 HUNT에 대응하는 PDF가 Tier 1·2로 처리되고 analyzed/*.md에 섹션별 인용 다발이 생성되면 해당 HUNT → 🟢 Recent completed + 로그 `✅ completed: {파일명} Tier {N} 분석 완료, MATCHED 재집계`
-- Tier 3로만 분류됐으면 HUNT → 🟡 active 유지 + 로그 `note: Tier 3 간소 분석, 추가 재분석 필요 가능성`
-- 대응 HUNT 없는 논문은 work-plan 변경 없음 (단순 추가 자료)
+- 각 RESEARCH(search) 카드에 대응하는 PDF가 Tier 1·2로 처리되고 analyzed/*.md에 섹션별 인용 다발이 생성되면 해당 카드 → 🟢 Recent completed + 로그 `✅ completed: {파일명} Tier {N} 분석 완료, MATCHED 재집계`
+- Tier 3로만 분류됐으면 카드 → 🟡 active 유지 + 로그 `note: Tier 3 간소 분석, 추가 재분석 필요 가능성`
+- 대응 카드 없는 논문은 work-plan 변경 없음 (단순 추가 자료)
 - 대시보드 재계산
 
 **재분석 명령(`논문 재분석해줘`) 시**:
-- 대상 `REANALYZE-NNN` task → 🔵 in-progress → 완료 시 🟢
+- 대상 `RESEARCH-NNN` (mode=reanalyze) 카드 → 🔵 in-progress → 완료 시 🟢
 
 ## 출력 예시
 

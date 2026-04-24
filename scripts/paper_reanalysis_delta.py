@@ -8,7 +8,7 @@ flow.md의 어떤 섹션이 바뀌었고, 그 섹션을 primary_section으로 �
 
 알고리즘:
 1. 현재 flow/flow.md 섹션 헤더 + 본문 해시 스냅샷
-2. 가장 최근 flow/history/*/flow.md (pre-claim-extract 또는 pre-refine)의 섹션 해시 비교
+2. 가장 최근 history/flow/body/*/flow.md (pre-claim-extract 또는 pre-refine)의 섹션 해시 비교
 3. 내용이 달라진 섹션 목록 추출
 4. 각 papers/analyzed/{파일명}-analysis.md의 frontmatter 또는 메타에서 primary_section 읽음
 5. primary_section이 변경 목록에 포함된 논문만 재분석 대상으로 출력
@@ -102,7 +102,7 @@ def load_primary_section(analysis_file: Path) -> str:
 
 
 def find_latest_history_flow(root: Path) -> Path:
-    """flow/history/{NNN}-*/flow.md 중 가장 최근 것."""
+    """history/flow/body/{NNN}-*/flow.md 중 가장 최근 것."""
     history_dir = root / "flow" / "history"
     if not history_dir.exists():
         return None
@@ -149,7 +149,7 @@ def cmd_delta(project: str, full: bool = False) -> int:
         result = {
             "project": project,
             "mode": "delta",
-            "note": "flow/history/ 비어 있음 — delta 기준 없어 전량 반환",
+            "note": "history/flow/body/ 비어 있음 — delta 기준 없어 전량 반환",
             "affected_papers": [f.name.replace("-analysis.md", "") for f in all_analysis],
             "changed_sections": [],
         }

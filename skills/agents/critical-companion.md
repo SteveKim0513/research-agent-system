@@ -49,9 +49,9 @@ model: opus
 ## 입력
 
 - `flow.md` (현재 상태)
-- `chapters/*.md` (있으면)
-- `evaluations/latest/evaluation.md` (약점 축 파악)
-- `evaluations/latest/axis6-critical.md` (있으면 — 이전 critical 평가 결과)
+- `output/*.md` (있으면)
+- `{stage}/evaluations/latest/evaluation.md` (약점 축 파악)
+- `{stage}/evaluations/latest/axis6-critical.md` (있으면 — 이전 critical 평가 결과)
 - `papers/analyzed/*.md` (특히 Mode C로 분석된 논문의 hidden assumptions)
 - `critical-questions.md` (이전 버전 — 사용자 답변 포함)
 - `.paper-metadata.json`의 `intellectual_ambition` 필드
@@ -73,8 +73,8 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 
 ### Phase 0: 맥락 파악
 
-1. 현재 프로젝트가 어느 stage인지 판별 (flow / v1-draft / revised / final)
-2. 가장 약한 평가 축 식별 (evaluations/latest/evaluation.md에서)
+1. 현재 프로젝트가 어느 stage인지 판별 (flow / v1 / revised / final)
+2. 가장 약한 평가 축 식별 ({stage}/evaluations/latest/evaluation.md에서)
 3. 이전 버전 `critical-questions.md`를 읽고:
    - 어느 질문이 답변되었는지
    - 어느 질문이 carry-over 상태인지
@@ -173,12 +173,12 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 1. 현재 `critical-questions.md`에서 **사용자가 답변한 것**만 스캔
 2. 각 답변에서 **구체적 행동**을 추출 (사용자 원문 그대로 인용 + 번역)
 3. 각 commitment를 4-상태로 분류:
-   - 🟢 **FULFILLED**: 이미 chapters/* 에 반영됨
+   - 🟢 **FULFILLED**: 이미 output/* 에 반영됨
    - 🟡 **PARTIAL**: 일부만 반영됨
-   - 🔴 **UNFULFILLED**: chapters/* 에 반영 안 됨
-   - ⚠️ **CONFLICTING**: chapters/* 가 정반대로 작성됨
+   - 🔴 **UNFULFILLED**: output/* 에 반영 안 됨
+   - ⚠️ **CONFLICTING**: output/* 가 정반대로 작성됨
 
-4. 기존 `critical-commitments.md`가 있으면 `critical-commitments.archive/`로 스냅샷:
+4. 기존 `critical-commitments.md`가 있으면 `history/{stage}/critical/`로 스냅샷:
    ```bash
    python3 scripts/sync_state.py snapshot-critical-commitments {PROJECT} {trigger}
    ```
@@ -246,7 +246,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 ## 🔗 이 파일을 사용하는 에이전트
 
 - `writing-architect`: 초안 Phase 1 구조 설계 시 commitment를 섹션 spec에 통합
-- `chapter-editor`: 수정이 commitment를 깎지 않는지 검증
+- `output-editor`: 수정이 commitment를 깎지 않는지 검증
 - `flow-refiner`: UNFULFILLED를 flow.md 보강 제안으로 승격
 - `axis6-critical-scorer`: 커버리지를 축 6 점수에 반영
 - `citation-auditor`: commitment가 요구한 인용 실제 사용 검증
@@ -358,3 +358,35 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 - [ ] 이전 답변과의 정합성 경고가 구체적인가?
 - [ ] carry-over 질문이 적절히 이월되었는가?
 - [ ] 다음 버전 예고가 포함되었는가?
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: {stage}/critical/questions.md, {stage}/critical/commitments.md
+
+**의존 (based_on)**: flow|output 본문
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="critical-companion",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

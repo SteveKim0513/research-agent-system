@@ -3,7 +3,7 @@
 evaluation_delta.py — 축별 변경 감지 엔진 (v2 stage-aware).
 
 각 축은 평가 대상 stage에 따라 다른 입력에 의존한다:
-  flow 단계 (아직 chapters/ 없음):
+  flow 단계 (아직 output/ 없음):
     axis1: flow/flow.md + flow/claim-extraction-flow.md + analyzed/*.md
     axis2: flow/flow.md
     axis3: flow/flow.md + analyzed:steelman
@@ -11,18 +11,18 @@ evaluation_delta.py — 축별 변경 감지 엔진 (v2 stage-aware).
     axis5: flow/flow.md
     axis6: flow/flow.md + critical-questions.md + critical-commitments.md + analyzed:minority
 
-  draft 단계 (chapters/ 존재):
-    axis1: chapters/*.md + chapters/claim-extraction-draft.md + analyzed/*.md
-    axis2: chapters/*.md
-    axis3: chapters/*.md + analyzed:steelman
-    axis4: chapters/*.md + analyzed:delta
-    axis5: chapters/*.md
-    axis6: chapters/*.md + critical-questions.md + critical-commitments.md + analyzed:minority
+  output 단계 (output/ 존재):
+    axis1: output/*.md + output/claim-extraction-output.md + analyzed/*.md
+    axis2: output/*.md
+    axis3: output/*.md + analyzed:steelman
+    axis4: output/*.md + analyzed:delta
+    axis5: output/*.md
+    axis6: output/*.md + critical-questions.md + critical-commitments.md + analyzed:minority
 
 이 스크립트는 입력 해시를 이전 평가 시점의 캐시와 비교해 재계산 필요한 축을 반환한다.
 
 하위 명령:
-  compute-inputs {project} [--stage=auto|flow|v1-draft|revised|final]
+  compute-inputs {project} [--stage=auto|flow|v1|revised|final]
   check {project}           [--stage=...]
   mark-done {project} <axes_csv>  [--stage=...]
   reset {project}
@@ -37,7 +37,7 @@ from datetime import datetime
 AXES = ["axis1", "axis2", "axis3", "axis4", "axis5", "axis6"]
 
 STAGE_FLOW = "flow"
-STAGE_DRAFT_STAGES = {"v1-draft", "revised", "final"}
+STAGE_DRAFT_STAGES = {"v1", "revised", "final"}
 
 # Stage별 축 의존성
 AXIS_DEPENDENCIES = {
@@ -49,14 +49,14 @@ AXIS_DEPENDENCIES = {
         "axis5": ["flow/flow.md"],
         "axis6": ["flow/flow.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
     },
-    # draft 단계는 v1-draft/revised/final 모두 동일 구조
+    # output 단계는 v1/revised/final 모두 동일 구조
     "draft": {
-        "axis1": ["chapters/*.md", "chapters/claim-extraction-draft.md", "analyzed:*"],
-        "axis2": ["chapters/*.md"],
-        "axis3": ["chapters/*.md", "analyzed:steelman"],
-        "axis4": ["chapters/*.md", "analyzed:delta"],
-        "axis5": ["chapters/*.md"],
-        "axis6": ["chapters/*.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
+        "axis1": ["output/*.md", "output/claim-extraction-output.md", "analyzed:*"],
+        "axis2": ["output/*.md"],
+        "axis3": ["output/*.md", "analyzed:steelman"],
+        "axis4": ["output/*.md", "analyzed:delta"],
+        "axis5": ["output/*.md"],
+        "axis6": ["output/*.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
     },
 }
 
@@ -80,23 +80,23 @@ def sha256_str(s: str) -> str:
 
 
 def chapter_files(proj: Path) -> list:
-    """chapters/의 실제 챕터 (claim-extraction-draft.md 제외)."""
+    """output/의 실제 챕터 (claim-extraction-output.md 제외)."""
     chap_dir = proj / "chapters"
     if not chap_dir.exists():
         return []
     return sorted([
         p for p in chap_dir.glob("*.md")
-        if p.is_file() and p.name != "claim-extraction-draft.md"
+        if p.is_file() and p.name != "claim-extraction-output.md"
     ])
 
 
 def detect_stage(proj: Path) -> str:
     """프로젝트 현재 stage 자동 감지.
 
-    chapters/에 실제 챕터 파일이 있으면 draft, 없으면 flow.
-    세부 구분(v1-draft/revised/final)은 현재 단순화 위해 draft로 통합.
+    output/에 실제 챕터 파일이 있으면 draft, 없으면 flow.
+    세부 구분(v1/revised/final)은 현재 단순화 위해 draft로 통합.
     """
-    return "v1-draft" if chapter_files(proj) else STAGE_FLOW
+    return "v1" if chapter_files(proj) else STAGE_FLOW
 
 
 def stage_key(stage: str) -> str:
@@ -154,13 +154,13 @@ def compute_axis_input_hash(project: str, axis: str, stage: str) -> str:
             for f in sorted(files):
                 parts.append(f"{f.name}:{sha256_file(f)}")
             parts.append(f"analyzed:{tag}:count={len(files)}")
-        elif dep == "chapters/*.md":
+        elif dep == "output/*.md":
             chaps = chapter_files(proj)
             for f in chaps:
                 parts.append(f"chapter:{f.name}:{sha256_file(f)}")
             parts.append(f"chapters:count={len(chaps)}")
-        elif dep == "chapters/claim-extraction-draft.md":
-            f = proj / "chapters" / "claim-extraction-draft.md"
+        elif dep == "output/claim-extraction-output.md":
+            f = proj / "chapters" / "claim-extraction-output.md"
             parts.append(f"{dep}:{sha256_file(f)}")
         elif dep == "flow/flow.md":
             f = proj / "flow" / "flow.md"

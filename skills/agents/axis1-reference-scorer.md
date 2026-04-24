@@ -18,14 +18,14 @@ claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존
 1. `flow/flow.md`
 2. `flow/claim-extraction-flow.md` — MATCHED/UNMATCHED 집계의 primary source
 3. `papers/analyzed/*.md` — authority·balance 검증용. 직접 Read.
-4. `evaluations/archive/{최신}/axis1-reference.md` (있으면) — delta 계산용
+4. `{stage}/history/{stage}/evaluations/{최신}/axis1-reference.md` (있으면) — delta 계산용
 
 **Stage `draft`**:
-1. `chapters/*.md` 전체 (claim-extraction-draft.md 제외)
-2. `chapters/claim-extraction-draft.md` — primary source
+1. `output/*.md` 전체 (claim-extraction-output.md 제외)
+2. `output/claim-extraction-output.md` — primary source
 3. `flow/claim-extraction-flow.md` — 보조 (flow seed 비교)
 4. `papers/analyzed/*.md`
-5. `evaluations/archive/{최신}/axis1-reference.md`
+5. `{stage}/history/{stage}/evaluations/{최신}/axis1-reference.md`
 
 ## 카테고리 시스템 (메인 시그널)
 
@@ -46,7 +46,7 @@ claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존
 해당 sub-criteria의 측정 데이터가 부재일 때:
 - 상태 = **⚫ 측정 불가 (Cannot Assess)**
 - "잠정 만점", "N/A 보류", "50점 평균값" 등 임의 보정 **금지**
-- 측정 불가 사유 + 재평가 조건(예: "HUNT 50% 완료 후 재평가") 본문 명시
+- 측정 불가 사유 + 재평가 조건(예: "RESEARCH 50% 완료 후 재평가") 본문 명시
 - 보조 점수란에는 **0점**. 25점 잠정 만점 절대 금지.
 
 이 축에서 0-state 발생 조건:
@@ -99,7 +99,7 @@ claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존
 
 ## 출력 파일
 
-`evaluations/latest/axis1-reference.md`
+`{stage}/evaluations/latest/axis1-reference.md`
 
 ### 출력 템플릿 (정확히 이 구조)
 
@@ -119,7 +119,7 @@ claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존
 ## 1-1 Coverage
 **상태**: <emoji> <라벨>
 **진단**: <근거 + 수치>
-**Action**: <구체 행동 — HUNT 발급 권장 R-XX 등>
+**Action**: <구체 행동 — RESEARCH 발급 권장 R-XX 등>
 
 ## 1-2 Accuracy
 **상태**: <emoji> <라벨>
@@ -172,3 +172,35 @@ claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존
 - claim-extraction을 스스로 재생성 금지
 - **0-state에 잠정 만점 부여 금지** (사양 위반)
 - **점수를 카테고리보다 강조 금지** — 점수는 `<details>` 안에만
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: {stage}/evaluations/axis1-reference.md
+
+**의존 (based_on)**: flow|output 본문 + claim-extraction
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="axis1-reference-scorer",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

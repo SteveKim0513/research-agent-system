@@ -113,17 +113,17 @@ collected/에 있지만 한 번도 인용되지 않은 논문:
 
 ## 호출 조건
 
-- **"챕터 수정" 명령 시 자동 호출** (chapter-editor Phase 7 체이닝)
-- **draft-stage 평가 시 축 1이 실행되면 자동 체이닝** (orchestrator 단계 7)
-- **draft-stage `"평가해줘"` 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
+- **"챕터 수정" 명령 시 자동 호출** (output-editor Phase 7 체이닝)
+- **output-stage 평가 시 축 1이 실행되면 자동 체이닝** (orchestrator 단계 7)
+- **output-stage `"평가해줘"` 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
 
 ## 입력 경로
 
-- 챕터 원문: `chapters/*.md` (claim-extraction-draft.md 제외)
-- **인용 매핑 테이블**: `chapters/claim-extraction-draft.md` — 각 MATCHED 문장이 어느 논문을 지목하는지 확인 후 PDF와 대조
+- 챕터 원문: `output/*.md` (claim-extraction-output.md 제외)
+- **인용 매핑 테이블**: `output/claim-extraction-output.md` — 각 MATCHED 문장이 어느 논문을 지목하는지 확인 후 PDF와 대조
 - 원문 대조: `papers/collected/*.pdf` 또는 `papers/analyzed/*.md`의 섹션별 인용 다발
 
-claim-extraction-draft의 MATCHED 라벨이 기본 audit target이며, 모든 인용을 처음부터 다시 파싱하지 않도록 매핑 테이블을 활용.
+claim-extraction-output의 MATCHED 라벨이 기본 audit target이며, 모든 인용을 처음부터 다시 파싱하지 않도록 매핑 테이블을 활용.
 
 ## 주의사항
 
@@ -135,14 +135,28 @@ claim-extraction-draft의 MATCHED 라벨이 기본 audit target이며, 모든 �
 
 `skills/WORK-PLAN-FORMAT.md` 준수.
 
-감사 결과 **과 1회 이상의 "⚠️ 수정 필요" 항목**이 발견되면 각 항목마다 신규 `EDIT-NNN` task를 work-plan.md 🟡 Active 섹션에 append:
+감사 결과 **과 1회 이상의 "⚠️ 수정 필요" 항목**이 발견되면 각 항목마다 신규 **WRITE 카드 (mode=modify)**를 work-plan.md 🟡 Active 섹션에 append:
 
-- **대상 챕터**: `chapters/{파일명}.md`
+- **mode**: modify
+- **대상 챕터**: `output/{파일명}.md`
 - **수정 내용**: 구체적 문장·인용구·원문 대조 결과
 - **원인**: `citation-auditor #{NNN}`
-- **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
+- **담당 명령**: `"Chapter {X} 수정해줘: WRITE-{NNN}"`
 - **영향 축**: axis1 (Accuracy)
 
-ID 발급: 기존 work-plan.md에서 `grep -oE "\[EDIT-[0-9]+\]"` 최대값+1.
+**ID 발급 (필수 — self-grep 금지)**: `card_registry.py issue` CLI를 호출해 ID 1건을 받는다. `output/.registry.json`이 dedup·lifecycle SSOT.
+
+```bash
+NEW_ID=$(python3 scripts/card_registry.py issue {project} write modify \
+   --dedup-key "{대상 챕터 파일명}" "{수정 대상 텍스트 한 줄}" \
+   --field "무엇={무엇 본문}" \
+   --field "대상 챕터={output/X.md}" \
+   --field "원인=citation-auditor #{NNN}")
+```
+
+CLI 출력 규약: **stdout = ID 한 줄**, stderr = `✅ issued` / `⏭ skip` / `↻ reactivated`. 따라서 `$(...)` 캡처는 항상 안전한 ID 문자열.
+- 새 ID(`✅ issued`) → work-plan 🟡 Active에 카드 신규 append
+- 기존 활성(`⏭ skip`) → append 금지 (중복)
+- reactivate(`↻ reactivated`) → work-plan에 카드 재삽입 + 진행 로그 `🟡 resumed`
 
 대시보드의 🟡 active 카운트와 축별 현재 상태 (카테고리) 재계산.

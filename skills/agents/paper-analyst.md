@@ -37,7 +37,7 @@ Tier에 따라 이 전략의 **깊이**가 달라진다 (아래 Tier별 스코�
 | **A-tier1** (Pass 2) | triage 결과 Tier 1 | opus | PDF 전체 + Critical Reading 포함 | `papers/analyzed/{파일명}-analysis.md` (v1, full + [critical] section) |
 | **A-tier2** (Pass 2) | triage 결과 Tier 2 | sonnet | PDF 전체, Critical Reading 제외 | `{파일명}-analysis.md` (v1, full) |
 | **A-tier3** (Pass 2) | triage 결과 Tier 3 | sonnet (짧은 프롬프트) | Abstract + Conclusion + Intro + (관련성 있는) 1개 섹션 | `{파일명}-analysis.md` (v1, 간소판 ~30 lines) |
-| **B** (재분석) | "논문 재분석해줘" / work-plan REANALYZE | sonnet | 변경된 flow 섹션에 초점 | 기존 `-analysis.md`에 v2/v3 append |
+| **B** (재분석) | "논문 재분석해줘" / work-plan RESEARCH(mode=reanalyze) | sonnet | 변경된 flow 섹션에 초점 | 기존 `-analysis.md`에 v2/v3 append |
 | **C** (비판적 읽기) | "비판적으로 분석해줘" 또는 ambition ≥ critical 자동 | opus | 기존 분석 + hidden assumptions·biases·politics·silences | 기존 `-analysis.md`에 [critical] append |
 
 **Tier 1은 Mode C를 이미 포함**한다. 별도 Mode C 호출은 Tier 2·3 논문을 나중에 critical 격상할 때 쓴다.
@@ -294,7 +294,7 @@ Tier 2는 현재 기본 Mode A 전체 포맷과 동일. Critical Reading만 제�
 
 ## Mode B — 재분석 (v2, v3, ...) 유지
 
-`"논문 재분석해줘"` 명령 또는 work-plan.md의 🔄 REANALYZE 과제 실행 시 호출. flow.md가 변경되어 새 논증 각도가 생겼을 때 같은 PDF를 **새 flow 컨텍스트로** 재스캔하여 기존 `analyzed/*.md`에 **append** (덮어쓰기 금지).
+`"논문 재분석해줘"` 명령 또는 work-plan.md의 🔄 RESEARCH(mode=reanalyze) 카드 실행 시 호출. flow.md가 변경되어 새 논증 각도가 생겼을 때 같은 PDF를 **새 flow 컨텍스트로** 재스캔하여 기존 `analyzed/*.md`에 **append** (덮어쓰기 금지).
 
 Tier 정보는 v1의 것을 상속한다. 재분석에서 tier가 올라가야 할 논문은 orchestrator가 tier 승격을 별도 트리거.
 

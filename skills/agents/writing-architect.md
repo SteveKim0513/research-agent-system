@@ -10,7 +10,7 @@ model: opus
 논증 구조를 먼저 설계하고, 그 구조에 따라 학술적 초안(신규)을 작성하는 에이전트.
 "글쓰기 전에 생각하기"를 강제하는 연구자의 노하우를 적용한다.
 
-이 에이전트는 **신규 챕터 창작**에 특화. 기존 챕터 수정은 `chapter-editor`, flow.md 보강 제안은 `flow-refiner`를 사용한다.
+이 에이전트는 **신규 챕터 창작**에 특화. 기존 챕터 수정은 `output-editor`, flow.md 보강 제안은 `flow-refiner`를 사용한다.
 
 ## 호출 조건
 
@@ -138,7 +138,7 @@ PDF를 읽은 뒤에는:
 ## 출력 파일
 
 - 구조: 화면 출력 (사용자 확인용)
-- 초안 각 섹션: `chapters/0{N}-{section-name}.md`
+- 초안 각 섹션: `output/0{N}-{section-name}.md`
 - 통합본: `final/complete-draft.md`
 - Word: `final/complete-draft.docx`
 - **Commitment 반영 보고**: 화면 출력 (아래 형식)
@@ -147,28 +147,28 @@ PDF를 읽은 뒤에는:
 
 모든 chapter 파일이 생성된 직후 SKILL.md 명령 호출자가 다음을 순차 실행해야 한다:
 
-1. `python3 scripts/sync_state.py snapshot-chapters {PROJECT} post-v1-draft` — 모든 chapters + 비어 있는 draft 분석 상태 초기 스냅샷
-2. **claim-extractor(stage=draft) 호출** — `chapters/claim-extraction-draft.md` 생성. flow 단계의 claim-extraction-flow.md를 seed로 상속, 초안에서 새로 등장한 문장만 신규 분류
-3. `python3 scripts/sync_state.py update-chapter {PROJECT} {chapter}` 각 챕터마다 호출 (sync-state 해시 갱신)
+1. `python3 scripts/sync_state.py snapshot-output {PROJECT} post-v1` — 모든 chapters + 비어 있는 draft 분석 상태 초기 스냅샷
+2. **claim-extractor(stage=output) 호출** — `output/claim-extraction-output.md` 생성. flow 단계의 claim-extraction-flow.md를 seed로 상속, 초안에서 새로 등장한 문장만 신규 분류
+3. `python3 scripts/sync_state.py update-output {PROJECT} {chapter}` 각 챕터마다 호출 (sync-state 해시 갱신)
 4. `python3 scripts/sync_state.py update-final {PROJECT}` (final/complete-draft.* 생성 후)
 
-이 체이닝 없이 초안만 저장하면 axis1의 draft-stage 평가가 비어 있는 claim-extraction-draft를 읽어 오류.
+이 체이닝 없이 초안만 저장하면 axis1의 output-stage 평가가 비어 있는 claim-extraction-output를 읽어 오류.
 
 ## work-plan.md 조작 규율
 
 `skills/WORK-PLAN-FORMAT.md` 준수.
 
 **Phase 1 시작 전**:
-1. `work-plan.md` 🟡 Active 섹션에서 모든 `DRAFT-NNN` task 수집
-2. 각 DRAFT task를 🟡 → 🔵 in-progress로 전환, 진행 로그에 `in-progress: writing-architect Phase 1` append
+1. `work-plan.md` 🟡 Active 섹션에서 모든 `WRITE-NNN` (mode=create) 카드 수집
+2. 각 카드를 🟡 → 🔵 in-progress로 전환, 진행 로그에 `in-progress: writing-architect Phase 1` append
 
 **Phase 2 각 chapter 완료 시**:
-- 해당 chapter가 반영한 DRAFT task들을 🔵 → 🟢 Recent completed로 이동
-- 진행 로그에 `✅ completed: chapters/{file}에 반영 — {요약}` append
+- 해당 chapter가 반영한 WRITE(create) 카드들을 🔵 → 🟢 Recent completed로 이동
+- 진행 로그에 `✅ completed: output/{file}에 반영 — {요약}` append
 - Recent completed 16개 초과 시 가장 오래된 것을 `📜 Older completed` 상단으로 이동
 - 대시보드 재계산
 
-**반영 실패한 DRAFT** (예: commitment 부족, 재료 부족):
+**반영 실패한 카드** (예: commitment 부족, 재료 부족):
 - 🔵 → 🟡 active로 되돌리고 진행 로그에 `note: {사유}` append. 사용자가 추가 지시 필요.
 
 ## Commitment 반영 보고 형식 (초안 완료 후 반드시 출력)
@@ -206,7 +206,7 @@ critical-commitments.md가 존재했다면 반드시 다음 형식으로 보고:
 
 ## Sync 연동
 
-- 각 챕터 작성 후 `python3 scripts/sync_state.py update-chapter {PROJECT} {filename}` 실행
+- 각 챕터 작성 후 `python3 scripts/sync_state.py update-output {PROJECT} {filename}` 실행
 - 최종 통합 시 `python3 scripts/sync_state.py update-final {PROJECT}` 실행
 
 ## 주의사항
@@ -216,5 +216,37 @@ critical-commitments.md가 존재했다면 반드시 다음 형식으로 보고:
 - **analyzed/*.md의 가장 최신 버전(v2, v3...)을 우선 참조**한다. 구버전만 있으면 재분석 권장 메시지를 먼저 보고
 - 각 문단의 단어 수가 flow.md의 예상 길이와 합산이 맞는지 확인
 - PDF 직접 읽기는 **꼭 필요할 때만** — 매 인용마다 PDF 읽으면 속도·비용이 폭발
-- **챕터 수정은 이 에이전트가 하지 않는다** — 기존 챕터 수정 지시가 들어오면 `chapter-editor` 호출 필요
+- **챕터 수정은 이 에이전트가 하지 않는다** — 기존 챕터 수정 지시가 들어오면 `output-editor` 호출 필요
 - **flow.md 수정 제안은 이 에이전트가 하지 않는다** — flow 보강은 `flow-refiner` 호출 필요
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: output/*.md
+
+**의존 (based_on)**: flow
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="writing-architect",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

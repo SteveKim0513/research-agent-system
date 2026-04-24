@@ -27,19 +27,19 @@ description: "Academic research project management with AI agents. Creates proje
 
 Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨다:
 
-1. **작업 단위 ≤5분 wall clock** — 더 길면 쪼갠다. `1 HUNT = 1 worker` 식의 미세 분할이 원칙. `3 HUNT end-to-end 담당` 같은 거대 worker 금지.
-2. **디스크 출력 의무** — 결과를 return값에만 담지 말 것. 반드시 `.hunt-raw/`, `.translations/`, `.curation/` 등 **약속된 경로에 파일로 저장** 후 "OK: {한 줄}" 복귀. context가 휘발돼도 디스크가 SSOT.
+1. **작업 단위 ≤5분 wall clock** — 더 길면 쪼갠다. `1 RESEARCH = 1 worker` 식의 미세 분할이 원칙. `3 RESEARCH end-to-end 담당` 같은 거대 worker 금지.
+2. **디스크 출력 의무** — 결과를 return값에만 담지 말 것. 반드시 `.research-raw/`, `.translations/`, `.curation/` 등 **약속된 경로에 파일로 저장** 후 "OK: {한 줄}" 복귀. context가 휘발돼도 디스크가 SSOT.
 3. **프롬프트 ≤ 800 토큰** — 스펙 경로를 읽게 하되 내용을 copy-paste 하지 않는다. 공용 스펙(`skills/agents/*.md`, `.context-pack.md`)은 1회 작성 후 worker들이 각자 Read.
 4. **병렬 상한 명시** — MCP 호출 있는 작업은 main이 직접 adaptive serial. MCP 없는 순수 추론 작업(번역·curation)은 ≤10 parallel 허용.
 5. **간결한 복귀** — 거대한 결과 markdown을 리턴 메시지에 담지 말 것 (context 낭비 + main이 파싱하는 실수 유발). 디스크 경로 + 상태 한 줄만.
 6. **idempotent** — 같은 worker를 재호출해도 같은 결과. 출력 파일이 이미 있으면 skip 또는 덮어쓰기 명시적 결정.
 7. **사용자 승인 폭주 방지** — main이 parallel Agent 호출을 한꺼번에 대량 투입하지 않는다. 3개 이상 parallel은 한 배치씩 나눠서. 각 배치 완료 확인 후 다음 배치.
-8. **파일 쓰기 원자성** — `.curation/HUNT-NNN.md`, `.translations/HUNT-NNN.md`, `.hunt-raw/HUNT-NNN.json` 등 최종 출력 파일은 **`.tmp.{pid}` 임시 경로에 먼저 쓴 뒤 `mv`로 원자 교체**. sub-agent 중단 시 반쪽 파일이 남지 않도록. Bash 예시:
+8. **파일 쓰기 원자성** — `.curation/RESEARCH-NNN.md`, `.translations/RESEARCH-NNN.md`, `.research-raw/RESEARCH-NNN.json` 등 최종 출력 파일은 **`.tmp.{pid}` 임시 경로에 먼저 쓴 뒤 `mv`로 원자 교체**. sub-agent 중단 시 반쪽 파일이 남지 않도록. Bash 예시:
    ```bash
-   python3 -c "open('.curation/HUNT-001.md.tmp.$$', 'w').write(content)" && \
-     mv .curation/HUNT-001.md.tmp.$$ .curation/HUNT-001.md
+   python3 -c "open('.curation/RESEARCH-001.md.tmp.$$', 'w').write(content)" && \
+     mv .curation/RESEARCH-001.md.tmp.$$ .curation/RESEARCH-001.md
    ```
-   Write 도구로 `.tmp.{pid}` 경로에 쓴 뒤 Bash `mv`로 교체. 또는 Python `tempfile.NamedTemporaryFile(dir=target_dir) + os.replace`. post-check(`hunt_postcheck.py`)가 부분 파일 탐지하면 재실행 유도.
+   Write 도구로 `.tmp.{pid}` 경로에 쓴 뒤 Bash `mv`로 교체. 또는 Python `tempfile.NamedTemporaryFile(dir=target_dir) + os.replace`. post-check(`research_postcheck.py`)가 부분 파일 탐지하면 재실행 유도.
 
 ## 🚫 실행 중 리팩터링 금지 원칙
 
@@ -53,20 +53,20 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 - **치명적 correctness 결함**: 데이터 소실 확정 (예: HIT 번역 플레이스홀더 사태), 잘못된 파일 덮어쓰기 직전, user/privacy 정보 유출 위험
 - **사용자 명시적 stop 지시**
 
-"멈추고 시스템 전반 리팩터 → 다시 실행" 패턴 금지. 그렇게 하면 한 세션이 90분+로 늘어난다 (HIT 2026-04-24).
+"멈추고 시스템 전반 리팩터 → 다시 실행" 패턴 금지. 그렇게 하면 한 세션이 90분+로 늘어난다 (2026-04-24).
 
 ## 🧭 TaskCreate 사용 의무
 
 **≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
 
 - `평가해줘` — claim-extract → 축별 dispatch → aggregator → delta mark-done → sync update → work-plan 갱신 (≥6 단계)
-- `작업 시작해줘` (HUNT) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). HUNT 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
+- `작업 시작해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
 - `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
 - `초안 작성해줘` — writing-architect Phase 1/2 → chapter-editor × N → claim-extract → 평가 (≥4 단계)
 - `Chapter X 수정해줘` — snapshot → chapter-editor → citation-auditor → claim-extract (≥4 단계)
 - `flow 업데이트해줘` — snapshot → flow-refiner → 사용자 승인 → 반영 → 평가 (≥4 단계)
 
-**왜 필요한가 (HIT 2026-04-24 실패 사례)**: 다단계 파이프라인에서 중간 단계(예: abstract 번역)가 조용히 누락된 채 "완료" 보고가 올라오는 사고가 발생. 태스크 리스트가 있었다면 열린 in_progress 항목이 사용자 보고 전 불일치를 가시화. 태스크 누락 자체가 품질 signal.
+**왜 필요한가 (2026-04-24 실패 사례)**: 다단계 파이프라인에서 중간 단계(예: abstract 번역)가 조용히 누락된 채 "완료" 보고가 올라오는 사고가 발생. 태스크 리스트가 있었다면 열린 in_progress 항목이 사용자 보고 전 불일치를 가시화. 태스크 누락 자체가 품질 signal.
 
 **태스크 granularity**: 각 태스크는 **완료 조건(post-condition)이 검증 가능**해야 함. "번역" 같은 추상 태스크 금지. "번역 대기 placeholder가 0건" 같이 grep으로 확인 가능한 조건으로 잘게 쪼갠다.
 
@@ -108,7 +108,7 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 
 ### 신뢰 가능 vs 보조
 
-- **신뢰 가능 (메인 시그널)**: 카테고리 (🟢🟡🟠🔴⚫), 진단 텍스트, Critical Issues, HUNT/Action item, 카테고리 변화 방향 (Δ)
+- **신뢰 가능 (메인 시그널)**: 카테고리 (🟢🟡🟠🔴⚫), 진단 텍스트, Critical Issues, RESEARCH/Action item, 카테고리 변화 방향 (Δ)
 - **보조 (trend tracking 전용)**: 절대점수 X/100, sub-criteria 점수 X/25 — 추세 모니터링용. 절대 판정·등급 산출에 사용 금지. axis 파일에는 `<details>` 접이식 안에만 노출.
 
 ### 0-State 규칙
@@ -126,14 +126,14 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | 명령 | 자동 재분석 조건 | 대상 | 출력 |
 |------|----------------|-----|-----|
 | `평가해줘` | 해당 stage의 원고 mtime > claim-extraction mtime | flow | `flow/claim-extraction-flow.md` |
-| `평가해줘` (draft) | 어떤 chapter든 mtime > `chapters/claim-extraction-draft.md` mtime | chapters 통합 | `chapters/claim-extraction-draft.md` |
-| `초안 작성해줘` | writing-architect Phase 2 완료 후 | chapters 전체 | `chapters/claim-extraction-draft.md` |
-| `Chapter X 수정해줘` | chapter-editor 수정 후 | chapters 통합 | `chapters/claim-extraction-draft.md` |
+| `평가해줘` (draft) | 어떤 chapter든 mtime > `output/claim-extraction-output.md` mtime | chapters 통합 | `output/claim-extraction-output.md` |
+| `초안 작성해줘` | writing-architect Phase 2 완료 후 | chapters 전체 | `output/claim-extraction-output.md` |
+| `Chapter X 수정해줘` | chapter-editor 수정 후 | chapters 통합 | `output/claim-extraction-output.md` |
 | `flow 업데이트해줘` | flow-refiner 승인 반영 후 | flow | `flow/claim-extraction-flow.md` |
 
 **자동 체이닝 직전 history snapshot 의무**:
 - flow 수정: `sync_state.py snapshot-flow {P} {trigger}` — 이전 flow.md + claim-extraction-flow.md 쌍 보존
-- chapter 수정: `sync_state.py snapshot-chapter {P} {trigger} {chapter}` — 해당 챕터 + 당시 claim-extraction-draft.md 쌍 보존
+- chapter 수정: `sync_state.py snapshot-output {P} {trigger} {chapter}` — 해당 챕터 + 당시 claim-extraction-output.md 쌍 보존
 - critical-questions 갱신: `sync_state.py snapshot-critical-questions {P} {trigger}` — 이전 답변 보존
 - critical-commitments 갱신: `sync_state.py snapshot-critical-commitments {P} {trigger}` — 이전 commitment 상태 보존
 
@@ -145,57 +145,76 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | `critical-questions.md` mtime > `critical-commitments.md` mtime | `"답변 반영해줘"` 자동 → critical-companion Phase 6 호출 | `critical-commitments.md` 갱신·신규 생성 |
 | `초안 작성해줘` / `Chapter X 수정해줘` 실행 직전 | 위 mtime 비교 prehook → 필요 시 Phase 6 | commitment 최신화 후 실제 작업 진행 |
 
-**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 **HUNT registry (`.hunt-registry.json`)** 를 single source of truth로 사용해 번호 발급 + 중복 방지 + completed 관리 수행. claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+**RESEARCH·WRITE ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 **RESEARCH registry (`papers/.registry.json`)** 를 single source of truth로 사용해 번호 발급 + 중복 방지 + completed 관리 수행. claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
 
-**HUNT registry 동작** (WORK-PLAN-FORMAT.md §4.2 참조):
-- **Single source**: `projects/{P}/.hunt-registry.json`이 모든 HUNT의 ID·metadata·lifecycle status 영속 보존
-- **중복 방지**: 제안 HUNT의 정규화 covers가 registry의 기존 HUNT와 일치 시 (a) 활성이면 skip (b) completed면 reactivation
-- **완료 시 work-plan에서 삭제**: HUNT가 🟢 Recent completed 섹션으로 이동하면 다음 aggregator 실행 시 work-plan에서 완전 제거 + registry에 status=completed 영속
-- **Reactivation**: 완료된 HUNT와 동일 covers가 claim-extraction에서 재제안되면 자동 부활 (status=ready + work-plan 재삽입 + reactivated_count 증가)
-- **CLI**: `python3 scripts/hunt_registry.py {list|stats|bootstrap} {PROJECT}`
+**Card registry 동작** (WORK-PLAN-FORMAT.md §4.2 참조):
+- **2-domain SSOT**: `projects/{P}/papers/.registry.json` (RESEARCH) + `projects/{P}/output/.registry.json` (WRITE). 각각 `card_type` + mode 조합으로 dedup.
+- **중복 방지**: 정규화 dedup_key가 일치하는 기존 카드 있을 시 (a) 활성이면 skip (b) completed면 reactivation
+- **RESEARCH mode=search 완료 시 work-plan에서 삭제**: 🟢 Recent completed 섹션 도달 후 다음 aggregator 실행 시 work-plan에서 완전 제거 (4-stage curation 산출물이 별도 파일에 남음). 그 외 카드(reanalyze/create/modify)는 work-plan 보존.
+- **Reactivation**: completed 카드와 동일 dedup_key가 재제안되면 자동 부활 (status=ready + work-plan 재삽입 + reactivated_count 증가)
+- **CLI**: `python3 scripts/card_registry.py {list|stats|bootstrap|issue} {PROJECT} <research|write>`
 
 ## work-plan.md 사용 사이클 (공통)
 
 `projects/{P}/work-plan.md`는 **현재 해야 할 일 + 담당 명령 + 진행 로그**의 단일 소스입니다. 모든 명령이 이 파일을 참조·갱신합니다. **포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수**.
 
-### Task 타입 (5종, 담당 명령 1:1)
+### 명령어 체계 (분석 / 실행 / 메타, 9종)
 
-| Type | 담당 명령 | 담당 에이전트 |
-|------|---------|--------------|
-| **HUNT** | `"작업 시작해줘"` | Consensus MCP |
-| **REANALYZE** | `"논문 재분석해줘"` (delta 기본) | paper-analyst Mode B |
-| **DRAFT** | `"초안 작성해줘"` / `"Chapter X 수정해줘"` | writing-architect / chapter-editor |
-| **EDIT** | `"Chapter X 수정해줘: EDIT-NNN"` | chapter-editor |
-| **FIX** | `"flow 업데이트해줘"` | flow-refiner |
+| 카테고리 | 명령어 | 동작 | 카드 발급 |
+|---------|-------|------|----------|
+| **분석** | `"flow 레퍼런스 분석해줘"` ≡ `"flow 레퍼런스 평가해줘"` | flow/flow.md 문장 분석 + axis1 → flow/evaluations/latest/axis1 | RESEARCH (search/reanalyze) |
+| **분석** | `"flow 내용 분석해줘"` ≡ `"flow 내용 평가해줘"` | flow/flow.md axis2~6 → flow/evaluations/latest/axis{2-6} | WRITE (create/modify) |
+| **분석** | `"output 레퍼런스 분석해줘"` ≡ `"output 레퍼런스 평가해줘"` | output/*.md 문장 분석 + axis1 → output/evaluations/latest/axis1 | RESEARCH |
+| **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
+| **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
+| **실행** | `"논문 처리해줘"` | candidates/*.pdf → triage → Tier 1/2/3 분석 | — |
+| **실행** | `"초안 작성해줘"` | flow → output 신규 작성 (WRITE create 카드 처리) | — |
+| **실행** | `"output {파일명} 수정해줘: WRITE-NNN"` | WRITE modify 카드 처리 | — |
+| **모드** | `"flow 모드"` / `"output 모드"` | 현재 모드 전환 (`.current-mode` 파일에 저장) | — |
+| **모드** | `"현재 모드"` | 현재 모드 출력 | — |
+| **메타** | `"현재 상태"` | 폴더 상태·진행도·모드·버전/싱크 한눈 출력 | — |
+| **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 | — |
+| **Critical** | `"flow 크리티컬 모드 켜줘"` / `"output 크리티컬 모드 켜줘"` | 해당 stage의 critical/ 폴더 생성 + critical-companion 호출 | — |
+| **Flow 보강** | `"flow 업데이트해줘"` | flow-refiner interactive diff (사용자 승인 후 즉시 반영, 카드 없음) | — |
+
+**중요 원칙**:
+
+1. **명령어 prefix 필수** — `"레퍼런스 분석해줘"` (prefix 없음) 금지. `flow` 또는 `output` 명시 필요. 미입력 시 에러:
+   > "단계를 명시해주세요: `flow` 또는 `output`"
+
+2. **분석 ≡ 평가**(혼용) — 두 표현 어느 쪽이든 같은 명령으로 인식. 사용자 자연스러운 표현 그대로.
+
+3. **`"평가해줘"` (단독, prefix 없음) 폐기** — 항상 prefix + 분석 종류 명시 (`"flow 레퍼런스 분석해줘"` 등).
+
+4. **레퍼런스 vs 내용 분리**:
+   - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
+   - 내용 분석: 논리·반박·독창성·구성개념·비판. axis2~6만. **WRITE 카드 발급**.
+   - 두 작업이 독립이라 사용자가 필요한 것만 선택 호출.
+
+5. **카드는 분석의 산출물** — `card_registry` 경유 자동 발급. 평가 외 시점 단발 발급은 citation-auditor/peer-reviewer가 CLI 호출.
 
 ### 공통 실행 사이클
 
-모든 작업 명령(평가 제외)은 다음 6단계를 따릅니다:
+모든 실행 명령(분석·메타 제외)은 다음 6단계를 따릅니다:
 
 ```
-① work-plan.md 읽기 → 🟡 Active 중 담당 task 식별
-② 대상 task 상태 전환: 🟡 → 🔵 in-progress + 진행 로그 append
+① work-plan.md 읽기 → 🟡 Active 중 담당 카드 식별
+② 대상 카드 상태 전환: 🟡 → 🔵 in-progress + 진행 로그 append
 ③ 실제 작업 (에이전트 실행)
 ④ 결과:
    - 성공 → 🔵 → 🟢 Recent completed + 결과 요약 로그
    - 근본 문제 → 🔵 → 🔴 Blocked + 사유 로그
    - 일시 실패 → 🔵 → 🟡 active + 재시도 메모
-⑤ 대시보드 재계산 (상태별 카운트, Stage 진척도, 축별 잔여 회복, 다음 권장 명령)
+⑤ 대시보드 재계산 (상태별 카운트, Stage 진척도, 축별 잔여, 다음 권장 명령)
 ⑥ 필요 시 sync_state.py snapshot-work-plan (내용 변경 시)
 ```
-
-**평가 명령(`평가해줘`)은 신규 task 발급이 핵심**:
-- evaluation_aggregator.py가 감점 사유를 분석해 HUNT/REANALYZE/DRAFT/EDIT/FIX task 카드를 🟡 Active에 append
-- HUNT·REANALYZE는 claim-extractor의 PROPOSAL을 받아 번호 할당
-- DRAFT/EDIT는 각 axis scorer의 감점 사유로부터 파생
-- 기존 task 상태는 유지 (평가가 진행 중 작업을 덮어쓰지 않음)
 
 ### 파싱 규칙 (에이전트가 읽을 때)
 
 - 🟡 Active 섹션은 `## 🟡 Active` 헤더부터 다음 `---` 또는 `## ` 전까지
-- Task 카드는 `### [TYPE-NNN]`로 시작
+- 카드는 `### [RESEARCH-NNN]` 또는 `### [WRITE-NNN]`로 시작
 - 담당 명령 매칭: 각 카드 내 `**담당 명령**:` 라인의 백틱 안 문자열
-- ID 발급: 기존 번호 grep 후 최대값+1
+- ID 발급: **반드시 `card_registry.py issue` CLI 또는 모듈 API 경유** (self-grep max+1 금지 — race + dedup 우회)
 
 ### 상태 이모지 5종 (고정)
 
@@ -229,11 +248,11 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
 | **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
-| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1-draft/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
+| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
 | **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
-| **abstract-translator** 🌐 | `skills/agents/abstract-translator.md` | HUNT 결과/PDF abstract 한글 번역 (haiku 모델) | 자동 (HUNT 단계 2 내장) |
+| **abstract-translator** 🌐 | `skills/agents/abstract-translator.md` | RESEARCH 결과/PDF abstract 한글 번역 (haiku 모델) | 자동 (RESEARCH 단계 2 내장) |
 
 ### 에이전트 호출 방법
 
@@ -267,13 +286,13 @@ mkdir -p projects
 mkdir -p projects/{PROJECT_NAME}/papers/collected
 mkdir -p projects/{PROJECT_NAME}/papers/candidates
 mkdir -p projects/{PROJECT_NAME}/papers/analyzed
-mkdir -p projects/{PROJECT_NAME}/papers/.hunt-raw
+mkdir -p projects/{PROJECT_NAME}/papers/.research-raw
 mkdir -p projects/{PROJECT_NAME}/papers/.translations
 mkdir -p projects/{PROJECT_NAME}/papers/.curation
 mkdir -p projects/{PROJECT_NAME}/papers/consensus-results.archive
 mkdir -p projects/{PROJECT_NAME}/flow
 mkdir -p projects/{PROJECT_NAME}/chapters
-mkdir -p projects/{PROJECT_NAME}/chapters/history
+mkdir -p projects/{PROJECT_NAME}/output/history
 mkdir -p projects/{PROJECT_NAME}/final
 mkdir -p projects/{PROJECT_NAME}/work-plan.archive
 ```
@@ -287,11 +306,11 @@ mkdir -p projects/{PROJECT_NAME}/evaluations/archive
 
 **v2 경로 규약** (2026-04-23 리팩터 이후):
 - **`flow/`**: flow.md, FLOW-TEMPLATE.md, claim-extraction-flow.md, history/
-- **`chapters/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-draft.md (**통합 1개**), history/{chapter_id}/
+- **`output/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-output.md (**통합 1개**), history/{chapter_id}/
 - **`evaluations/latest/`**: evaluation.md + axis1~6-*.md만 (claim-extraction 파일은 여기 두지 않음)
-- **`evaluations/archive/{NNN}/`**: 증분 스냅샷 + manifest.json (변경 없는 축은 이전 경로 참조)
-- **`work-plan.md`**: **루트** 위치 (HUNT/DRAFT ID 단일 발급처)
-- **`work-plan.archive/`**: 변경 시에만 스냅샷 (매 평가마다 복사 아님)
+- **`history/{stage}/evaluations/{NNN}/`**: 증분 스냅샷 + manifest.json (변경 없는 축은 이전 경로 참조)
+- **`work-plan.md`**: **루트** 위치 (RESEARCH/WRITE ID 단일 발급처)
+- **`history/work-plan/`**: 변경 시에만 스냅샷 (매 평가마다 복사 아님)
 
 ### 단계 2c: .sync-state.json 초기화
 
@@ -379,16 +398,16 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            │   ├── FLOW-TEMPLATE.md             (가이드 — 수정 금지)
            │   ├── claim-extraction-flow.md     (flow 문장 단위 분석 — 자동 생성)
            │   └── history/                     (flow 수정 직전 쌍 보존)
-           ├── chapters/
+           ├── output/
            │   ├── 0N-*.md                      (초안 각 섹션)
-           │   ├── claim-extraction-draft.md    (전체 챕터 통합 분석 — 자동 생성)
+           │   ├── claim-extraction-output.md    (전체 챕터 통합 분석 — 자동 생성)
            │   └── history/{chapter_id}/        (챕터별 수정 직전 쌍 보존)
-           ├── work-plan.md                     (HUNT·DRAFT 단일 발급처, 루트)
-           ├── work-plan.archive/                (변경 시에만 스냅샷)
+           ├── work-plan.md                     (RESEARCH·WRITE 단일 발급처, 루트)
+           ├── history/work-plan/                (변경 시에만 스냅샷)
            ├── critical-questions.md            (🎭 Critical Mode 활성 시 생성)
-           ├── critical-questions.archive/      (🎭 질문·답변 버전 히스토리)
+           ├── history/{stage}/critical/      (🎭 질문·답변 버전 히스토리)
            ├── critical-commitments.md          (🎭 답변에서 추출한 actionable spec)
-           ├── critical-commitments.archive/    (🎭 commitment 상태 히스토리)
+           ├── history/{stage}/critical/    (🎭 commitment 상태 히스토리)
            ├── evaluations/
            │   ├── latest/                      (최신 평가 산출물 — 명령이 참조)
            │   └── archive/                     (과거 평가 스냅샷)
@@ -397,10 +416,10 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            │   ├── collected/                   (처리 완료된 PDF)
            │   ├── analyzed/                    (paper-analyst 분석 v1/v2/v3/[critical])
            │   ├── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
-           │   ├── .hunt-raw/                   (Stage A — MCP 원본 응답 JSON, HUNT별 1파일, SSOT)
-           │   ├── .translations/               (Stage B — haiku 한글 번역 markdown, HUNT별 1파일)
-           │   ├── .curation/                   (Stage C — 6 카테고리 curated 블록, HUNT별 1파일)
-           │   ├── .context-pack.md             (main이 HUNT 시작 전 1회 생성, workers 공유 입력)
+           │   ├── .research-raw/                   (Stage A — MCP 원본 응답 JSON, 카드별 1파일, SSOT)
+           │   ├── .translations/               (Stage B — haiku 한글 번역 markdown, 카드별 1파일)
+           │   ├── .curation/                   (Stage C — 6 카테고리 curated 블록, 카드별 1파일)
+           │   ├── .context-pack.md             (main이 RESEARCH 시작 전 1회 생성, workers 공유 입력)
            │   ├── consensus-results.md         (Stage D — .curation/*.md concat + 누적 요약)
            │   └── consensus-results.archive/   (pre-respin 등 주요 버전 스냅샷)
            ├── final/
@@ -415,7 +434,7 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
       - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
    2. "평가해줘" 입력 → claim-extractor(stage=flow, 문장 단위 주장 추출) + 6축 평가 실행
       - 생성 파일: evaluations/latest/evaluation.md + axis1~6-*.md, work-plan.md (루트), flow/claim-extraction-flow.md
-   3. "작업 시작해줘" 입력 → work-plan.md의 HUNT 과제로 Consensus 자동 검색
+   3. "작업 시작해줘" 입력 → work-plan.md의 RESEARCH 과제로 Consensus 자동 검색
    4. "새 논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
    5. "평가해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
 ```
@@ -468,7 +487,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 ### 단계 1: 평가 대상 판별 + stage 결정
 
 - `flow.md`만 존재 → **flow** 단계
-- `chapters/*.md` 존재 + `final/complete-draft.md` 없음 → **v1-draft**
+- `output/*.md` 존재 + `final/complete-draft.md` 없음 → **v1**
 - `final/complete-draft.md` 존재 + 수정 기록 → **revised**
 - "최종 평가" 명시 → **final**
 
@@ -491,23 +510,23 @@ python3 scripts/evaluation_delta.py check {PROJECT_NAME}
 ```bash
 python3 scripts/sync_state.py snapshot-evaluation {PROJECT_NAME} {stage}
 ```
-기존 `evaluations/latest/`를 `evaluations/archive/{NNN}-{date}-{stage}/`로 복사. 이후 새 점수는 `latest/`에 덮어쓴다.
+기존 `evaluations/latest/`를 `history/{stage}/evaluations/{NNN}-{date}-{stage}/`로 복사. 이후 새 점수는 `latest/`에 덮어쓴다.
 
 ### 단계 4: claim-extractor 선행 호출 (자동 재분석)
 
 **두 가지 "stage" 개념 구분**:
-- **Project stage** (work-plan.md 헤더 + `evaluation_delta.py --stage=`): `flow | v1-draft | revised | final` — 작업의 실제 단계
-- **claim-extractor stage** (내부 분기 파라미터): `flow | draft` — 분석 대상이 `flow/flow.md`인지 `chapters/*.md` 통합인지. Project stage가 `v1-draft/revised/final` 중 어느 것이든 claim-extractor stage는 동일하게 `draft`로 호출됨 (동일 파일 `chapters/claim-extraction-draft.md` 갱신)
+- **Project stage** (work-plan.md 헤더 + `evaluation_delta.py --stage=`): `flow | v1 | revised | final` — 작업의 실제 단계
+- **claim-extractor stage** (내부 분기 파라미터): `flow | draft` — 분석 대상이 `flow/flow.md`인지 `output/*.md` 통합인지. Project stage가 `v1/revised/final` 중 어느 것이든 claim-extractor stage는 동일하게 `draft`로 호출됨 (동일 파일 `output/claim-extraction-output.md` 갱신)
 
-**Project stage 감지**: `chapters/`에 실제 챕터 파일이 있으면 `v1-draft` 이상, 없으면 `flow`. 세부 구분(v1-draft vs revised vs final)은 final 통합본·수정 이력으로 판정.
-**claim-extractor stage 감지**: 실제 챕터 파일 존재 여부만 본다 (`v1-draft`+는 `draft`).
+**Project stage 감지**: `output/`에 실제 챕터 파일이 있으면 `v1` 이상, 없으면 `flow`. 세부 구분(v1 vs revised vs final)은 final 통합본·수정 이력으로 판정.
+**claim-extractor stage 감지**: 실제 챕터 파일 존재 여부만 본다 (`v1`+는 `draft`).
 
 Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행한다:
 
 | Stage | 조건 | 호출 전 snapshot | 호출 | 출력 |
 |-------|------|------------------|------|------|
 | flow  | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` mtime (또는 후자 부재) | `sync_state.py snapshot-flow {P} pre-claim-extract` | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
-| draft | 어느 `chapters/*.md` mtime > `chapters/claim-extraction-draft.md` mtime (또는 후자 부재) | 변경된 각 챕터마다 `sync_state.py snapshot-chapter {P} pre-claim-extract {chapter}` | claim-extractor(stage=draft) | `chapters/claim-extraction-draft.md` |
+| output | 어느 `output/*.md` mtime > `output/claim-extraction-output.md` mtime (또는 후자 부재) | 변경된 각 챕터마다 `sync_state.py snapshot-output {P} pre-claim-extract {chapter}` | claim-extractor(stage=output) | `output/claim-extraction-output.md` |
 
 이미 최신이면 스킵.
 
@@ -535,12 +554,12 @@ Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행�
 - axis6: `flow/flow.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"minority"`
 
 **Axis-input map (Stage `draft`)**:
-- axis1: `chapters/*.md` + `chapters/claim-extraction-draft.md` + `papers/analyzed/*.md`
-- axis2: `chapters/*.md`만
-- axis3: `chapters/*.md` + `papers/analyzed/*.md` 중 `"steelman"`
-- axis4: `chapters/*.md` + `papers/analyzed/*.md` 중 `"delta"`
-- axis5: `chapters/*.md`만
-- axis6: `chapters/*.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `"minority"`
+- axis1: `output/*.md` + `output/claim-extraction-output.md` + `papers/analyzed/*.md`
+- axis2: `output/*.md`만
+- axis3: `output/*.md` + `papers/analyzed/*.md` 중 `"steelman"`
+- axis4: `output/*.md` + `papers/analyzed/*.md` 중 `"delta"`
+- axis5: `output/*.md`만
+- axis6: `output/*.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `"minority"`
 
 **stale_axes에 없는 축**은 이전 archive의 동명 파일(`axis{N}-*.md`)을 그대로 `latest/`에 유지(복사). 재계산 없음.
 
@@ -558,8 +577,8 @@ python3 scripts/evaluation_aggregator.py {PROJECT_NAME}
 
 ### 단계 8: citation-auditor 체이닝 (조건부)
 
-stage가 `v1-draft/revised/final`이고 axis1이 stale이었다면 `citation-auditor`를 호출:
-- v1-draft: chapters 무작위 30% 샘플
+stage가 `v1/revised/final`이고 axis1이 stale이었다면 `citation-auditor`를 호출:
+- v1: chapters 무작위 30% 샘플
 - revised: chapters 전량
 - final: 전량 + archive 대비 new-error diff
 
@@ -571,7 +590,7 @@ Critical Mode이고 해당 stage가 마일스톤이면 `critical-companion`을 �
 |-------|---------|
 | flow 첫 평가 | `initial` |
 | Stage 1 리서치 완료 후 | `post-research` |
-| v1-draft | `post-draft` |
+| v1 | `post-draft` |
 | revised | `post-revision` |
 | final 직전 | `pre-final` |
 
@@ -591,7 +610,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 
 ### 단계 12: work-plan.md 갱신
 
-각 축의 감점 사유에서 actionable을 뽑아 `work-plan.md`에 반영. 완료된 HUNT는 `[x]`로 체크.
+각 축의 감점 사유에서 actionable을 뽑아 `work-plan.md`에 반영. 완료된 카드는 `[x]`로 체크.
 
 ### 단계 13: 사용자 보고
 
@@ -600,7 +619,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🩺 종합 판정: [🔴 Reject / 🟠 Major Revision / 🟡 R&R / 🟢 Accept]
-평가 단계: [flow / v1-draft / revised / final]
+평가 단계: [flow / v1 / revised / final]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 | 축 | 이름 | 상태 | 변화 | 핵심 진단 |
@@ -631,16 +650,16 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
    ✓ evaluations/latest/axis4-originality.md       (축 4)
    ✓ evaluations/latest/axis5-concept.md           (축 5)
    ✓ evaluations/latest/axis6-critical.md          (축 6, Critical Mode 활성 시)
-   ✓ work-plan.md                                   (루트, HUNT·DRAFT ID 단일 발급처)
+   ✓ work-plan.md                                   (루트, RESEARCH·WRITE ID 단일 발급처)
    ✓ flow/claim-extraction-flow.md                  (stage=flow 시)
-   ✓ chapters/claim-extraction-draft.md             (stage=draft 시)
-   📦 이전 평가 → evaluations/archive/{NNN}-{date}-{stage}/ 증분 스냅샷 (manifest.json)
-   📦 work-plan 변경 시 → work-plan.archive/{NNN}-{date}-{stage}.md
+   ✓ output/claim-extraction-output.md             (stage=output 시)
+   📦 이전 평가 → history/{stage}/evaluations/{NNN}-{date}-{stage}/ 증분 스냅샷 (manifest.json)
+   📦 work-plan 변경 시 → history/work-plan/{NNN}-{date}-{stage}.md
 
 👉 다음 단계:
    1. work-plan.md 검토
    2. Stage 1부터 순차 진행:
-      - "작업 시작해줘" → REANALYZE(기존 PDF 재분석) + HUNT(신규 검색) 자동 실행
+      - "작업 시작해줘" → RESEARCH(reanalyze) + RESEARCH(search) 자동 실행
       - "새 논문 처리해줘" → PDF 처리
       - "초안 작성해줘" → Stage 2
       - "Chapter X 수정해줘" → Stage 3
@@ -661,7 +680,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1-draft|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
 ```
 
 (점수 기반 `result={score}/500` 폐기 — verdict + 카테고리 카운트로 대체)
@@ -774,20 +793,20 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
 
 ## Consensus 검색 (작업 시작) — work-plan.md 기반 자동 실행
 
-사용자가 "작업 시작해줘", "논문 검색해줘", "HUNT 실행" 등을 말하면:
+사용자가 "작업 시작해줘", "논문 검색해줘", "RESEARCH 실행" 등을 말하면:
 
 ### 단계 1: 선행 조건 확인
 
 1. `projects/{PROJECT_NAME}/work-plan.md` 존재 여부 확인
    - 없으면: "먼저 `평가해줘`를 실행하여 work-plan.md를 생성하세요"로 안내 후 중단
-2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **두 종류 작업**을 파싱:
-   - `[REANALYZE-NNN]` 블록 — 기존 PDF 재분석 과제
-   - `[HUNT-NNN]` 블록 — Consensus 신규 검색 과제
+2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **두 mode의 RESEARCH 카드**를 파싱:
+   - `[RESEARCH-NNN]` (mode=reanalyze) 블록 — 보유 PDF 재스캔
+   - `[RESEARCH-NNN]` (mode=search) 블록 — Consensus 신규 검색
 3. 미완료 체크박스(`- [ ]`)만 수집
 
-### 단계 2a: REANALYZE 작업 먼저 실행 (내부 재활용 우선)
+### 단계 2a: RESEARCH mode=reanalyze 먼저 실행 (내부 재활용 우선)
 
-각 미완료 REANALYZE 과제마다:
+각 미완료 reanalyze 카드마다:
 
 1. 해당 논문의 `papers/analyzed/{파일명}-analysis.md` 읽기 (v1 존재 확인)
 2. `skills/agents/paper-analyst.md` 읽기
@@ -795,15 +814,15 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
    - 전달: PDF 경로 + 현재 flow.md + 기존 analyzed/*.md + 재분석 각도 지시
    - 수행: PDF 재스캔 → analyzed/*.md에 `## [v2 — {date}] 재분석: {각도}` append
 4. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
-5. `claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
-6. `work-plan.md`의 REANALYZE 체크박스를 `- [x]`로 갱신
+5. `claim-extraction-flow.md / claim-extraction-output.md` (stage에 맞게)에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
+6. `work-plan.md`의 RESEARCH(reanalyze) 체크박스를 `- [x]`로 갱신
 
 ### 단계 2b: Context pack 사전 빌드 (main 세션, ~30s)
 
 **의도**: workers가 flow.md·claim-extraction·axis1-reference를 각자 읽지 않도록, main이 한 번만 요약 파일을 만들어 공유.
 
 ```bash
-mkdir -p projects/{P}/papers/.hunt-raw projects/{P}/papers/.translations projects/{P}/papers/.curation
+mkdir -p projects/{P}/papers/.research-raw projects/{P}/papers/.translations projects/{P}/papers/.curation
 ```
 
 main 세션이 다음 3개 파일을 읽고 `projects/{P}/papers/.context-pack.md` 한 파일로 요약 작성:
@@ -813,99 +832,119 @@ main 세션이 다음 3개 파일을 읽고 `projects/{P}/papers/.context-pack.m
 
 이 파일은 세션 종료 시까지 읽기 전용. workers는 이 하나만 읽으면 됨.
 
-### 단계 2c: Stage A — 검색 (main 세션, serial/adaptive, 각 1~3분)
+### 단계 2c: Stage A — 검색 + B+C 파이프라인 dispatch (main 세션, 각 RESEARCH 1~3분)
 
-**HUNT = 실행 단위**: claim-extractor가 이미 R(Research Target)들을 병합해 HUNT(execution unit)로 제안. 각 HUNT 카드 = 1 Consensus 쿼리 = 1 raw JSON = 1 curation 블록.
+**RESEARCH = 실행 단위**: claim-extractor가 이미 R(Research Target)들을 병합해 RESEARCH(execution unit)로 제안. 각 RESEARCH 카드 = 1 Consensus 쿼리 = 1 raw JSON = 1 curation 블록.
+
+**파이프라인 원칙 (중요 — 2026-04-24 2차 실행 사례)**: Stage A가 모두 끝나기를 기다리지 않고, 각 카드의 raw JSON이 저장되는 **즉시** 해당 카드의 B+C combo worker를 background dispatch한다. Stage C가 카드당 3-5분이므로, Stage A 나머지를 도는 wall-clock 시간이 Stage C 대기를 흡수한다. 전체 wall clock ≈ (Stage A total) + 1×(Stage C typical) 수준으로 단축.
 
 **Rate limit 정책 (adaptive)**: 초기 **1-serial**. 연속 3회 성공 시 2-parallel 승격. 429 시 30s 대기 + 1-serial로 강등. 처음부터 3-parallel 시도 금지.
 
-각 미완료 HUNT 카드마다 main 세션이 직접:
+**B+C worker concurrency cap**: 최대 6 병렬 (sub-agent 조정 부하 방지). cap 초과 직전이면 main은 `TaskList`로 completed worker가 생길 때까지 다음 dispatch 보류.
 
-1. `mcp__consensus__search` 호출 (HUNT 카드의 `query` 필드 사용)
-2. 응답 전체를 `papers/.hunt-raw/HUNT-NNN.json`에 즉시 저장 — **SSOT**. 다음 스테이지는 여기만 읽음:
+각 미완료 RESEARCH 카드마다 main 세션이 직접:
+
+1. `mcp__consensus__search` 호출 (RESEARCH 카드의 `query` 필드 사용)
+2. 응답 전체를 `papers/.research-raw/RESEARCH-NNN.json`에 즉시 저장 — **SSOT**. 다음 스테이지는 여기만 읽음:
    ```json
-   {"hunt_id": "HUNT-001", "covers": ["R-01", "R-04"], "query": "...", "executed_at": "...",
+   {"card_id": "RESEARCH-001", "covers": ["R-01", "R-04"], "query": "...", "executed_at": "...",
     "papers": [{"url": "...", "title": "...", "authors": "...", "year": 2025,
                 "journal": "...", "citations": 2, "abstract": "<full English text>"}]}
    ```
 3. 429 시 sleep 30 후 단일 직렬로 강등 재시도
+4. **즉시 research-processor worker dispatch (`run_in_background=true`)** — RESEARCH-NNN의 B+C 수행. 반환 기다리지 않고 다음 카드의 Stage A로 진행.
 
-**중단 복구**: 이미 `.hunt-raw/HUNT-NNN.json` 존재하면 재검색 스킵.
+**중단 복구**: 이미 `.research-raw/RESEARCH-NNN.json` 존재하면 재검색 스킵 (단 `.curation/RESEARCH-NNN.md` 없으면 B+C worker는 재디스패치).
 
-### 단계 2d: Stage B — 번역 (haiku workers 병렬, 각 ≤1분)
+### 단계 2d: Stage B+C — research-processor combo worker (background, 각 3-5분)
 
-각 HUNT마다 **abstract-translator(haiku) worker 1개** 디스패치. rate limit 없으므로 **최대 10 parallel**.
+각 카드마다 **research-processor(sonnet) worker 1개** background dispatch. 단일 컨텍스트에서 번역(B) → curation(C) 순차 수행.
 
-Worker 한 개의 단일 책임:
-1. `skills/agents/abstract-translator.md` 읽기 (공용 스펙)
-2. `papers/.hunt-raw/HUNT-NNN.json` 로드 → papers[].abstract 목록 추출
-3. 각 abstract를 한글로 전문 번역 → `> `-quoted 블록 형태
-4. `papers/.translations/HUNT-NNN.md`에 저장 (포맷: 논문 번호 헤더 + 한글 번역 블록)
-5. "OK: N papers translated" 한 줄 반환
+> **왜 단일 worker인가**: B/C를 별개 worker로 두면 main이 B 완료 감지 후 C dispatch하는 coord 로직이 필요. 합치면 (1) coord 불필요 (2) raw JSON/translations를 한 번만 읽음 (3) 동일 sonnet 컨텍스트가 번역 ↔ 판단 사이 용어 일관성 유지. 번역도 sonnet이면 cost 약간 상승하나 wall clock 단축 이득이 크다.
 
-**중단 복구**: `.translations/HUNT-NNN.md` 존재하면 재번역 스킵.
-
-### 단계 2e: Stage C — Curation (sonnet workers 병렬, 각 3-5분)
-
-각 HUNT마다 **curation worker(sonnet) 1개** 디스패치. **최대 6 parallel** (sub-agent 조정 부하 방지).
-
-Worker 한 개의 단일 책임:
+Worker 한 개의 단일 책임 (내부 2-phase):
 1. `papers/.context-pack.md` 읽기 (단계 2b 산출, 공용)
-2. `papers/.hunt-raw/HUNT-NNN.json` + `papers/.translations/HUNT-NNN.md` 로드 (같은 HUNT만)
-3. 논문 필터링 (off-topic 제거)
-4. 6 카테고리 분류 (🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-HUNT)
-5. 논문마다 1-3문장 주석 (flow §Section / S-NNN 매핑 + 역할 + 인용 필수성)
-6. 액션 아이템 `[ ]` 3+개
-7. **`papers/.curation/HUNT-NNN.md`에 저장** (단계 2d 형식 그대로)
-8. "OK: HUNT-NNN curated, {M} papers" 한 줄 반환
+2. `papers/.research-raw/RESEARCH-NNN.json` 로드
+3. **Phase B (번역)** — `skills/agents/abstract-translator.md` 규칙 따름:
+   - 각 abstract 한글 전문 번역 (요약 금지, `> `-quoted 블록)
+   - `papers/.translations/RESEARCH-NNN.md`에 원자 저장 (`.tmp.{pid}` → `mv`)
+4. **Phase C (curation)**:
+   - 논문 필터링 (off-topic 제거)
+   - 6 카테고리 분류 (🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-RESEARCH)
+   - 논문마다 3줄 주석 (claim / 본 에세이 활용 섹션·S-NNN / 인용 강도 suggest/indicate/demonstrate)
+   - 📌 액션 아이템 `[ ]` 3+개
+   - `papers/.curation/RESEARCH-NNN.md`에 원자 저장
+5. "OK: RESEARCH-NNN (translations={K}, curation={M} papers)" 한 줄 반환
 
-**프롬프트 길이 제한**: worker 프롬프트는 800 토큰 이하 (스펙 경로 참조만, 전문 copy-paste 금지).
+**프롬프트 길이 제한**: worker 프롬프트는 800 토큰 이하 (`skills/agents/research-processor.md` 경로 참조만, 스펙 copy-paste 금지).
 
-**중단 복구**: `.curation/HUNT-NNN.md` 존재하면 스킵. 거부/실패된 worker만 재디스패치.
+**중단 복구**:
+- `.translations/RESEARCH-NNN.md` 이미 존재 & `.curation/RESEARCH-NNN.md` 없음 → curation만 재수행
+- 양쪽 모두 존재 → 스킵
+- 거부/실패된 worker만 재디스패치
 
-### 단계 2f: Stage D — Assembly (main 세션, ~1분)
+### 단계 2e: Barrier — 모든 B+C worker 완료 대기 (main)
 
-모든 `.curation/HUNT-NNN.md`가 존재하면 main이:
+Stage A를 완료한 main은 `TaskList`로 남은 research-processor worker들이 모두 completed 될 때까지 대기. 30-60초 간격 polling 또는 notification 활용. 이 barrier를 건너뛰고 Stage D로 진입하면 불완전한 `.curation/*.md` 집합으로 assembly → post-check 실패.
 
-1. HUNT 번호 순으로 concat → `papers/consensus-results.md` 헤더 + 본문
-2. **Cross-HUNT dedup pass**: URL 기준. 첫 등장 HUNT가 full entry, 이후 등장은 `⚠️ 중복 — HUNT-XXX 참조` 한 줄로 치환
-3. 파일 끝 **누적 요약 섹션** 작성:
-   - 🏆 최중요 발견 Top-N (thesis 영향도 순)
-   - 📥 PDF 다운로드 우선순위 10편
-   - 🔗 Cross-HUNT 교차 논문 표
-   - 👉 다음 단계 권장
-4. `claim-extraction-flow.md` MATCHED 상태 갱신
-5. `work-plan.md` HUNT 카드 진행 로그 append
+### 단계 2f: Stage D — Assembly (2-step: mechanical concat + thin summarizer, ~1.5-2.5분)
+
+**원칙**: 본문(15 RESEARCH 블록)은 mechanical concat + Python URL dedup만 사용 — LLM이 2000줄을 재생성하면 미묘한 누락·왜곡이 거의 확실히 생기므로 금지. LLM은 판단이 필요한 누적 요약 4섹션에만 쓴다.
+
+**Step 1 — mechanical assembly (main 세션, ~1초)**:
+```bash
+python3 scripts/assemble_consensus_results.py {PROJECT}
+```
+이 스크립트가:
+- `.curation/RESEARCH-NNN.md`를 RESEARCH 번호 순으로 concat
+- Cross-RESEARCH URL dedup 자동 처리 (첫 등장 full + 재등장은 `⚠️ 중복 — RESEARCH-XXX #N 참조` one-liner)
+- `# RESEARCH-NNN Curation — topic` → `## [RESEARCH-NNN] topic` 헤딩 강등 (post-check 요건)
+- 마스터 헤더(생성 시각·유니크 URL 수·dedup 수) prepend
+- `papers/consensus-results.md` 원자 저장 + JSON stats 출력
+
+**Step 2 — 누적 요약 4섹션 append (thin sonnet subagent, ~1-2분)**:
+생성된 `consensus-results.md`를 읽고 끝에 아래 4섹션만 **append** (기존 RESEARCH 블록 수정 금지):
+- 🏆 최중요 발견 Top-10 (각 카드의 🎯에서 thesis 영향도 기준)
+- 📥 PDF 다운로드 우선순위 10편 (각 카드의 📌 액션 아이템 통합)
+- 🔗 Cross-RESEARCH 교차 논문 표 (Step 1에서 생성된 `⚠️ 중복` 라인을 grep해 표로 렌더링)
+- 👉 다음 단계 권장
+
+**Step 3 — 상태 파일 업데이트 (main 직접 Edit)**:
+- `work-plan.md`: Active 섹션 RESEARCH → 🟢 Recent completed 이동, 대시보드·진행 로그 갱신
+- `papers/.registry.json`: `card_registry.mark_completed(...)` 호출 (Python)
+- `activity.log`: Stage 1 완료 엔트리 append
+
+⚠️ **claim-extraction-flow.md의 UNMATCHED는 RESEARCH 완료로 자동 전환되지 않는다**. RESEARCH는 논문 *후보* 확보 단계이고, MATCHED는 사용자가 PDF를 읽고 특정 문장에 특정 논문을 인용하기로 확정한 상태. 이 둘을 합치면 추적 불가능. MATCHED 전환은 Stage 2(초안 작성) 이후 writing-architect의 섹션별 인용 매핑에서 이루어진다. RESEARCH Stage 1 완료 시 claim-extraction은 그대로 둘 것.
 
 ### 단계 2g: Post-condition 검증 (⚠️ 보고 전 gate)
 
 ```bash
-python3 scripts/hunt_postcheck.py {PROJECT}
+python3 scripts/research_postcheck.py {PROJECT}
 ```
 
 이 스크립트가 다음을 모두 확인 (하나라도 실패 시 "완료" 보고 차단):
 
-1. work-plan.md의 active/completed HUNT 수 == `.hunt-raw/*.json` 수 == `.curation/*.md` 수 (1:1:1)
+1. work-plan.md의 active/completed RESEARCH 수 == `.research-raw/*.json` 수 == `.curation/*.md` 수 (1:1:1)
 2. 각 `.curation/*.md`에 6 카테고리 헤더 모두 존재 + 액션 아이템 3+개
 3. `consensus-results.md`에 `번역 대기` 0건
-4. `consensus-results.md`의 HUNT 블록 수 == `.curation/*.md` 수
+4. `consensus-results.md`의 RESEARCH 블록 수 == `.curation/*.md` 수
 
-**검증 실패 시 재진입**: 누락 HUNT만 개별 단계로 재개 (Stage A 필요하면 1개만, Stage B or C는 해당 worker만).
+**검증 실패 시 재진입**: 누락 카드만 개별 단계로 재개 (Stage A 필요하면 1개만, Stage B or C는 해당 worker만).
 
 ### 단계 2h: Curation 출력 포맷 스펙
 
-**단계 2b에서 consensus-results.md에 쓰는 각 HUNT 블록은 다음 구조를 반드시 따른다.** 단순 번호 리스트 금지. curation(판단·분류·주석) 없이는 사용자가 225편 raw 리스트를 직접 훑어야 하는 상황이 재발한다 (HIT 2026-04-24 1차 실행 사례).
+**단계 2b에서 consensus-results.md에 쓰는 각 RESEARCH 블록은 다음 구조를 반드시 따른다.** 단순 번호 리스트 금지. curation(판단·분류·주석) 없이는 사용자가 225편 raw 리스트를 직접 훑어야 하는 상황이 재발한다 (2026-04-24 1차 실행 사례).
 
-**Sub-agent 입력**: HUNT 실행 전 다음 파일을 **반드시 읽어** "synthesize context"를 확보:
+**Sub-agent 입력**: RESEARCH 실행 전 다음 파일을 **반드시 읽어** "synthesize context"를 확보:
 - `flow/flow.md` (thesis + argument chain)
 - `flow/claim-extraction-flow.md` (문장별 NEEDS_CITATION 분류)
 - `evaluations/latest/evaluation.md` + `axis1-*.md` (낮은 축 복원 우선순위)
 - `critical-questions.md` + `critical-commitments.md` (Critical Mode일 때)
 
-**각 HUNT 블록 포맷**:
+**각 RESEARCH 블록 포맷**:
 
 ```markdown
-## [HUNT-NNN] (covers R-NN, R-MM) {topic from hunts[].topic}
+## [RESEARCH-NNN] (covers R-NN, R-MM) {topic from search[].topic}
 
 **검색 쿼리**: `{query}`
 **실행일**: YYYY-MM-DD
@@ -940,10 +979,10 @@ python3 scripts/hunt_postcheck.py {PROJECT}
 
 {동일 포맷}
 
-### 🔗 Cross-HUNT 재등장
- 이미 다른 HUNT의 full 섹션에 수록된 논문. 현 HUNT 맥락에서의 의의만 1-2줄. 전체 번역·주석은 원 위치 참조.
+### 🔗 Cross-RESEARCH 재등장
+ 이미 다른 카드의 full 섹션에 수록된 논문. 현 RESEARCH 맥락에서의 의의만 1-2줄. 전체 번역·주석은 원 위치 참조.
 
-1. **저자 (연도)** — [제목](URL). ⚠️ **중복** — HUNT-XXX §카테고리 #M 참조. 현 맥락 의의: {1-2줄}.
+1. **저자 (연도)** — [제목](URL). ⚠️ **중복** — RESEARCH-XXX §카테고리 #M 참조. 현 맥락 의의: {1-2줄}.
 
 ### 📌 액션 아이템
  사용자가 바로 실행할 구체적 다음 단계. `[ ]` 체크박스 형태.
@@ -955,7 +994,7 @@ python3 scripts/hunt_postcheck.py {PROJECT}
 ---
 ```
 
-**모든 HUNT 블록 완료 후, 파일 끝에 누적 요약 섹션**:
+**모든 RESEARCH 블록 완료 후, 파일 끝에 누적 요약 섹션**:
 
 ```markdown
 ---
@@ -972,11 +1011,11 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 2. **저자(연도)** — MUST (Steelman 핵심)
 ...
 
-## 🔗 Cross-HUNT 교차 논문 (복수 역할)
+## 🔗 Cross-RESEARCH 교차 논문 (복수 역할)
 
-| 논문 | 교차 HUNT | 교차 의의 |
+| 논문 | 교차 RESEARCH | 교차 의의 |
 |------|----------|----------|
-| 저자(연도) | HUNT-010 + HUNT-034 | {역할1} ↔ {역할2} |
+| 저자(연도) | RESEARCH-010 + RESEARCH-034 | {역할1} ↔ {역할2} |
 
 ## 👉 다음 단계
 
@@ -991,29 +1030,29 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 - 명백히 2+ 역할이면 "최우선 인용"으로 올리고 주석에 추가 역할 명시.
 - 카테고리 간 이동 기준 모호하면 주석에서 명시적으로 판단 근거 밝힘.
 
-**논문 수 가이드**: HUNT당 ~15-25편 확보 (Consensus max 20). 카테고리별 편차 허용 — 강제 분배 금지. 중복은 전체 수 제한 없이 one-liner로 기재.
+**논문 수 가이드**: 카드당 ~15-25편 확보 (Consensus max 20). 카테고리별 편차 허용 — 강제 분배 금지. 중복은 전체 수 제한 없이 one-liner로 기재.
 
 **Curation 품질 체크리스트 (sub-agent 자기 검증)**:
 - [ ] 각 카테고리 헤더 존재 (해당 카테고리 논문 0편이면 `_(해당 없음)_`)
 - [ ] 모든 신규 논문에 주석 1-3문장 (단순 "중요함" 같은 공허 문구 금지 — flow §Section / S-NNN 참조 포함)
 - [ ] 액션 아이템 `[ ]` 체크박스 최소 3개 (PDF 다운로드 + flow 배치 + 교차 확인 등)
-- [ ] 전체 파일 끝에 누적 요약 4 섹션 (최중요 발견 · PDF 우선순위 · Cross-HUNT · 다음 단계)
+- [ ] 전체 파일 끝에 누적 요약 4 섹션 (최중요 발견 · PDF 우선순위 · Cross-RESEARCH · 다음 단계)
 
 ### 단계 3: 결과 보고
 
-각 HUNT 결과는 `papers/consensus-results.md`에 `[HUNT-NNN]` 태그로 누적 저장된다 (단계 2b에서 이미 수행). 각 논문은 클릭 가능한 마크다운 링크 (`[제목](URL)`) 형식으로 포함.
+각 RESEARCH 결과는 `papers/consensus-results.md`에 `[RESEARCH-NNN]` 태그로 누적 저장된다 (단계 2b에서 이미 수행). 각 논문은 클릭 가능한 마크다운 링크 (`[제목](URL)`) 형식으로 포함.
 
 화면 요약 예시:
 ```
-🔍 HUNT 실행 완료
+🔍 RESEARCH 실행 완료
 
 📊 요약
-   🔄 REANALYZE: {N}개 완료 ({M}편 PDF 재분석, v2 append)
-   🔍 HUNT: {K}개 완료 ({L}편 신규 후보 확보)
+   🔄 RESEARCH(reanalyze): {N}개 완료 ({M}편 PDF 재분석, v2 append)
+   🔍 RESEARCH: {K}개 완료 ({L}편 신규 후보 확보)
    ⚠️  재검색 권장: {R}개 (기대 프로필 미달)
 
 📄 papers/consensus-results.md에 {L}편 추가
-🔄 flow/claim-extraction-flow.md 또는 chapters/claim-extraction-draft.md 매칭 갱신: {T}건
+🔄 flow/claim-extraction-flow.md 또는 output/claim-extraction-output.md 매칭 갱신: {T}건
 
 👉 다음 단계:
    1. consensus-results.md 링크에서 필요한 논문 PDF 다운로드
@@ -1022,7 +1061,7 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 
 ### 단계 4: 다음 단계 권장 (현실적 분기)
 
-HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
+RESEARCH 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
 ```
 📚 Stage 1 리서치 완료
@@ -1041,7 +1080,7 @@ HUNT 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "HUNT·REANALYZE 실행" "stage=stage1" "target=consensus-results.md" "result={N_hunt} HUNT + {N_reanalyze} REANALYZE done"
+python3 scripts/activity_log.py append {PROJECT_NAME} "RESEARCH 실행" "stage=stage1" "target=consensus-results.md" "result={N_search} RESEARCH(search) + {N_reanalyze} RESEARCH(reanalyze) done"
 ```
 
 ---
@@ -1071,8 +1110,8 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "HUNT·REANALYZE 실행" "
   └─ 1-4 Balance: 43 → 74 (+31)
 
 ⚠️ 잔존 이슈:
-  - [HUNT-007] S055에 대한 매칭 논문이 기대 프로필 미달 → 재검색 권장
-  - [HUNT-012] S089의 MATCHED 논문 3편 중 1편이 원문 확인 결과 over-claim
+  - [RESEARCH-007] S055에 대한 매칭 논문이 기대 프로필 미달 → 재검색 권장
+  - [RESEARCH-012] S089의 MATCHED 논문 3편 중 1편이 원문 확인 결과 over-claim
 
 👉 다음 단계:
    - 잔존 이슈 해소 후 "flow 업데이트해줘"
@@ -1157,15 +1196,15 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "flow 업데이트" "stage
 
 ### 단계 1b: 기존 chapters 자동 스냅샷 (데이터 손실 방지)
 
-`chapters/` 폴더가 **이미 비어있지 않다면** 이번 "초안 작성해줘"는 **전면 재작성(re-draft)**을 의미. 덮어쓰기 전 현재 상태를 archive에 보존:
+`output/` 폴더가 **이미 비어있지 않다면** 이번 "초안 작성해줘"는 **전면 재작성(re-draft)**을 의미. 덮어쓰기 전 현재 상태를 archive에 보존:
 
 ```bash
-python3 scripts/sync_state.py snapshot-chapters {PROJECT_NAME} pre-redraft
+python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} pre-redraft
 ```
 
-결과: `projects/{PROJECT_NAME}/chapters/archive/{NNN}-{date}-pre-redraft/`에 전체 chapters 파일 복사. 구 초안을 영영 잃지 않음 — 필요 시 복구 가능.
+결과: `projects/{PROJECT_NAME}/output/archive/{NNN}-{date}-pre-redraft/`에 전체 chapters 파일 복사. 구 초안을 영영 잃지 않음 — 필요 시 복구 가능.
 
-`chapters/`가 비어있으면 이 단계 스킵.
+`output/`가 비어있으면 이 단계 스킵.
 
 ### 단계 2: 🤖 writing-architect 에이전트 호출 — Phase 1: 논증 구조 설계
 
@@ -1210,11 +1249,11 @@ python3 scripts/sync_state.py snapshot-chapters {PROJECT_NAME} pre-redraft
 각 섹션을 개별 파일로 저장:
 
 ```bash
-projects/{PROJECT_NAME}/chapters/01-introduction.md
-projects/{PROJECT_NAME}/chapters/02-background.md
-projects/{PROJECT_NAME}/chapters/03-methodology.md
-projects/{PROJECT_NAME}/chapters/04-analysis.md
-projects/{PROJECT_NAME}/chapters/05-conclusion.md
+projects/{PROJECT_NAME}/output/01-introduction.md
+projects/{PROJECT_NAME}/output/02-background.md
+projects/{PROJECT_NAME}/output/03-methodology.md
+projects/{PROJECT_NAME}/output/04-analysis.md
+projects/{PROJECT_NAME}/output/05-conclusion.md
 ```
 
 통합본도 생성:
@@ -1241,11 +1280,11 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
    - 사용된 논문: 8개
 
 📁 생성된 파일:
-   ✓ chapters/01-introduction.md (487 words)
-   ✓ chapters/02-background.md (1,245 words)
-   ✓ chapters/03-methodology.md (987 words)
-   ✓ chapters/04-analysis.md (750 words)
-   ✓ chapters/05-conclusion.md (526 words)
+   ✓ output/01-introduction.md (487 words)
+   ✓ output/02-background.md (1,245 words)
+   ✓ output/03-methodology.md (987 words)
+   ✓ output/04-analysis.md (750 words)
+   ✓ output/05-conclusion.md (526 words)
    ✓ final/complete-draft.md (전체 통합본)
    ✓ final/complete-draft.docx (Word 문서)
 
@@ -1257,7 +1296,7 @@ projects/{PROJECT_NAME}/final/complete-draft.docx
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=v1-draft" "target=chapters/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=v1" "target=output/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect" "commits={fulfilled}/{total}"
 ```
 
 ---
@@ -1277,10 +1316,10 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=v1-
 chapter-editor 호출 전에 대상 챕터의 현재 상태를 archive에 보존:
 
 ```bash
-python3 scripts/sync_state.py snapshot-chapters {PROJECT_NAME} ch{X}-edit 0{X}-{name}.md
+python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit 0{X}-{name}.md
 ```
 
-결과: `chapters/archive/{NNN}-{date}-ch{X}-edit/0{X}-{name}.md`로 스냅샷. 수정 실패·롤백·비교 목적으로 활용 가능.
+결과: `output/archive/{NNN}-{date}-ch{X}-edit/0{X}-{name}.md`로 스냅샷. 수정 실패·롤백·비교 목적으로 활용 가능.
 
 ### 단계 1: 🤖 chapter-editor 에이전트 호출
 
@@ -1410,7 +1449,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}�
 1. `skills/agents/methodology-advisor.md` 파일을 읽는다
 2. Agent 도구로 methodology-advisor를 실행한다:
    - Advisor: flow.md + analyzed/*.md + 연구 질문 전달 → 3가지 방법론 비교 표 생성
-   - Critic: flow.md + 해당 챕터(chapters/03-methodology.md) 전달 → 타당성/신뢰성/윤리 검증
+   - Critic: flow.md + 해당 챕터(output/03-methodology.md) 전달 → 타당성/신뢰성/윤리 검증
 3. 결과를 화면에 보고한다
 
 ### 단계 3: 결과 보고 (Advisor 예시)
@@ -1612,7 +1651,7 @@ mv projects/{PROJECT_NAME}/papers/analyzed/{파일명}-analysis.md \
 
 1. `.paper-metadata.json`에서 해당 엔트리 제거
 2. `python3 scripts/sync_state.py remove-paper {PROJECT} {파일명}` 실행
-3. `claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 해당 논문을 인용하던 MATCHED 문장을 UNMATCHED-EXTERNAL 또는 UNMATCHED-INTERNAL(다른 PDF로 대체 가능 여부 판별)로 재분류
+3. `claim-extraction-flow.md / claim-extraction-output.md` (stage에 맞게)에서 해당 논문을 인용하던 MATCHED 문장을 UNMATCHED-EXTERNAL 또는 UNMATCHED-INTERNAL(다른 PDF로 대체 가능 여부 판별)로 재분류
 
 ### 단계 5: dangling 경고 + 수정 가이드
 
@@ -1645,15 +1684,15 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 제거" "target={�
 
 ### 단계 1: 전제 조건 확인
 
-1. `chapters/*.md` 파일이 존재하는지 확인 — 없으면 "먼저 초안 작성해줘"로 안내
+1. `output/*.md` 파일이 존재하는지 확인 — 없으면 "먼저 초안 작성해줘"로 안내
 2. `scripts/sync_state.py check`로 챕터 간 inconsistency 사전 탐지
 
 ### 단계 2: chapters 병합 → complete-draft.md
 
-`chapters/`의 모든 `*.md` 파일을 번호순으로 병합하여 `final/complete-draft.md` 생성:
+`output/`의 모든 `*.md` 파일을 번호순으로 병합하여 `final/complete-draft.md` 생성:
 
 ```bash
-cat projects/{PROJECT_NAME}/chapters/*.md \
+cat projects/{PROJECT_NAME}/output/*.md \
   > projects/{PROJECT_NAME}/final/complete-draft.md
 ```
 
@@ -1746,13 +1785,13 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 
 ### 단계 3: claim-extraction 반영
 
-`claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 UNMATCHED-INTERNAL이었던 문장들을 재확인:
+`claim-extraction-flow.md / claim-extraction-output.md` (stage에 맞게)에서 UNMATCHED-INTERNAL이었던 문장들을 재확인:
 - 재분석 결과 새 v{N+1}에 해당 주장이 커버되었으면 → MATCHED로 전환
-- 여전히 커버 못하면 → UNMATCHED-EXTERNAL로 재분류 (HUNT 필요)
+- 여전히 커버 못하면 → UNMATCHED-EXTERNAL로 재분류 (RESEARCH 필요)
 
 ### 단계 4: 챕터 sync 경고
 
-이미 `chapters/*.md`가 존재하고 `.sync-state.json`의 `chapters[x].papers_used[파일명]` 버전이 구버전이면:
+이미 `output/*.md`가 존재하고 `.sync-state.json`의 `chapters[x].papers_used[파일명]` 버전이 구버전이면:
 
 ```
 ⚠️ 챕터 sync 경고
@@ -1777,7 +1816,7 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 
 🔄 claim-extraction 반영:
    - UNMATCHED-INTERNAL {N}건 → MATCHED 전환
-   - 잔존 UNMATCHED-INTERNAL: {N}건 (추가 재분석 또는 HUNT 필요)
+   - 잔존 UNMATCHED-INTERNAL: {N}건 (추가 재분석 또는 RESEARCH 필요)
 
 ⚠️ 챕터 sync 경고: {N}건 (위 참조)
 
@@ -1909,7 +1948,7 @@ critical-companion의 Phase 1-5는 스킵하고 **Phase 6 (commitment 추출)만
 
 1. `skills/agents/critical-companion.md` 읽기
 2. Agent 도구로 호출 시 "EXTRACT_ONLY_MODE" 플래그 전달:
-   - 입력: 현재 critical-questions.md + chapters/*.md (반영 상태 판정용) + 기존 critical-commitments.md
+   - 입력: 현재 critical-questions.md + output/*.md (반영 상태 판정용) + 기존 critical-commitments.md
    - 수행: Phase 6만 — commitment 추출·분류·상태 업데이트
    - 출력: critical-commitments.md 갱신
 
@@ -1969,7 +2008,7 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 
 1. `skills/agents/critical-companion.md` 파일을 읽는다
 2. Agent 도구로 critical-companion 실행:
-   - 전달: flow.md + chapters/* (있으면) + evaluations/latest/evaluation.md + 이전 critical-questions.md + intellectual_ambition
+   - 전달: flow.md + output/* (있으면) + evaluations/latest/evaluation.md + 이전 critical-questions.md + intellectual_ambition
    - 수행: Stage 판별 → 카테고리별 질문 생성 → 이전 답변과 원고 정합성 점검 → 다음 버전 예고
 3. 에이전트가 새 버전 `critical-questions.md` 저장, 이전은 archive로 이동
 
@@ -1979,7 +2018,7 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 📝 비판적 질문 v{N} 업데이트 완료
 
 경로: projects/{PROJECT}/critical-questions.md
-이전 버전: projects/{PROJECT}/critical-questions.archive/{NNN}-{trigger}.md
+이전 버전: projects/{PROJECT}/history/{stage}/critical/{NNN}-{trigger}.md
 
 📊 요약:
    🆕 신규 질문: {M}개
@@ -2137,7 +2176,7 @@ JSON을 파싱하여 아래 형식으로 출력:
 📍 현재 상태 (최근 14일 로그 기반)
 
    마지막 활동: 평가 완료 (3일 전)
-   마지막 stage: v1-draft
+   마지막 stage: v1
    평가 판정: 🟠 Major Revision (카테고리: 🔴:1 🟠:3 🟡:1)
    로그 엔트리: 42건
 
@@ -2190,10 +2229,10 @@ python3 scripts/activity_log.py resolve-ref {PROJECT_NAME} ref:{kind}-{NNN}
 ```
 
 반환되는 경로 목록 (kind별):
-- `ref:eval-NNN` → `evaluations/archive/NNN-{date}-{stage}/`
-- `ref:ch-NNN` → `chapters/archive/NNN-{date}-{trigger}/`
-- `ref:q-NNN` → `critical-questions.archive/NNN-{date}-{trigger}.md`
-- `ref:commits-NNN` → `critical-commitments.archive/NNN-{date}-{trigger}.md`
+- `ref:eval-NNN` → `history/{stage}/evaluations/NNN-{date}-{stage}/`
+- `ref:ch-NNN` → `output/archive/NNN-{date}-{trigger}/`
+- `ref:q-NNN` → `history/{stage}/critical/NNN-{date}-{trigger}.md`
+- `ref:commits-NNN` → `history/{stage}/critical/NNN-{date}-{trigger}.md`
 
 ### 단계 3: 사용자 요청에 따라 파일 조회·출력
 
@@ -2233,7 +2272,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "{action_label}" \
 | 평가해줘 | "평가 완료" | stage, result=점수/판정, ref:eval-NNN, agents |
 | 레퍼런스 점검해줘 | "레퍼런스 점검 완료" | result=축1 delta |
 | flow 업데이트해줘 | "flow 업데이트" | result=제안/반영 수 |
-| 작업 시작해줘 | "HUNT·REANALYZE 실행" | result=완료 수 |
+| 작업 시작해줘 | "RESEARCH 실행" | result=완료 수 |
 | 새 논문 처리해줘 | "논문 처리" | target=PDF 수, agents=paper-analyst |
 | 논문 재분석해줘 | "논문 재분석" | target=파일, result=v→v+1 |
 | 논문 제거해줘 | "논문 제거" | target=파일, dangling 메타 |

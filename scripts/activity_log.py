@@ -32,17 +32,38 @@ from pathlib import Path
 LOG_FORMAT = "[{timestamp}] {action} | {stage} | {target} | {result} | {ref} | {agents} | {meta}"
 
 # Claude Code 기반 명령 패턴 (Korean + English)
+# 명령어 체계:
+#   - prefix(flow|output) 명시 = 항상 그 stage 적용 (현재 모드 무시 override)
+#   - prefix 생략 = .current-mode 파일의 현재 모드 적용
+#   - 분석 ≡ 평가 혼용
 COMMAND_PATTERNS = [
     # (pattern, action_label, stage_hint)
-    (r"(평가해줘|5축\s*평가|점수\s*매겨줘|원고\s*평가해줘|flow\s*평가해줘)", "평가 요청", None),
-    (r"(레퍼런스\s*점검해줘|축\s*1\s*재평가|reference\s*check)", "레퍼런스 점검 요청", "post-research"),
-    (r"(flow\s*업데이트해줘|flow\s*보강|새\s*논문\s*반영해서\s*flow)", "flow 업데이트 요청", "post-research"),
-    (r"(작업\s*시작해줘|논문\s*검색해줘|HUNT\s*실행|필요한\s*논문\s*찾아줘)", "리서치 실행 요청", "stage1"),
-    (r"(새\s*논문\s*처리해줘|논문\s*처리해줘|candidates\s*처리해줘|논문\s*분석해줘)", "논문 처리 요청", "stage1"),
+    # 모드 전환 (가장 우선)
+    (r"^(flow|output)\s*모드(\s*전환|\s*켜줘|로\s*전환)?\s*$", "모드 전환", None),
+    (r"현재\s*모드|모드\s*확인", "현재 모드 조회", None),
+    # 분석 명령 (4종 — prefix 명시)
+    (r"flow\s*레퍼런스\s*(분석|평가)해줘", "flow 레퍼런스 분석", "flow"),
+    (r"flow\s*내용\s*(분석|평가)해줘", "flow 내용 분석", "flow"),
+    (r"output\s*레퍼런스\s*(분석|평가)해줘", "output 레퍼런스 분석", "output"),
+    (r"output\s*내용\s*(분석|평가)해줘", "output 내용 분석", "output"),
+    # 분석 명령 (prefix 생략 — 현재 모드 적용)
+    (r"^레퍼런스\s*(분석|평가)해줘", "레퍼런스 분석 (모드 적용)", None),
+    (r"^내용\s*(분석|평가)해줘", "내용 분석 (모드 적용)", None),
+    # Critical mode (prefix 명시 / 생략)
+    (r"(flow|output)\s*크리티컬\s*모드\s*켜줘", "크리티컬 모드 활성 (명시)", None),
+    (r"^크리티컬\s*모드\s*켜줘", "크리티컬 모드 활성 (모드 적용)", None),
+    # flow 보강 (interactive helper, 카드 없음)
+    (r"flow\s*업데이트해줘|flow\s*보강|새\s*논문\s*반영해서\s*flow", "flow 업데이트 요청", "flow"),
+    # 실행 명령
+    (r"리서치\s*진행해줘|리서치\s*시작해줘|RESEARCH\s*실행", "리서치 실행 요청", None),
+    (r"새\s*논문\s*처리해줘|논문\s*처리해줘|candidates\s*처리해줘|논문\s*분석해줘", "논문 처리 요청", None),
     (r"논문\s*재분석해줘", "논문 재분석 요청", None),
     (r"논문\s*제거해줘", "논문 제거 요청", None),
-    (r"(초안\s*작성해줘|draft\s*생성|글\s*써줘)", "초안 작성 요청", "v1-draft"),
-    (r"Chapter\s*\d+\s*수정해줘|\d+장\s*수정", "챕터 수정 요청", "revised"),
+    (r"초안\s*작성해줘|draft\s*생성|글\s*써줘", "초안 작성 요청", "v1"),
+    (r"output\s+\S+\s*수정해줘|Chapter\s*\d+\s*수정해줘|\d+장\s*수정", "원고 수정 요청", "revised"),
+    # 메타
+    (r"현재\s*상태(\s*확인해줘)?", "현재 상태 조회", None),
+    (r"버전\s*체크(해줘)?|싱크\s*체크해줘|sync\s*check", "버전 체크 조회", None),
     (r"(최종\s*통합해줘|final\s*재빌드|docx\s*재생성|chapter\s*합쳐줘)", "최종 통합 요청", "final"),
     (r"(리뷰\s*체크해줘|심사\s*시뮬|제출\s*전\s*체크)", "리뷰 시뮬 요청", "final"),
     (r"(리뷰\s*답변\s*도와줘|리뷰\s*분석)", "리뷰 대응 요청", "final"),
@@ -580,14 +601,14 @@ def cmd_recommend(project: str, days: int = 14) -> int:
             last_stage = e["stage"]
             break
 
-    # 미완 commitment·HUNT 탐지 (간단한 휴리스틱)
+    # 미완 commitment·RESEARCH 탐지 (간단한 휴리스틱)
     commitment_hints = [e for e in entries if "commitment" in e["action"].lower() or "답변 반영" in e["action"]]
 
     recs = []
 
     # P1: 장기 미활동
     if days_since_last >= 3:
-        if last_stage in ("v1-draft", "revised"):
+        if last_stage in ("v1", "revised"):
             recs.append({
                 "priority": "P1",
                 "command": '"평가해줘"',
@@ -607,7 +628,7 @@ def cmd_recommend(project: str, days: int = 14) -> int:
         recs.append({
             "priority": "P2",
             "command": '"작업 시작해줘"',
-            "reason": "flow 평가 완료 후 자연 다음 단계. HUNT·REANALYZE 과제 자동 실행.",
+            "reason": "flow 평가 완료 후 자연 다음 단계. RESEARCH 카드 자동 실행.",
             "ref_log": last_eval["ts"] if last_eval else "",
         })
     elif last_stage == "stage1":
@@ -617,7 +638,7 @@ def cmd_recommend(project: str, days: int = 14) -> int:
             "reason": "리서치 완료 후 Stage 2 초안 작성 권장.",
             "ref_log": last_action["ts"] if last_action else "",
         })
-    elif last_stage == "v1-draft":
+    elif last_stage == "v1":
         recs.append({
             "priority": "P2",
             "command": '"Chapter X 수정해줘: ..."',

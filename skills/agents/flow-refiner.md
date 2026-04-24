@@ -12,9 +12,9 @@ model: opus
 
 **핵심 원칙**: `flow.md`를 **직접 수정하지 않는다**. 제안만 생성하고 사용자 승인 후에 반영. 비파괴(non-destructive).
 
-이 에이전트는 writing-architect·chapter-editor와 다르다:
-- writing-architect: chapters/* **신규 창작**
-- chapter-editor: chapters/* **국소 수정**
+이 에이전트는 writing-architect·output-editor와 다르다:
+- writing-architect: output/* **신규 창작**
+- output-editor: output/* **국소 수정**
 - flow-refiner: **flow.md 보강 제안만** (수정은 사용자 몫)
 
 ## 호출 조건
@@ -25,7 +25,7 @@ model: opus
 
 - **필수**: `flow/flow.md` (현재 상태)
 - **필수**: 새로 확보된 `papers/analyzed/*.md` — `.sync-state.json`의 `analyzed_updated_at`을 기준으로 **flow 작성 시점 이후에 추가된** 논문만 식별
-- **맥락**: `evaluations/latest/evaluation.md` — 축 3·4 감점 사유 (보강 타겟)
+- **맥락**: `{stage}/evaluations/latest/evaluation.md` — 축 3·4 감점 사유 (보강 타겟)
 - **맥락**: `flow/claim-extraction-flow.md` — 새로 MATCHED된 문장·UNMATCHED에서 전환된 항목
 
 ## 실행 절차
@@ -123,7 +123,7 @@ model: opus
    ```bash
    python3 scripts/sync_state.py snapshot-flow {PROJECT_NAME} pre-refine
    ```
-   → `flow/history/{NNN}-{date}-pre-refine/`에 이전 flow.md + claim-extraction-flow.md 쌍 보존
+   → `history/flow/body/{NNN}-{date}-pre-refine/`에 이전 flow.md + claim-extraction-flow.md 쌍 보존
 2. `flow/flow.md` 수정 적용
 3. **claim-extractor(stage=flow) 자동 호출** — `flow/claim-extraction-flow.md` 재생성 (flow 내용이 바뀌었으므로 stale)
 4. sync 갱신:
@@ -133,19 +133,15 @@ model: opus
 
 반영 완료 후 사용자에게 **"평가해줘" 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
 
-## work-plan.md 조작 규율
+## work-plan.md와의 관계 — 카드 발급 없음
 
-`skills/WORK-PLAN-FORMAT.md` 준수.
+flow-refiner는 **in-session interactive helper**. work-plan.md에 카드를 발급하지 않는다.
 
-**Phase 0 (commitment 검토) 시작 전**:
-1. `work-plan.md` 🟡 Active 섹션에서 `FIX-NNN` task 수집
-2. 모든 FIX task를 🟡 → 🔵 in-progress로 전환 + 진행 로그 append
+이유: `flow.md`는 **사용자의 계획 문서**. "이 문장 바꿔라"를 자동 큐잉하는 것은 월권이다. flow 수정은 사용자가 새 논문·평가 결과를 스스로 읽고 판단하는 인지 활동이지, 프로세스가 탐지하는 결함이 아님.
 
-**Phase 7 (반영) 후**:
-- 사용자가 수락한 제안에 대응하는 FIX task → 🟢 Recent completed + 진행 로그 `✅ completed: flow/flow.md에 반영` append
-- 사용자가 거부한 제안의 FIX task → ⚪ Deferred + `note: 사용자 거부`
-- **새 논문 기반 제안 자체는** orchestrator/aggregator가 아니라 flow-refiner가 직접 FIX task를 발급해도 됨: 다음 FIX-NNN 번호로 🟡 Active에 append. 제안이 승인되면 그 자리에서 🟢로 이동
-- 대시보드 재계산
+flow-refiner의 제안 → 사용자 승인 → 즉시 `flow.md` 반영 → 완료. 중간 단계에 카드가 끼어들지 않음. 이 전체 흐름이 사용자가 `"flow 업데이트해줘"`를 명시 호출할 때만 일어난다.
+
+단, **반영 후에는 claim-extractor 재실행**이 자동 트리거돼, flow 변경으로 새로 발생한 UNMATCHED는 다음 평가 시 RESEARCH 카드로 발급된다 (aggregator가 처리). 그것은 flow 편집의 **결과물에 대한 리서치 follow-up**이지 flow 편집 자체에 대한 카드가 아님.
 
 ## 비파괴 원칙 (Non-Destructive)
 
@@ -157,7 +153,7 @@ model: opus
 
 - 화면: diff 제안 리스트 + 사용자 승인 프롬프트
 - 승인 시: `flow.md` 수정 + sync 갱신
-- 거부 시: 변경 없음, 제안만 기록 남기기 (선택적으로 `evaluations/latest/flow-refinement-proposal.md`로 저장)
+- 거부 시: 변경 없음, 제안만 기록 남기기 (선택적으로 `{stage}/evaluations/latest/flow-refinement-proposal.md`로 저장)
 
 ## 공통 글쓰기 원칙
 
@@ -171,6 +167,38 @@ model: opus
 ## 주의사항
 
 - **지나치게 많은 제안 금지**: 5-7개 이상의 제안은 사용자 피로를 유발. 가장 임팩트 큰 것 우선
-- **축 3·4에 집중**: 축 1은 HUNT·REANALYZE에서 주로 해결됨. flow-refiner의 강점은 논증 구조 자체 보강
-- **evaluations/latest/evaluation.md의 감점 사유를 정확히 타겟** — 임의 개선 제안 금지
+- **축 3·4에 집중**: 축 1은 RESEARCH에서 주로 해결됨. flow-refiner의 강점은 논증 구조 자체 보강
+- **{stage}/evaluations/latest/evaluation.md의 감점 사유를 정확히 타겟** — 임의 개선 제안 금지
 - **이미 반영된 논문은 제외** — `.sync-state.json`의 chapters[*].papers_used 또는 기존 flow.md 스캔으로 중복 방지
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: flow/flow.md (사용자 승인 후 직접 수정)
+
+**의존 (based_on)**: (자기 자신 — 사용자 본문, version_manager가 hash 비교로 자동 bump)
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="flow-refiner",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

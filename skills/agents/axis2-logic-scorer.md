@@ -8,7 +8,7 @@ model: opus
 
 ## 역할
 
-flow.md (또는 chapters/*) 의 **논증 구조 품질** 평가. 주장·근거·warrant·결론의 연결, 섹션 간 전이, thesis의 명시성, 논증 범위의 적절성.
+flow.md (또는 output/*) 의 **논증 구조 품질** 평가. 주장·근거·warrant·결론의 연결, 섹션 간 전이, thesis의 명시성, 논증 범위의 적절성.
 
 판단력이 필요해 opus 사용.
 
@@ -16,8 +16,8 @@ flow.md (또는 chapters/*) 의 **논증 구조 품질** 평가. 주장·근거�
 
 > **선로드 context 우선**: orchestrator가 prompt에 원고를 인라인 주입한 경우 **Read 다시 X**. 주입 없을 때만 직접 Read.
 
-1. `flow/flow.md` (Stage flow) 또는 `chapters/*.md` 통합 (Stage draft)
-2. `evaluations/archive/{최신}/axis2-logic.md` — delta용. 직접 Read.
+1. `flow/flow.md` (Stage flow) 또는 `output/*.md` 통합 (Stage draft)
+2. `{stage}/history/{stage}/evaluations/{최신}/axis2-logic.md` — delta용. 직접 Read.
 
 **다른 파일 읽지 말 것** — 논리는 원고 자체만으로 판단.
 
@@ -63,7 +63,7 @@ flow.md (또는 chapters/*) 의 **논증 구조 품질** 평가. 주장·근거�
 
 ## 출력 파일
 
-`evaluations/latest/axis2-logic.md`
+`{stage}/evaluations/latest/axis2-logic.md`
 
 ### 출력 템플릿
 
@@ -137,3 +137,35 @@ flow.md (또는 chapters/*) 의 **논증 구조 품질** 평가. 주장·근거�
 - 원고 외 파일을 판단 근거로 삼지 말 것
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: {stage}/evaluations/axis2-logic.md
+
+**의존 (based_on)**: flow|output 본문
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="axis2-logic-scorer",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

@@ -99,7 +99,7 @@
 **구현**:
 - `claim-extractor`가 문장을 5종으로 분류 (A 경험 / B 기술 / C 차용 정의 / D 반론 / E 저자 확장 / F 저자 기여 / G 연결)
 - A/B/C/D는 NEEDS_CITATION, E는 OPTIONAL, F/G는 NO_CITATION
-- 빠진 인용을 HUNT·REANALYZE 과제로 자동 생성
+- 빠진 인용을 RESEARCH 과제로 자동 생성
 
 #### 1-2. Accuracy — 인용이 실제로 주장을 뒷받침
 
@@ -109,7 +109,7 @@
 - `paper-analyst`가 각 논문의 "조건·한계" 필드를 명시
 - `writing-architect`가 이 필드를 준수
 - `citation-auditor`가 **PDF 원문과 대조**하여 over-claim·misattribution 탐지
-- 평가 단계별 자동 체이닝: v1-draft(30% 샘플) / revised(전량) / final(전량 + new-error diff)
+- 평가 단계별 자동 체이닝: v1(30% 샘플) / revised(전량) / final(전량 + new-error diff)
 
 #### 1-3. Authority & Recency — 세미널 + 최신 논문 균형
 
@@ -146,7 +146,7 @@
 **구현**:
 - `writing-architect` Phase 1에서 각 문단의 "주장 → 근거 → 연결"을 명시적으로 설계
 - `axis2-logic-scorer`가 warrant 누락을 축 2-1 감점으로 처리
-- `chapter-editor`는 기존 사슬을 보존하며 수정
+- `output-editor`는 기존 사슬을 보존하며 수정
 
 #### 2-2. Section Transition — 섹션 간 논리적 다리
 
@@ -155,7 +155,7 @@
 **구현**:
 - `writing-architect` Phase 1 설계 시 각 섹션에 "다음 섹션 연결" 명시
 - `axis2-logic-scorer`가 섹션 간 Logic jump를 축 2-2 감점으로 지적
-- `chapter-editor`가 수정 후 자동 일관성 체크 (Phase 4)
+- `output-editor`가 수정 후 자동 일관성 체크 (Phase 4)
 
 #### 2-3. Thesis Alignment — 모든 단락이 thesis에 기여
 
@@ -315,7 +315,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 ## ✍️ 학술 글쓰기의 공통 원칙
 
-5축과 독립적으로 **모든 학술 글쓰기에 적용되는** 원칙. 모든 writing agent(`writing-architect`, `chapter-editor`, `flow-refiner`)에 내장.
+5축과 독립적으로 **모든 학술 글쓰기에 적용되는** 원칙. 모든 writing agent(`writing-architect`, `output-editor`, `flow-refiner`)에 내장.
 
 ### Topic Sentence First
 
@@ -362,7 +362,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 | 4 | **Circular argument** | A 때문에 B, B 때문에 A (같은 주장 반복) | axis2-logic-scorer 축 2-1 argument chain 검사 |
 | 5 | **Moving goalpost** | RQ와 Thesis, Conclusion이 서로 다름 | claim-extractor가 RQ·Thesis 추출 강제 + 축 2-4 Scope Closure |
 | 6 | **Construct concept drift** | 같은 용어를 섹션마다 다른 의미로 사용 | axis5-concept-scorer 정의 감사 테이블 |
-| 7 | **Placeholder citation** | `[Smith]`, `[논문 이름 미정]` 같은 임시 표기 | claim-extractor의 UNMATCHED 탐지 → HUNT 과제 자동 생성 |
+| 7 | **Placeholder citation** | `[Smith]`, `[논문 이름 미정]` 같은 임시 표기 | claim-extractor의 UNMATCHED 탐지 → RESEARCH 과제 자동 생성 |
 | 8 | **Missing key references** | 세미널 논문 누락 | axis1-reference-scorer 축 1-3 Authority + Consensus MCP의 인용수 필터링 |
 | 9 | **Confirmation bias** | 자기 주장 뒷받침 문헌만 인용, 반대 증거 배제 | 축 1-4 Balance 채점 + peer-reviewer의 반대 증거 시뮬레이션 |
 | 10 | **Logic jump** | A에서 C로 점프, 전제 B 생략 | writing-architect Phase 1의 "premise → warrant → claim" 설계 |
@@ -390,7 +390,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
          archive/001    archive/002    archive/003
 ```
 
-각 평가 회차마다 `evaluations/archive/{NNN}/`로 스냅샷을 남겨:
+각 평가 회차마다 `{stage}/history/{stage}/evaluations/{NNN}/`로 스냅샷을 남겨:
 - **축별 점수 delta 추적** (어느 수정이 어느 축을 몇 점 올렸는가)
 - **과거 평가 복기**
 - **논문 투고 포트폴리오**로 활용 (성장 기록)
@@ -399,8 +399,8 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 연구는 선형적이지 않습니다. 초안 쓰다 논문 더 찾기, 평가 보고 flow 재설계, 챕터 수정 중 근본 재검토. 이 모든 전이를 **안전하게** 지원:
 
-- **chapters/archive/**: 덮어쓰기 전 자동 스냅샷 → 구버전 복구 가능
-- **evaluations/archive/**: 평가 스냅샷 → delta 추적
+- **output/archive/**: 덮어쓰기 전 자동 스냅샷 → 구버전 복구 가능
+- **{stage}/history/{stage}/evaluations/**: 평가 스냅샷 → delta 추적
 - **papers/archived/**: 논문 제거 시 보관 → dangling citation 자동 탐지
 - **analyzed/*.md의 v1/v2/v3 append 모드**: 재분석 시 덮어쓰지 않음 → 분석 진화 이력 보존
 - **.sync-state.json**: 아티팩트 간 의존성 추적 → stale 자동 감지 + priority 기반 순차 해소
@@ -415,7 +415,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 - `flow.md`: RQ·Thesis·논증 구조의 SSOT
 - `analyzed/*.md`: 각 논문의 섹션별 인용 재료 SSOT
-- `evaluations/latest/`: 현재 평가 상태 SSOT
+- `{stage}/evaluations/latest/`: 현재 평가 상태 SSOT
 - `.sync-state.json`: 아티팩트 간 관계 SSOT
 
 ### 2. Automatic Invalidation
@@ -423,8 +423,8 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 한 아티팩트가 변하면 의존 아티팩트가 자동으로 **stale** 표시됨. 조용히 어긋나지 않음.
 
 ```
-flow.md 변경 → analyzed/ REANALYZE 권장
-            → chapters/ chapter_flow_drift
+flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
+            → output/ chapter_flow_drift
             → evaluations/ evaluation_stale
             → final/ final_stale
 ```
@@ -441,9 +441,9 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `chapter-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-processing-orchestrator(2-pass 디스패처) + paper-analyst(Tier별 실제 분석)** 로 분해되어 있다. 이유:
+19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `output-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-processing-orchestrator(2-pass 디스패처) + paper-analyst(Tier별 실제 분석)** 로 분해되어 있다. 이유:
 
-- 호출 토큰 효율 (Chapter 수정 15회 × 경량 chapter-editor = 큰 절감)
+- 호출 토큰 효율 (Chapter 수정 15회 × 경량 output-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
 - 역할 경계가 사용자에게 명확
 - **작업별로 다른 모델 할당 가능** (다음 섹션 참조)
@@ -456,7 +456,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, chapter-editor, flow-refiner, peer-reviewer, **paper-analyst Pass 2 Tier 1 (+ Mode C 비판적 읽기)** |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, flow-refiner, peer-reviewer, **paper-analyst Pass 2 Tier 1 (+ Mode C 비판적 읽기)** |
 | **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst Pass 2 Tier 2·3 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
 | **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
@@ -465,7 +465,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 - **명확한 절차·스키마가 있는가?** → sonnet (opus까진 과함)
 - **매핑·변환이 본질인가?** → haiku (1/10 비용)
 
-**메인 세션(opus)은 오케스트레이션 전담**: HUNT 단계 2에서 메인 opus가 abstract를 직접 번역하는 것은 낭비 — 번역은 haiku 서브에이전트에 위임하고 메인은 큐레이션·annotation·액션 아이템 작성에만 집중. 평가도 동일: 메인 opus는 evaluation-orchestrator 호출만, 실제 채점은 axis scorer들이 병렬 수행.
+**메인 세션(opus)은 오케스트레이션 전담**: RESEARCH 단계 2에서 메인 opus가 abstract를 직접 번역하는 것은 낭비 — 번역은 haiku 서브에이전트에 위임하고 메인은 큐레이션·annotation·액션 아이템 작성에만 집중. 평가도 동일: 메인 opus는 evaluation-orchestrator 호출만, 실제 채점은 axis scorer들이 병렬 수행.
 
 **평가 축별 모델 근거** (2026-04-23 리팩터 시 결정):
 - **axis1 (sonnet)**: Coverage·Accuracy·Authority·Balance는 claim-extraction 집계 + PDF spot-check로 규칙 기반. 대부분 카운팅 + 간단 대조이므로 sonnet 충분.
@@ -506,7 +506,7 @@ flow.md 변경 → analyzed/ REANALYZE 권장
 | **critical-companion** | Socratic 질문 (답변 생산 금지) + commitment 추출 + 정합성 점검 | 지적 자기 배신 (답변 → 원고 누락), 회피 중인 질문 |
 | **paper-analyst** | 인용 재료의 "조건·한계" 필드 + axis_tags + Mode C (hidden assumptions) | #1 Over-claim (근본 예방), confirmation bias 재생산 |
 | **writing-architect** | Topic Sentence First, Synthesis, Hedging, Evidence→Analysis | #4 Circular, #10 Logic jump |
-| **chapter-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
+| **output-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
 | **flow-refiner** | 4-2 Novelty Positioning, 3-1 Steelman 보강 | Novelty 드리프트 |
 | **citation-auditor** | 1-2 Accuracy (PDF 원문 대조) | #1 Over-claim (실시간 탐지), misattribution |
 | **gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
@@ -581,18 +581,18 @@ Critical Mode는 이 구조적 편향을 **의식적으로 보정**합니다.
 
 그러나 사용자 답변이 **허공에 묻히면** 의미 없습니다. 시스템의 근본 설계 원칙:
 
-**"답변은 곧 spec이다"** — 사용자가 critical-questions.md에 쓴 답변은 해당 프로젝트의 **사양**으로 취급되며, 모든 writing 에이전트가 반드시 참조·반영.
+**"답변은 곧 spec이다"** — 사용자가 {stage}/critical/questions.md에 쓴 답변은 해당 프로젝트의 **사양**으로 취급되며, 모든 writing 에이전트가 반드시 참조·반영.
 
 구현 메커니즘:
 
-1. **critical-commitments.md** — 답변에서 자동 추출된 actionable 사양
+1. **{stage}/critical/commitments.md** — 답변에서 자동 추출된 actionable 사양
    - 사용자 원문 직접 인용 (추측 금지)
    - 대상 섹션·행동·완료 조건 명시
    - 4-상태 분류 (FULFILLED/PARTIAL/UNFULFILLED/CONFLICTING)
 
 2. **모든 writing 에이전트가 필수 입력으로 참조**:
    - writing-architect: 초안 구조에 commitment 할당
-   - chapter-editor: 수정이 commitment를 깎지 않는지 검증
+   - output-editor: 수정이 commitment를 깎지 않는지 검증
    - flow-refiner: UNFULFILLED를 flow 보강 제안으로 승격
 
 3. **투명한 반영 보고** — 작업 완료 후 반드시 출력:

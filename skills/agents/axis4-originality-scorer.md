@@ -16,9 +16,9 @@ opus 사용.
 
 > **선로드 context 우선**: orchestrator가 prompt에 원고를 주입한 경우 **Read 다시 X**. `papers/analyzed/*` 는 직접 Read.
 
-1. `flow/flow.md` 또는 `chapters/*.md`
+1. `flow/flow.md` 또는 `output/*.md`
 2. `papers/analyzed/*.md` 중 **axis_tags에 "delta" 포함**한 것만 (5-8편 예상)
-3. `evaluations/archive/{최신}/axis4-originality.md` — delta용
+3. `{stage}/history/{stage}/evaluations/{최신}/axis4-originality.md` — delta용
 
 **Delta tag**: paper-analyst가 "이 논문이 flow의 thesis와 이론적으로 경쟁/인접"이라고 판단한 것들.
 
@@ -67,7 +67,7 @@ opus 사용.
 
 ## 출력 파일
 
-`evaluations/latest/axis4-originality.md`
+`{stage}/evaluations/latest/axis4-originality.md`
 
 ### 출력 템플릿
 
@@ -141,3 +141,35 @@ opus 사용.
 - 논리 구조는 축 2 영역
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: {stage}/evaluations/axis4-originality.md
+
+**의존 (based_on)**: flow|output 본문
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+# 의존 파일들의 현재 version 읽기
+flow_v = vm.get_version_info(Path("projects/{P}/flow/flow.md"))["version"]
+ce_v = vm.get_version_info(Path("projects/{P}/flow/claim-extraction-flow.md"))["version"]
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v, "claim-extraction": ce_v},
+    updated_by="axis4-originality-scorer",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동으로 version increment (변경 없으면 유지)
+- based_on은 의존 파일의 현재 frontmatter version을 정확히 읽어서 전달
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+

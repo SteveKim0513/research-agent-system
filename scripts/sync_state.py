@@ -3,10 +3,15 @@
 sync_state.py — Research-Agent 프로젝트의 아티팩트 sync 상태 관리 유틸리티.
 
 v2 폴더 구조를 기준으로 동작한다:
-    projects/{NAME}/flow/flow.md + flow/claim-extraction-flow.md + flow/history/
-    projects/{NAME}/chapters/*.md + chapters/claim-extraction-draft.md + chapters/history/{chapter_id}/
-    projects/{NAME}/work-plan.md + work-plan.archive/
-    projects/{NAME}/evaluations/latest/ + evaluations/archive/{NNN}/manifest.json
+    projects/{NAME}/flow/flow.md + flow/claim-extraction-flow.md
+    projects/{NAME}/output/*.md + output/claim-extraction-output.md
+    projects/{NAME}/{flow,output}/evaluations/      ← 최신만 (history는 통합 폴더로 이동)
+    projects/{NAME}/{flow,output}/critical/         ← 최신만
+    projects/{NAME}/work-plan.md
+    projects/{NAME}/history/                        ← 모든 history 통합
+        ├── flow/{body,evaluations,claim-extraction,critical}/
+        ├── output/{body,evaluations,claim-extraction,critical}/
+        └── work-plan/
 
 사용법:
     python scripts/sync_state.py init <project_name>
@@ -20,15 +25,15 @@ v2 폴더 구조를 기준으로 동작한다:
 
 Snapshot commands (before-overwrite 보존):
     python scripts/sync_state.py snapshot-flow <project_name> <trigger>
-        flow/flow.md + flow/claim-extraction-flow.md를 flow/history/{NNN}-{date}-{trigger}/로
+        flow/flow.md + flow/claim-extraction-flow.md를 history/flow/body/{NNN}-{date}-{trigger}/로
     python scripts/sync_state.py snapshot-chapter <project_name> <trigger> <chapter_filename>
-        단일 챕터 + claim-extraction-draft.md를 chapters/history/{chapter_id}/{NNN}-{date}-{trigger}/로
+        단일 output 파일 + claim-extraction-output.md를 history/output/body/{file_id}/{NNN}-{date}-{trigger}/로
     python scripts/sync_state.py snapshot-chapters <project_name> <trigger>
         전체 챕터 일괄 (각 챕터에 개별 NNN 생성) + draft 분석 쌍
     python scripts/sync_state.py snapshot-work-plan <project_name> <trigger>
-        work-plan.md를 work-plan.archive/{NNN}-{date}-{trigger}.md로
+        work-plan.md를 history/work-plan/{NNN}-{date}-{trigger}.md로
     python scripts/sync_state.py snapshot-evaluation <project_name> <trigger>
-        evaluations/latest/를 evaluations/archive/{NNN}-{date}-{trigger}/로 (증분 — manifest.json 포함)
+        {stage}/evaluations/를 history/{stage}/evaluations/{NNN}-{date}-{trigger}/로 (증분 — manifest.json 포함)
     python scripts/sync_state.py snapshot-critical-questions <project_name> <trigger>
     python scripts/sync_state.py snapshot-critical-commitments <project_name> <trigger>
 """
@@ -71,28 +76,37 @@ def claim_extraction_flow_path(root: Path) -> Path:
     return root / "flow" / "claim-extraction-flow.md"
 
 
-def claim_extraction_draft_path(root: Path) -> Path:
-    return root / "chapters" / "claim-extraction-draft.md"
+def claim_extraction_output_path(root: Path) -> Path:
+    return root / "output" / "claim-extraction-output.md"
+
+
+# legacy alias
+claim_extraction_draft_path = claim_extraction_output_path
 
 
 def work_plan_path(root: Path) -> Path:
-    """work-plan.md 경로 (v2: 루트 work-plan.md, v1 fallback: evaluations/latest/work-plan.md)."""
-    v2 = root / "work-plan.md"
-    if v2.exists():
-        return v2
-    legacy = root / "evaluations" / "latest" / "work-plan.md"
-    return legacy if legacy.exists() else v2
+    """work-plan.md 경로 (루트)."""
+    return root / "work-plan.md"
 
 
-def chapter_files(root: Path) -> list:
-    """chapters/의 실제 챕터 파일 목록 (claim-extraction-draft.md 제외)."""
-    chap_dir = root / "chapters"
-    if not chap_dir.exists():
+def output_files(root: Path) -> list:
+    """output/의 실제 결과물 파일 목록 (claim-extraction-output.md 제외)."""
+    out_dir = root / "output"
+    if not out_dir.exists():
         return []
     return sorted([
-        p for p in chap_dir.glob("*.md")
-        if p.is_file() and p.name != "claim-extraction-draft.md"
+        p for p in out_dir.glob("*.md")
+        if p.is_file() and p.name != "claim-extraction-output.md"
     ])
+
+
+# legacy alias
+chapter_files = output_files
+
+
+def history_dir(root: Path, stage: str, type_: str) -> Path:
+    """통합 history 폴더 경로 — history/{stage}/{type}/."""
+    return root / "history" / stage / type_
 
 
 # ───────────────────────── Hash / time ─────────────────────────
@@ -288,7 +302,7 @@ def cmd_remove_paper(project_name: str, paper_filename: str) -> int:
 # ───────────────────────── Commands: snapshots ─────────────────────────
 
 def cmd_snapshot_flow(project_name: str, trigger: str) -> int:
-    """flow/flow.md + flow/claim-extraction-flow.md를 flow/history/{NNN}-{date}-{trigger}/로."""
+    """flow/flow.md + flow/claim-extraction-flow.md를 history/flow/body/{NNN}-{date}-{trigger}/로."""
     root = project_root(project_name)
     flow_dir = root / "flow"
     src_flow = flow_dir / "flow.md"
@@ -297,93 +311,105 @@ def cmd_snapshot_flow(project_name: str, trigger: str) -> int:
         print(f"ℹ️  flow/flow.md 없음 — 스냅샷 스킵")
         return 0
 
-    history_dir = flow_dir / "history"
-    history_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(history_dir, dirs_only=True)
+    hist_dir = history_dir(root, "flow", "body")
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=True)
     folder_name = f"{seq:03d}-{today_tag()}-{trigger}"
-    dest_dir = history_dir / folder_name
+    dest_dir = hist_dir / folder_name
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     (dest_dir / "flow.md").write_bytes(src_flow.read_bytes())
     if src_claims.exists():
         (dest_dir / "claim-extraction-flow.md").write_bytes(src_claims.read_bytes())
-    print(f"✅ flow 스냅샷: {dest_dir}")
+    print(f"✅ flow 스냅샷: {dest_dir.relative_to(root)}")
     return 0
 
 
-def cmd_snapshot_chapter(project_name: str, trigger: str, chapter_filename: str) -> int:
-    """단일 챕터 + 현재 claim-extraction-draft.md를 chapters/history/{chapter_id}/{NNN}-*/에."""
+def cmd_snapshot_output(project_name: str, trigger: str, output_filename: str) -> int:
+    """단일 output 파일 + 현재 claim-extraction-output.md를 history/output/body/{file_id}/{NNN}-*/에."""
     root = project_root(project_name)
-    chap_dir = root / "chapters"
-    src_chap = chap_dir / chapter_filename
-    if not src_chap.exists():
-        print(f"⚠️  챕터 없음: {src_chap}", file=sys.stderr)
+    out_dir = root / "output"
+    src_out = out_dir / output_filename
+    if not src_out.exists():
+        print(f"⚠️  output 파일 없음: {src_out}", file=sys.stderr)
         return 1
 
-    chapter_id = chapter_filename.rsplit(".", 1)[0]
-    history_dir = chap_dir / "history" / chapter_id
-    history_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(history_dir, dirs_only=True)
+    file_id = output_filename.rsplit(".", 1)[0]
+    hist_dir = history_dir(root, "output", "body") / file_id
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=True)
     folder_name = f"{seq:03d}-{today_tag()}-{trigger}"
-    dest_dir = history_dir / folder_name
+    dest_dir = hist_dir / folder_name
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    (dest_dir / chapter_filename).write_bytes(src_chap.read_bytes())
-    src_draft = claim_extraction_draft_path(root)
-    if src_draft.exists():
-        (dest_dir / "claim-extraction-draft.md").write_bytes(src_draft.read_bytes())
-    print(f"✅ 챕터 스냅샷: {dest_dir}")
+    (dest_dir / output_filename).write_bytes(src_out.read_bytes())
+    src_ce = claim_extraction_output_path(root)
+    if src_ce.exists():
+        (dest_dir / "claim-extraction-output.md").write_bytes(src_ce.read_bytes())
+    print(f"✅ output 스냅샷: {dest_dir.relative_to(root)}")
     return 0
 
 
-def cmd_snapshot_chapters(project_name: str, trigger: str, chapter_filename: str = None) -> int:
-    """전체 챕터 일괄 스냅샷 (pre-redraft 시). 각 챕터마다 개별 NNN으로 snapshot-chapter."""
-    if chapter_filename:
-        return cmd_snapshot_chapter(project_name, trigger, chapter_filename)
+# legacy alias for backward compat with existing agent doc references
+cmd_snapshot_chapter = cmd_snapshot_output
+
+
+def cmd_snapshot_outputs(project_name: str, trigger: str, output_filename: str = None) -> int:
+    """전체 output 파일 일괄 스냅샷. 각 파일마다 개별 NNN으로 snapshot-output."""
+    if output_filename:
+        return cmd_snapshot_output(project_name, trigger, output_filename)
 
     root = project_root(project_name)
-    chaps = chapter_files(root)
-    if not chaps:
-        print("⚠️  스냅샷할 챕터 없음 (chapters/ 비어있음)", file=sys.stderr)
+    files = output_files(root)
+    if not files:
+        print("⚠️  스냅샷할 output 파일 없음 (output/ 비어있음)", file=sys.stderr)
         return 0
 
-    for chap in chaps:
-        cmd_snapshot_chapter(project_name, trigger, chap.name)
+    for f in files:
+        cmd_snapshot_output(project_name, trigger, f.name)
     return 0
+
+
+# legacy alias
+cmd_snapshot_chapters = cmd_snapshot_outputs
 
 
 def cmd_snapshot_work_plan(project_name: str, trigger: str) -> int:
-    """work-plan.md를 work-plan.archive/{NNN}-{date}-{trigger}.md로."""
+    """work-plan.md를 history/work-plan/{NNN}-{date}-{trigger}.md로."""
     root = project_root(project_name)
     src = root / "work-plan.md"
     if not src.exists():
         print(f"ℹ️  work-plan.md 없음 — 스냅샷 스킵")
         return 0
 
-    archive_dir = root / "work-plan.archive"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(archive_dir, dirs_only=False)
-    dest = archive_dir / f"{seq:03d}-{today_tag()}-{trigger}.md"
+    hist_dir = root / "history" / "work-plan"
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=False)
+    dest = hist_dir / f"{seq:03d}-{today_tag()}-{trigger}.md"
     dest.write_bytes(src.read_bytes())
-    print(f"✅ work-plan 스냅샷: {dest}")
+    print(f"✅ work-plan 스냅샷: {dest.relative_to(root)}")
     return 0
 
 
-def cmd_snapshot_evaluation(project_name: str, trigger: str) -> int:
-    """evaluations/latest/의 증분 스냅샷.
+def cmd_snapshot_evaluation(project_name: str, trigger: str, stage: str = "flow") -> int:
+    """{stage}/evaluations/latest/의 증분 스냅샷을 history/{stage}/evaluations/로.
 
     - 각 파일의 해시를 이전 manifest의 해시와 비교
     - 해시가 동일하면: manifest에 이전 경로 참조만 기록 (파일 복사 X)
     - 해시가 다르면: 실제 복사 + manifest에 현재 스냅샷 경로 기록
     - evaluation.md는 항상 복사 (집계 결과이므로 매번 재생성됨)
     """
+    if stage not in ("flow", "output"):
+        print(f"❌ stage는 flow|output 중 하나여야 함, got {stage!r}", file=sys.stderr)
+        return 1
+
     root = project_root(project_name)
-    latest_dir = root / "evaluations" / "latest"
+    latest_dir = root / stage / "evaluations"
     if not latest_dir.exists():
-        print(f"ℹ️  evaluations/latest/ 없음 — 스냅샷 스킵 (첫 평가)")
+        print(f"ℹ️  {stage}/evaluations/ 없음 — 스냅샷 스킵 (첫 평가)")
         return 0
 
-    archive_dir = root / "evaluations" / "archive"
+    archive_dir = history_dir(root, stage, "evaluations")
     archive_dir.mkdir(parents=True, exist_ok=True)
     seq = next_sequence(archive_dir, dirs_only=True)
     folder_name = f"{seq:03d}-{today_tag()}-{trigger}"
@@ -452,35 +478,43 @@ def cmd_snapshot_evaluation(project_name: str, trigger: str) -> int:
     return 0
 
 
-def cmd_snapshot_critical_commitments(project_name: str, trigger: str) -> int:
+def cmd_snapshot_critical_commitments(project_name: str, trigger: str, stage: str = "flow") -> int:
+    """{stage}/critical/commitments.md를 history/{stage}/critical/{NNN}-*-commitments.md로."""
+    if stage not in ("flow", "output"):
+        print(f"❌ stage는 flow|output, got {stage!r}", file=sys.stderr)
+        return 1
     root = project_root(project_name)
-    src = root / "critical-commitments.md"
+    src = root / stage / "critical" / "commitments.md"
     if not src.exists():
-        print(f"ℹ️  critical-commitments.md 없음 — 스냅샷 스킵")
+        print(f"ℹ️  {stage}/critical/commitments.md 없음 — 스냅샷 스킵")
         return 0
 
-    archive_dir = root / "critical-commitments.archive"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(archive_dir, dirs_only=False)
-    dest = archive_dir / f"{seq:03d}-{today_tag()}-{trigger}.md"
+    hist_dir = history_dir(root, stage, "critical")
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=False)
+    dest = hist_dir / f"{seq:03d}-{today_tag()}-{trigger}-commitments.md"
     dest.write_bytes(src.read_bytes())
-    print(f"✅ critical-commitments 스냅샷: {dest}")
+    print(f"✅ critical commitments 스냅샷: {dest.relative_to(root)}")
     return 0
 
 
-def cmd_snapshot_critical_questions(project_name: str, trigger: str) -> int:
+def cmd_snapshot_critical_questions(project_name: str, trigger: str, stage: str = "flow") -> int:
+    """{stage}/critical/questions.md를 history/{stage}/critical/{NNN}-*-questions.md로."""
+    if stage not in ("flow", "output"):
+        print(f"❌ stage는 flow|output, got {stage!r}", file=sys.stderr)
+        return 1
     root = project_root(project_name)
-    src = root / "critical-questions.md"
+    src = root / stage / "critical" / "questions.md"
     if not src.exists():
-        print(f"ℹ️  critical-questions.md 없음 (초기 버전) — 스냅샷 스킵")
+        print(f"ℹ️  {stage}/critical/questions.md 없음 (초기 버전) — 스냅샷 스킵")
         return 0
 
-    archive_dir = root / "critical-questions.archive"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(archive_dir, dirs_only=False)
-    dest = archive_dir / f"{seq:03d}-{today_tag()}-{trigger}.md"
+    hist_dir = history_dir(root, stage, "critical")
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=False)
+    dest = hist_dir / f"{seq:03d}-{today_tag()}-{trigger}-questions.md"
     dest.write_bytes(src.read_bytes())
-    print(f"✅ critical-questions 스냅샷: {dest}")
+    print(f"✅ critical questions 스냅샷: {dest.relative_to(root)}")
     return 0
 
 
@@ -555,7 +589,7 @@ def cmd_check(project_name: str) -> int:
                 "flow/claim-extraction-flow.md (재분석 필요)",
                 "analyzed/*.md (논문 재분석 권장)",
                 "evaluations/latest/ (재평가 권장)",
-                "chapters/*.md (sync 경고 — 내용 반영 필요할 수 있음)",
+                "output/*.md (sync 경고 — 내용 반영 필요할 수 있음)",
             ],
             "resolve": '"평가해줘" (claim-extractor 자동 호출됨)',
         })
@@ -576,12 +610,12 @@ def cmd_check(project_name: str) -> int:
             try:
                 if chap.stat().st_mtime > ce_draft.stat().st_mtime:
                     ce_stale_sources.append(
-                        f"chapters/{chap.name} > claim-extraction-draft.md (챕터 수정 후 재분석 필요)"
+                        f"output/{chap.name} > claim-extraction-output.md (챕터 수정 후 재분석 필요)"
                     )
             except Exception:
                 continue
     elif chapter_files(root):
-        ce_stale_sources.append("claim-extraction-draft.md 미생성 (챕터 있음에도)")
+        ce_stale_sources.append("claim-extraction-output.md 미생성 (챕터 있음에도)")
 
     if ce_stale_sources:
         stales.append({

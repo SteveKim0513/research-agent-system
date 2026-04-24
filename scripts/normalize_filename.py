@@ -140,7 +140,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "theunityanddiversityofexecutivefunctionsanetwo": ("Karr", "2022", ["network", "approach", "life", "span"]),
     "unityordiversityinexecutivefunctionsexaminingt": ("Veraksa", "2025", ["three", "factor", "young", "children"]),
 
-    # HUNT-010
+    # RESEARCH-010
     "thecommonfactorofexecutivefunctionsmeasuresno": ("Loffler", "2024", ["common", "factor", "speed", "uptake"]),
     "theroleofprefrontalcortexincognitivecontrolan": ("Friedman", "2021", ["PFC", "cognitive", "control", "EF"]),
     "adversityisassociatedwithlowergeneralprocessi": ("Vermeent", "2025", ["adversity", "processing", "speed", "EF"]),
@@ -149,14 +149,14 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "dimensionalityofexecutivefunctionsandprocessin": ("Vanhala", "2023", ["dimensionality", "EF", "speed", "preschoolers"]),
     "genomewideassociationstudyshowsthatexecutivef": ("Hatoum", "2022", ["GWAS", "GABAergic", "cEF"]),
 
-    # HUNT-034
+    # RESEARCH-034
     "neweverythingnewiswellforgottenoldvygotskyl": ("Bodrova", "2011", ["Vygotsky", "Luria", "EF"]),
     "verbalregulationofmotorbehaviorsovietresearch": ("Wozniak", "1972", ["verbal", "regulation", "motor", "Soviet"]),
     "arluriaandthehistoryofrussianneuropsychology": ("Glozman", "2007", ["Luria", "Russian", "neuropsychology"]),
     "contemporaryneuropsychologyandthelegacyofluria": ("Goldberg", "2019", ["Luria", "legacy", "neuropsychology"]),
     "scopeandperspectivesofneuroimagingandneurostim": ("Panikratova", "2022", ["neuroimaging", "Luria", "Vygotsky"]),
 
-    # HUNT-035
+    # RESEARCH-035
     "makebelieveplaywellspringfordevelopmentofself": ("Berk", "2006", ["make", "believe", "self", "regulation"]),
     "playandselfregulationlessonsfromvygotsky": ("Bodrova", "2013", ["play", "self", "regulation", "Vygotsky"]),
     "theroleofmakebelieveplayinthedevelopmentofexe": ("Berk", "2013", ["make", "believe", "EF", "children"]),
@@ -169,7 +169,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "playworldsandexecutivefunctionsinchildrentheori": ("Fleer", "2019", ["playworlds", "EF", "cultural", "historical"]),
     "thezoneofproximaldevelopmentinplayandlearning": ("Hakkarainen", "2008", ["ZPD", "play", "learning"]),
 
-    # HUNT-020
+    # RESEARCH-020
     "rethinkingexecutivefunctionanditsdevelopment": ("Doebel", "2020", ["rethinking", "EF", "development"]),
     "reconcilingthecontextdependencyanddomaingene": ("Zelazo", "2022", ["reconciling", "context", "domain", "general"]),
     "adynamicalreconceptualizationofexecutivefuncti": ("Perone", "2020", ["dynamical", "reconceptualization", "EF"]),
@@ -181,7 +181,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "whydoesntexecutivefunctiontrainingimproveaca": ("Niebaum", "2022", ["EF", "training", "contextual"]),
     "consideringrolesoftheexecutivefunctionsinthes": ("Cartwright", "2024", ["reading", "EF", "meta", "analysis"]),
 
-    # HUNT-012
+    # RESEARCH-012
     "developmentofhotandcoolexecutivefunctionduring": ("Prencipe", "2011", ["hot", "cool", "EF", "adolescence"]),
     "hotandcoolexecutivefunctioninchildhoodandadol": ("Zelazo", "2012", ["hot", "cool", "EF", "childhood"]),
     "executivefunctionandpsychopathologyaneurodevelo": ("Zelazo", "2020", ["EF", "psychopathology", "neurodevelopmental"]),
@@ -193,7 +193,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "componentsofsocioeconomicstatusdifferentiallyp": ("Demko", "2025", ["SES", "cool", "hot", "EF"]),
     "predictorsofexecutivefunctionamong2yearoldsfr": ("Nimmapirat", "2023", ["Thai", "2", "year", "olds", "EF"]),
 
-    # HUNT-016
+    # RESEARCH-016
     "commonalitiesanddifferencesintheresearchonchil": ("Zhou", "2012", ["EC", "EF", "integration", "self", "regulation"]),
     "executiveattentionandeffortfulcontrollinkingt": ("Rothbart", "2007", ["executive", "attention", "EC", "genes"]),
     "commonmechanismsofexecutiveattentionunderlieex": ("Tiego", "2020", ["common", "attention", "EF", "EC"]),
@@ -205,7 +205,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "thedevelopmentalmechanismsofselfregulationinyo": ("Zhang", "2019", ["developmental", "mechanisms", "self", "regulation"]),
     "theinteractionbetweennegativeemotionalityandef": ("Moran", "2013", ["negative", "emotionality", "EC"]),
 
-    # HUNT-015
+    # RESEARCH-015
     "selfdeterminationtheoryandthefacilitationofin": ("Ryan", "2000", ["SDT", "intrinsic", "motivation"]),
     "selfdeterminationtheoryamacrotheoryofhumanmot": ("Deci", "2008", ["SDT", "macrotheory", "motivation"]),
     "intrinsicandextrinsicmotivationfromaselfdeter": ("Ryan", "2020", ["intrinsic", "extrinsic", "SDT", "education"]),
@@ -217,7 +217,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "pathwaystostudentmotivationametaanalysisofant": ("Bureau", "2021", ["pathways", "motivation", "autonomous"]),
     "twelvetipstostimulateintrinsicmotivationinstud": ("Kusurkar", "2011", ["tips", "intrinsic", "autonomy", "SDT"]),
 
-    # HUNT-017
+    # RESEARCH-017
     "dynamicfieldtheoryofexecutivefunctionidentify": ("McCraw", "2024", ["DFT", "EF", "neurocognitive", "markers"]),
     "theemergentexecutiveadynamicfieldtheoryofthe": ("BussSpencer", "2014", ["emergent", "DFT", "EF"]),
     "integratingattentionworkingmemoryandwordlear": ("Spencer", "2025", ["WOLVES", "DFT", "EF", "integrating"]),
@@ -226,7 +226,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "disentanglingdimensionsinthedimensionalchange": ("Kloo", "2005", ["dimensions", "DCCS"]),
     "childdevelopment2013ramscardualroutestocognit": ("Ramscar", "2013", ["dual", "routes", "cognitive", "flexibility"]),
 
-    # HUNT-036
+    # RESEARCH-036
     "crossculturaldevelopmentalpsychologyintegrati": ("Amir", "2020", ["cross", "cultural", "developmental", "WEIRD"]),
     "allpsychologiesareindigenousaddressinghistori": ("Dvorakova", "2025", ["indigenous", "WEIRD", "colonialism"]),
     "advancingequityincrossculturalpsychologyemb": ("Anjum", "2024", ["equity", "cross", "cultural", "epistemologies"]),
@@ -239,7 +239,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "indigenizingpsychology": ("Adolfsson", "2025", ["indigenizing", "ecological", "indigenous"]),
 
     # --- Title-only variants (파일명에 저자/연도 없는 경우) ---
-    # HUNT-005
+    # RESEARCH-005
     "natureandorganizationofindividualdifferencesine": ("Miyake", "2012", ["nature", "organization", "individual", "differences", "EF"]),
     "unityanddiversityofexecutivefunctionsanetworka": ("Karr", "2022", ["network", "approach", "life", "span"]),
     "crosscountrybrazilandiraninvarianceoffractiona": ("Segura", "2023", ["Brazil", "Iran", "invariance"]),
@@ -250,7 +250,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "neuereforexecutivefunctionresearchonthetransi": ("Zink", "2020", ["distributed", "EF", "centralized"]),
     "factoranalyticevidenceforthecomplexityofthedel": ("McFarland", "2020", ["DKEFS", "factor", "complexity"]),
 
-    # HUNT-010
+    # RESEARCH-010
     "commonfactorofexecutivefunctionsmeasuresnothi": ("Loffler", "2024", ["common", "factor", "speed", "uptake"]),
     "adversityisassociatedwithlowergeneralprocessin": ("Vermeent", "2025", ["adversity", "processing", "speed", "EF"]),
     "processingspeedworkingmemoryandexecutivefuncti": ("Frischkorn", "2019", ["processing", "speed", "WM", "intelligence"]),
@@ -258,7 +258,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "genomewideassociationstudyshowsthatexecutivefu": ("Hatoum", "2022", ["GWAS", "GABAergic", "cEF"]),
     "roleofprefrontalcortexincognitivecontrolandex": ("Friedman", "2021", ["PFC", "cognitive", "control", "EF"]),
 
-    # HUNT-012
+    # RESEARCH-012
     "developmentofhotandcoolexecutivefunctionduring": ("Prencipe", "2011", ["hot", "cool", "EF", "adolescence"]),
     "componentsofsocioeconomicstatusdifferentiallyp": ("Demko", "2025", ["SES", "cool", "hot", "EF"]),
     "evaluatingthedistinctionbetweencoolandhotexecu": ("Moriguchi", "2023", ["evaluating", "distinction", "cool", "hot"]),
@@ -266,7 +266,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "predictorsofexecutivefunctionamong2yearoldsfro": ("Nimmapirat", "2023", ["Thai", "2", "year", "olds", "EF"]),
     "executivefunctionandpsychopathologyaneurodevelop": ("Zelazo", "2020", ["EF", "psychopathology", "neurodevelopmental"]),
 
-    # HUNT-015
+    # RESEARCH-015
     "selfdeterminationtheoryandthefacilitationofint": ("Ryan", "2000", ["SDT", "intrinsic", "motivation"]),
     "selfdeterminationtheoryamacrotheoryofhumanmoti": ("Deci", "2008", ["SDT", "macrotheory", "motivation"]),
     "selfdeterminationtheoryappliedtophysicaleducati": ("Vasconcellos", "2020", ["SDT", "physical", "education", "meta"]),
@@ -278,29 +278,29 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "intrinsicandextrinsicmotivationfromaselfdeterm": ("Ryan", "2020", ["intrinsic", "extrinsic", "SDT", "education"]),
     "twelvetipstostimulateintrinsicmotivationinstude": ("Kusurkar", "2011", ["tips", "intrinsic", "autonomy", "SDT"]),
 
-    # HUNT-016
+    # RESEARCH-016
     "measurementofselfregulationinearlychildhoodrela": ("Lin", "2019", ["measurement", "EC", "EF"]),
     "selfregulationinelementaryschooldoteacherrepor": ("Weiss", "2023", ["elementary", "EC", "EF", "codevelop"]),
     "selfregulationinpreschoolchildrenfactorstructur": ("Kalin", "2021", ["preschool", "EC", "EF", "factor"]),
 
-    # HUNT-017
+    # RESEARCH-017
     "dynamicfieldtheoryofexecutivefunctionidentifyi": ("McCraw", "2024", ["DFT", "EF", "neurocognitive", "markers"]),
     "emergentexecutiveadynamicfieldtheoryofthedeve": ("BussSpencer", "2014", ["emergent", "DFT", "EF"]),
     "dimensionalchangecardsortdccsamethodofassessi": ("Zelazo", "2006", ["DCCS", "protocol", "EF"]),
     "reconcilingthecontextdependencyanddomaingene": ("Zelazo", "2022", ["reconciling", "context", "domain", "general"]),
     "reconcilingthecontextdependencyanddomaingener": ("Zelazo", "2022", ["reconciling", "context", "domain", "general"]),
 
-    # HUNT-020
+    # RESEARCH-020
     "developmentofexecutivefunctionmechanismsofchan": ("Ibbotson", "2023", ["mechanisms", "functional", "pressures"]),
     "consideringrolesofexecutivefunctionsinthescien": ("Cartwright", "2024", ["reading", "EF", "meta", "analysis"]),
     "whydoesntexecutivefunctiontrainingimproveacad": ("Niebaum", "2022", ["EF", "training", "contextual"]),
     "executivefunctionsinsocialcontextimplicationsf": ("Munakata", "2021", ["EF", "social", "context"]),
 
-    # HUNT-034
+    # RESEARCH-034
     "verbalregulationofmotorbehaviorsovietresearcha": ("Wozniak", "1972", ["verbal", "regulation", "motor", "Soviet"]),
     "scopeandperspectivesofneuroimagingandneurostim": ("Panikratova", "2022", ["neuroimaging", "Luria", "Vygotsky"]),
 
-    # HUNT-035
+    # RESEARCH-035
     "5makebelieveplaywellspringfordevelopmentofsel": ("Berk", "2006", ["make", "believe", "self", "regulation"]),
     "makebelieveplaywellspringfordevelopmentofself": ("Berk", "2006", ["make", "believe", "self", "regulation"]),
     "rolemakebelieveplayinthedevelopmentofexecutive": ("Berk", "2013", ["make", "believe", "EF", "children"]),
@@ -308,7 +308,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "examiningtherelationbetweenadultscaffoldingofm": ("Duval", "2023", ["adult", "scaffolding", "make", "believe"]),
     "playandselfregulationessonsfrom6ygotsky": ("Bodrova", "2013", ["play", "self", "regulation", "Vygotsky"]),
 
-    # HUNT-036
+    # RESEARCH-036
     "insurrectionsofindigenousknowledgesdebatingcr": ("Bansal", "2022", ["insurrections", "indigenous", "critical"]),
 
     # Fallback 보강 (umlaut·특수문자 포함 파일)
@@ -325,7 +325,7 @@ KNOWN_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     "yangezetal2024insearchofbetterpracticeinexe": ("Yanguez", "2024", ["better", "practice", "EF", "assessment"]),
     "yanguezetal2024insearchofbetterpracticeinexe": ("Yanguez", "2024", ["better", "practice", "EF", "assessment"]),
 
-    # Misc (HUNT 외 수동 추가)
+    # Misc (RESEARCH 외 수동 추가)
     "buss and kerr german dimensional attention as a mechanism": ("Buss", "2019", ["dimensional", "attention", "EF"]),
     "bussankerrgermandimensionalattentionasamechan": ("Buss", "2019", ["dimensional", "attention", "EF"]),
     "carriedoetalagerelatedchangeininhibitoryproc": ("Carriedo", "2025", ["age", "inhibitory", "WM", "speed"]),
