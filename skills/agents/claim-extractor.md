@@ -127,9 +127,11 @@ model: sonnet
 3. **예상 결과**: 새 섹션별 인용 다발 vNEW에 추가될 항목 예시
 4. **담당 에이전트**: paper-analyst (Mode B)
 
-### Phase 4-B: HUNT 과제 생성 (UNMATCHED-EXTERNAL용)
+### Phase 4-B: Research Target (R-N) 생성 (UNMATCHED-EXTERNAL용)
 
-각 UNMATCHED-EXTERNAL 문장에 대해:
+각 UNMATCHED-EXTERNAL 문장(또는 문장 클러스터)에 대해 **R-NN** (Research Target)을 제안한다. R은 **claim-level fine-grained 단위** — 의미가 밀접한 문장 1~3개를 묶은 "뭔가 찾아야 할 근거" 단위.
+
+각 R에 대해:
 1. **검색 키워드 3-5개** 제안 (Consensus MCP 검색용)
 2. **기대 논문 프로필**:
    - 유형: 메타분석 / 리뷰 / 실증 연구 / 이론 논문
@@ -137,6 +139,25 @@ model: sonnet
    - 저널 수준: top-tier / field-specific
    - 인용 수 기대치
 3. **최소 필요 논문 수** (1편이면 충분한지, 3편 이상 triangulation 필요한지)
+
+### Phase 4-C: HUNT 생성 (R 병합, execution unit)
+
+여러 R이 같은 쿼리로 커버 가능하면 **HUNT로 병합**. HUNT는 **execution unit** — 1 HUNT = 1 Consensus 쿼리 = 1 raw JSON 캐시 = 1 curation 블록 = work-plan.md의 1 카드.
+
+병합 판정 기준:
+- 같은 핵심 인용 (Kroupin 2025 같은 landmark 한 편을 주요 타깃으로)
+- 검색 키워드 60% 이상 중복
+- 세미널 저자 계열 동일 (Kochanska 종단, Miyake unity/diversity 등)
+- 의미적으로 같은 근거 영역 (impurity problem + EF 분해)
+
+단일 R만 커버하는 HUNT도 가능 (독립적 주제).
+
+각 HUNT에 대해:
+1. **covers**: 커버하는 R 리스트 (R-01, R-02 등)
+2. **query**: Consensus에 투입할 통합 대표 쿼리 (단일 문자열)
+3. **기대 논문 프로필**: 포함된 R들의 프로필 합성
+
+**27 R → 18 HUNT** 식으로 수축 가능.
 
 ## 출력 형식
 
@@ -216,9 +237,11 @@ Stage에 따라 다른 경로:
 
 ---
 
-## 🔍 레퍼런스 헌트 과제 (UNMATCHED-EXTERNAL — Consensus 신규 검색)
+## 🔍 Research Targets (R — claim-level 근거 요구)
 
-### [HUNT-001] S004: "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다."
+각 UNMATCHED-EXTERNAL 문장 또는 의미적 문장 클러스터를 **R-NN**으로 발행. fine-grained 단위.
+
+### [R-01] S004: "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다."
 
 - **분류**: A. Empirical
 - **검색 키워드 (Consensus MCP)**:
@@ -232,7 +255,7 @@ Stage에 따라 다른 경로:
 - **필요성 근거**: 축 1-1 Coverage + 1-2 Accuracy 충족
 - **배치 위치**: flow.md [Section 2 중반] 해당 문장 근처
 
-### [HUNT-002] S010: "양심은 어린 시절 내면화를 거쳐 자발적 규칙 따르기로 발달한다."
+### [R-02] S010: "양심은 어린 시절 내면화를 거쳐 자발적 규칙 따르기로 발달한다."
 
 - **분류**: A. Empirical
 - **검색 키워드**:
@@ -246,7 +269,29 @@ Stage에 따라 다른 경로:
 - **필요성 근거**: 축 1-1 Coverage
 - **배치 위치**: flow.md [Section 4 후반]
 
-### [HUNT-003] ... [HUNT-NNN] ...
+### [R-03] ... [R-NN] ...
+
+---
+
+## 🎯 HUNTs (execution units — R들의 병합으로 생성)
+
+여러 R을 같은 Consensus 쿼리로 커버 가능하면 HUNT로 병합. **1 HUNT = 1 쿼리 = 1 실행**. 단일 R만 커버하는 HUNT도 가능.
+
+### [HUNT-001] EF 측정 혼입 요인 + impurity problem
+
+- **covers**: R-01, R-04 (impurity problem 관련)
+- **query**: `executive function task impurity motivation familiarity confound decomposition`
+- **기대 논문 프로필 (합성)**: 실증 + 이론 리뷰, 혼합 연대, 2-4편 (triangulation)
+- **배치 위치**: flow.md §Impurity problem 전반
+
+### [HUNT-002] Kochanska conscience internalization
+
+- **covers**: R-02 (단일 R)
+- **query**: `Kochanska conscience internalization committed compliance longitudinal`
+- **기대 논문 프로필**: 종단 + 리뷰, 세미널 + 최신 메타
+- **배치 위치**: flow.md §4가지 EF 4번째 유형
+
+### [HUNT-003] ... [HUNT-N] ...
 
 ---
 
@@ -280,15 +325,22 @@ Stage에 따라 다른 경로:
   "total_sentences": N,
   "needs_citation": X,
   "matched": M,
-  "unmatched_internal": R,
-  "unmatched_external": K,
-  "reanalyze_proposals": R,
-  "hunt_proposals": K,
+  "unmatched_internal": U_INT,
+  "unmatched_external": U_EXT,
+  "reanalyze_proposals": U_INT,
+  "research_targets": U_EXT,
+  "hunts": [
+    {"id": "HUNT-001", "covers": ["R-01", "R-04"], "query": "executive function task impurity ...", "topic": "EF 측정 혼입 + impurity"},
+    {"id": "HUNT-002", "covers": ["R-02"], "query": "Kochanska conscience internalization ...", "topic": "Kochanska conscience"}
+  ],
   "over_claim_flags": A,
   "under_claim_flags": B,
   "ambiguous_classifications": C
 }
 ```
+
+**`research_targets`**: UNMATCHED-EXTERNAL 문장/클러스터 총 개수 (R-NN 개수와 동일).
+**`hunts`**: R들을 병합해 만든 execution unit 배열. aggregator가 이걸 1:1로 work-plan.md의 HUNT 카드로 발급 (`**covers**: R-01, R-04` 필드 주입). work-plan의 HUNT 수 = 이 배열 길이.
 ```
 
 ## work-plan.md 연동 프로토콜
@@ -297,10 +349,10 @@ claim-extractor는 **work-plan.md를 직접 수정하지 않는다.** 읽기만 
 
 **읽기 의무** (출력 생성 직전):
 1. `work-plan.md`에서 현재 존재하는 HUNT/REANALYZE ID 목록을 grep 추출
-2. UNMATCHED 주장이 기존 HUNT로 이미 커버되면 `→ HUNT-NNN (work-plan.md 참조)` back-reference
-3. 신규 UNMATCHED는 `HUNT-PROPOSAL-A/B/C` 임시 라벨로만 제안 (번호 발급 X)
+2. UNMATCHED 주장이 기존 HUNT의 `covers`에 이미 포함되면 `→ HUNT-NNN (work-plan.md 참조)` back-reference
+3. 신규 R 및 HUNT는 임시 ID(`R-01`, `HUNT-001`)로 제안 — aggregator가 work-plan.md의 next 가용 HUNT-NNN으로 재매핑
 
-orchestrator/aggregator가 PROPOSAL을 work-plan.md의 다음 HUNT-NNN으로 치환하고 🟡 Active에 등록한다.
+aggregator가 `hunts[]` 배열을 읽어 work-plan.md의 HUNT 카드를 1:1 발급 (`**covers**: R-NN` 필드 포함) 후 🟡 Active에 등록한다.
 
 **포맷 규율**: `skills/WORK-PLAN-FORMAT.md` 참조 (HUNT·REANALYZE 카드의 필수 필드: 검색 키워드·기대 프로필·배치 위치).
 

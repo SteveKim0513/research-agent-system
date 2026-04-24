@@ -60,7 +60,15 @@ claude
 ```
 → work-plan.md의 HUNT 과제가 Consensus에서 자동 검색 → `papers/consensus-results.md` 누적
 
-**사용자가 할 일**: 링크에서 PDF 다운로드 → `projects/my-essay/papers/candidates/`에 저장
+**consensus-results.md 구조** (사용자가 5분 안에 선별 가능하도록 큐레이션):
+- 1 HUNT = 1 Consensus 쿼리 = 1 블록 (HUNT 카드는 `covers: R-01, R-04` 필드로 어느 claim들을 커버하는지 명시)
+- 각 HUNT 블록이 6 카테고리로 분리: 🎯 최우선 인용 / 🟢 보조 증거 / 🔴 반론·Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-HUNT
+- 각 논문에 주석 1-3문장 (flow §어느 Section·어느 문장에 어떻게 쓰는지)
+- 영어 abstract 원문 전체의 한글 번역 인용블록
+- HUNT 끝 📌 액션 아이템 `[ ]` (PDF 다운로드 / 인용 배치 / 교차 확인)
+- 파일 끝 누적 요약 (🏆 최중요 발견 / 📥 PDF 다운로드 우선순위 / 🔗 Cross-HUNT 교차표 / 👉 다음 단계)
+
+**사용자가 할 일**: 📥 우선순위 리스트대로 PDF 다운로드 → `projects/my-essay/papers/candidates/`에 저장
 
 그 다음:
 ```

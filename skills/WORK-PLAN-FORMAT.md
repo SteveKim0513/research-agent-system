@@ -108,7 +108,7 @@
 
 ### 2.2 Task 타입별 추가 필드
 
-- **HUNT**: `**검색 키워드**:` (bullet 3-5개), `**기대 논문 프로필**:` (유형/시대/저널)
+- **HUNT** (execution unit — 1 카드 = 1 Consensus 쿼리): `**covers**:` (필수, R-ID 리스트. claim-extractor가 제안한 R 중 이 HUNT가 커버하는 것들. 예: `R-01, R-04`), `**query**:` (필수, 통합 대표 쿼리 단일 문자열), `**검색 키워드**:` (선택, bullet 3-5개 — query 대표성 낮을 때 보조), `**기대 논문 프로필**:` (유형/시대/저널)
 - **REANALYZE**: `**대상 PDF**:` (파일명), `**재분석 각도**:` (어느 섹션·주장)
 - **DRAFT**: `**위치**:` (Section N·문단), `**내용 요구**:` (구체 구조)
 - **EDIT**: `**대상 챕터**:` (파일명), `**수정 내용**:` (구체), `**원인**:` (어느 평가·감사 결과)
@@ -307,9 +307,13 @@ Task는 **절대 삭제되지 않음**. 취소도 ⚪ deferred + `note: 취소 �
 3. TYPE별로 독립 카운터 (HUNT-001, DRAFT-001이 동시 존재 가능)
 ```
 
-### 6.3 claim-extraction의 HUNT-PROPOSAL 치환
+### 6.3 claim-extraction의 R / HUNT 치환
 
-claim-extractor는 HUNT-PROPOSAL-A/B/C... 라벨로 제안 → aggregator가 work-plan에 신규 HUNT-NNN으로 등록 → claim-extraction-*.md의 PROPOSAL 라벨을 확정 ID로 back-reference.
+claim-extractor는 2층으로 제안한다:
+- **R-NN** (Research Target, claim-level fine-grained) — UNMATCHED-EXTERNAL 문장/클러스터별
+- **HUNT-NN** (execution unit, R들을 같은 쿼리로 커버 가능하게 병합) — JSON 요약의 `hunts[]` 배열
+
+aggregator가 `hunts[]`를 파싱하여 work-plan.md에 신규 HUNT-NNN 카드를 **1:1 발급** (`covers: R-XX, R-YY` 필드 주입). claim-extraction-*.md에는 R ID가 그대로 남고, 각 R 섹션에 `→ HUNT-NNN (work-plan)` back-reference가 추가된다.
 
 ---
 
@@ -419,16 +423,24 @@ claim-extractor는 HUNT-PROPOSAL-A/B/C... 라벨로 제안 → aggregator가 wor
 
 ### [HUNT-002] 🟡 active · P1 · axis1 · Stage 1
 
-**무엇**: S017 — EF 전통적 보편성 가정 원전 필요
+**무엇**: EF 전통적 보편성 가정의 세미널 원전 확보
 
 **담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색
 
 **예상 회복**: 축 1-1 +3
 
+**covers**: R-07, R-12 (EF universal cognitive history 관련 claim들)
+
+**query**: `executive function universal cognitive history Miyake Friedman Diamond review`
+
 **검색 키워드**:
 - `executive function universal cognitive history`
 - `Miyake Friedman definition`
 - `Diamond EF review`
+
+**기대 논문 프로필**:
+- 유형: 세미널 정의 논문 + 최신 리뷰
+- 최소 필요 논문: 2-3편
 
 **의존성**: 없음
 **차단하는 것**: 없음

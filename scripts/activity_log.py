@@ -21,12 +21,13 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
 # 로그 엔트리 포맷: 파이프 + key=value 하이브리드
-# [YYYY-MM-DD HH:MM:SS] ACTION | STAGE | TARGET | RESULT | ref:ID | agents:A,B | key=value key=value
+# [YYYY-MM-DD HH:MM:SS] ACTION | STAGE | TARGET | RESULT | ref:ID | agents:A,B | key=value
+# Stop hook 자동 추가 필드: duration=Ns tokens_in=N tokens_out=N cache_read=N cache_creation=N key=value
 
 LOG_FORMAT = "[{timestamp}] {action} | {stage} | {target} | {result} | {ref} | {agents} | {meta}"
 
@@ -139,6 +140,7 @@ def append_line(project: str, line: str) -> None:
                 f"# Project: {project}\n"
                 f"# Created: {now_iso()}\n"
                 "# Format: [TIMESTAMP] ACTION | STAGE | TARGET | RESULT | ref:ID | agents:... | key=value\n"
+                "# Stop hook 자동 필드: duration=Ns tokens_in=N tokens_out=N cache_read=N cache_creation=N\n"
                 "\n"
             )
             path.write_text(header, encoding="utf-8")
@@ -222,6 +224,7 @@ def cmd_on_turn_end() -> int:
     """Stop hook 진입점.
     가장 최근 pending 엔트리를 찾고, 실제로 어떤 아티팩트가 변경됐는지 판단해서
     완료 라인 append. (append-only이므로 pending 수정 안 함.)
+    duration·tokens 메트릭을 함께 기록.
     """
     try:
         data = json.load(sys.stdin)
@@ -246,15 +249,19 @@ def cmd_on_turn_end() -> int:
     except Exception:
         return 0
 
-    # 마지막 pending 라인 역탐색
-    pending_line = None
-    for line in reversed(lines):
-        if "result=pending" in line or "| pending |" in line:
-            pending_line = line
-            break
+    # 아직 닫히지 않은(이후 turn_end=true 라인 없는) 가장 최근 pending 탐색
+    pending_line = find_unclosed_pending(lines)
 
     if not pending_line:
-        return 0  # pending 없음 → 기록할 의미 없는 turn
+        return 0  # pending 없음 또는 이미 닫힘 → 기록할 의미 없는 turn
+
+    # pending 타임스탬프 추출 → duration 계산
+    pending_ts = extract_ts(pending_line)
+    now_dt = datetime.now()
+    duration_sec = int((now_dt - pending_ts).total_seconds()) if pending_ts else None
+
+    # transcript에서 이번 turn 토큰 사용량 집계 (pending 이후 assistant 이벤트)
+    tokens = scan_transcript_tokens(transcript_path, pending_ts)
 
     # transcript를 읽어 이번 turn에 변경된 아티팩트 추론
     artifacts_touched = scan_transcript_artifacts(transcript_path, project)
@@ -265,16 +272,114 @@ def cmd_on_turn_end() -> int:
     if len(artifacts_touched) > 3:
         target += f" (+{len(artifacts_touched) - 3} more)"
 
+    meta = {"source": "hook", "turn_end": "true"}
+    if duration_sec is not None:
+        meta["duration"] = f"{duration_sec}s"
+    if tokens:
+        meta["tokens_in"] = str(tokens["input_tokens"])
+        meta["tokens_out"] = str(tokens["output_tokens"])
+        meta["cache_read"] = str(tokens["cache_read_tokens"])
+        meta["cache_creation"] = str(tokens["cache_creation_tokens"])
+
     line = format_entry(
-        timestamp=now_iso(),
+        timestamp=now_dt.strftime("%Y-%m-%d %H:%M:%S"),
         action=action,
         stage="-",
         target=target,
         result="ok",
-        meta={"source": "hook", "turn_end": "true"},
+        meta=meta,
     )
     append_line(project, line)
     return 0
+
+
+def extract_ts(log_line: str) -> datetime | None:
+    """로그 라인에서 '[YYYY-MM-DD HH:MM:SS]' 파싱 → datetime 반환."""
+    m = re.match(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]", log_line)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def find_unclosed_pending(lines: list[str]) -> str | None:
+    """파일을 거꾸로 읽어 아직 turn_end=true로 닫히지 않은 가장 최근 pending 라인을 찾는다.
+
+    counting 방식: 뒤에서 앞으로 스캔하며 turn_end=true를 만날 때마다 closer +1,
+    pending을 만나면 closer가 있으면 하나 소진 후 계속. closer 없이 pending을
+    만나면 그것이 '열린' pending.
+    """
+    closers = 0
+    for line in reversed(lines):
+        if "turn_end=true" in line:
+            closers += 1
+            continue
+        if "result=pending" in line or "| pending |" in line:
+            if closers > 0:
+                closers -= 1
+                continue
+            return line
+    return None
+
+
+def scan_transcript_tokens(transcript_path: str, since_ts: datetime | None) -> dict | None:
+    """transcript JSONL → since_ts 이후 assistant 이벤트 토큰 집계.
+
+    동일한 requestId로 여러 assistant 이벤트(thinking/tool_use 등 분할)가 기록되는
+    경우가 있으므로 requestId 기준 dedupe. since_ts가 None이면 None 반환.
+    """
+    if not since_ts or not transcript_path or not Path(transcript_path).exists():
+        return None
+
+    # 로그 타임스탬프는 local naive → UTC로 변환
+    since_utc = since_ts.astimezone(timezone.utc) if since_ts.tzinfo else since_ts.replace(
+        tzinfo=datetime.now().astimezone().tzinfo
+    ).astimezone(timezone.utc)
+
+    seen_requests: dict[str, dict] = {}
+    try:
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            for raw in f:
+                try:
+                    evt = json.loads(raw)
+                except Exception:
+                    continue
+                if evt.get("type") != "assistant":
+                    continue
+                ts_str = evt.get("timestamp", "")
+                if not ts_str:
+                    continue
+                try:
+                    evt_ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                except Exception:
+                    continue
+                if evt_ts < since_utc:
+                    continue
+                req_id = evt.get("requestId") or ""
+                msg = evt.get("message") or {}
+                usage = msg.get("usage") or {}
+                if not usage:
+                    continue
+                if req_id and req_id in seen_requests:
+                    continue
+                seen_requests[req_id or f"_anon_{id(evt)}"] = usage
+    except Exception:
+        return None
+
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+    }
+    for usage in seen_requests.values():
+        totals["input_tokens"] += usage.get("input_tokens", 0) or 0
+        totals["output_tokens"] += usage.get("output_tokens", 0) or 0
+        totals["cache_read_tokens"] += usage.get("cache_read_input_tokens", 0) or 0
+        totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens", 0) or 0
+    return totals
 
 
 def scan_transcript_artifacts(transcript_path: str, project: str) -> list[str]:

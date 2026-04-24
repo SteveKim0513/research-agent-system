@@ -152,9 +152,10 @@ research-agent/
 │   ├── evaluation_aggregator.py (axis 리포트 → evaluation.md + work-plan 대시보드)
 │   ├── paper_triage.py        (Pass 1 결과 집계·tier 승격)
 │   ├── paper_reanalysis_delta.py (flow 변경 기반 영향 논문 필터)
-│   ├── migrate_v2.py          (v1 → v2 폴더 구조 일회성 마이그레이션)
 │   ├── activity_log.py + activity_log_async.sh (활동 로그·hook)
-│   └── extract_metadata.py, normalize_filename.py, backfill_axis_tags.py, rename_to_full_title.py
+│   ├── hunt_postcheck.py      (HUNT 4-stage 파이프라인 검증)
+│   ├── extract_metadata.py, normalize_filename.py
+│   └── archive/               (일회성 migration: migrate_v2, backfill_axis_tags, rename_to_full_title)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
 │       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + history/)
@@ -167,7 +168,13 @@ research-agent/
 │       ├── critical-commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
 │       ├── critical-commitments.archive/ (🎭 commitment 상태 히스토리)
 │       ├── evaluations/       (latest/ + archive/{NNN}/ + manifest.json 증분)
-│       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/)
+│       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/
+│       │                       + .hunt-raw/      — Stage A MCP 원본 JSON (SSOT)
+│       │                       + .translations/  — Stage B haiku 한글 번역
+│       │                       + .curation/      — Stage C 6-카테고리 curation per HUNT
+│       │                       + .context-pack.md — workers 공용 입력
+│       │                       + consensus-results.md — Stage D concat + 누적 요약
+│       │                       + consensus-results.archive/ 주요 버전 스냅샷)
 │       └── final/
 ├── install.sh
 ├── README.md                  (이 파일 — 설치·개요)
@@ -178,23 +185,10 @@ research-agent/
 
 ---
 
-## 🎯 핵심 명령어 요약
+## 🎯 사용법
 
-| 명령어 | 동작 |
-|--------|------|
-| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 |
-| 🎯 `"평가해줘"` | 5축 냉정 평가 + 작업지시서 |
-| 🔍 `"레퍼런스 점검해줘"` | 축 1 전용 경량 재평가 |
-| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow 보강 제안 |
-| `"작업 시작해줘"` | work-plan.md HUNT → Consensus 자동 검색 |
-| `"새 논문 처리해줘"` | PDF 처리 + paper-analyst 분석 |
-| `"초안 작성해줘"` | writing-architect 초안 생성 |
-| `"Chapter X 수정해줘: ..."` | 수정 + citation-auditor 감사 |
-| `"리뷰 체크해줘"` | peer-reviewer 심사 시뮬레이션 |
-| `"리뷰 답변 도와줘: [리뷰 텍스트]"` | peer-reviewer Mode B — 실제 리뷰 코멘트에 답변 초안 작성 |
-| 🧠 `"작업 추천해줘"` | activity.log 기반 다음 명령 추천 (이유 포함) |
-
-전체 명령어·사용 흐름은 [MANUAL.md](./MANUAL.md) 참고.
+- **빠른 사용 (3분)**: [GUIDE.md](./GUIDE.md) — 7단계 워크플로우와 모든 명령어
+- **전체 레퍼런스**: [MANUAL.md](./MANUAL.md) — 에이전트 오케스트레이션·출력 경로·플래그·troubleshooting
 
 ---
 

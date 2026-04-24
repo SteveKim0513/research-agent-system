@@ -23,6 +23,53 @@ description: "Academic research project management with AI agents. Creates proje
 
 **핵심 원칙**: flow.md가 완성되면 반드시 `평가해줘`를 먼저 실행한다. 평가에서 나온 **work-plan.md**가 이후 4단계(리서치→1차작성→수정→최종)의 작업 순서를 결정한다.
 
+## 🧱 Sub-agent 운영 규율
+
+Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨다:
+
+1. **작업 단위 ≤5분 wall clock** — 더 길면 쪼갠다. `1 HUNT = 1 worker` 식의 미세 분할이 원칙. `3 HUNT end-to-end 담당` 같은 거대 worker 금지.
+2. **디스크 출력 의무** — 결과를 return값에만 담지 말 것. 반드시 `.hunt-raw/`, `.translations/`, `.curation/` 등 **약속된 경로에 파일로 저장** 후 "OK: {한 줄}" 복귀. context가 휘발돼도 디스크가 SSOT.
+3. **프롬프트 ≤ 800 토큰** — 스펙 경로를 읽게 하되 내용을 copy-paste 하지 않는다. 공용 스펙(`skills/agents/*.md`, `.context-pack.md`)은 1회 작성 후 worker들이 각자 Read.
+4. **병렬 상한 명시** — MCP 호출 있는 작업은 main이 직접 adaptive serial. MCP 없는 순수 추론 작업(번역·curation)은 ≤10 parallel 허용.
+5. **간결한 복귀** — 거대한 결과 markdown을 리턴 메시지에 담지 말 것 (context 낭비 + main이 파싱하는 실수 유발). 디스크 경로 + 상태 한 줄만.
+6. **idempotent** — 같은 worker를 재호출해도 같은 결과. 출력 파일이 이미 있으면 skip 또는 덮어쓰기 명시적 결정.
+7. **사용자 승인 폭주 방지** — main이 parallel Agent 호출을 한꺼번에 대량 투입하지 않는다. 3개 이상 parallel은 한 배치씩 나눠서. 각 배치 완료 확인 후 다음 배치.
+8. **파일 쓰기 원자성** — `.curation/HUNT-NNN.md`, `.translations/HUNT-NNN.md`, `.hunt-raw/HUNT-NNN.json` 등 최종 출력 파일은 **`.tmp.{pid}` 임시 경로에 먼저 쓴 뒤 `mv`로 원자 교체**. sub-agent 중단 시 반쪽 파일이 남지 않도록. Bash 예시:
+   ```bash
+   python3 -c "open('.curation/HUNT-001.md.tmp.$$', 'w').write(content)" && \
+     mv .curation/HUNT-001.md.tmp.$$ .curation/HUNT-001.md
+   ```
+   Write 도구로 `.tmp.{pid}` 경로에 쓴 뒤 Bash `mv`로 교체. 또는 Python `tempfile.NamedTemporaryFile(dir=target_dir) + os.replace`. post-check(`hunt_postcheck.py`)가 부분 파일 탐지하면 재실행 유도.
+
+## 🚫 실행 중 리팩터링 금지 원칙
+
+사용자가 작업 실행 중 구조/스펙 이슈를 지적하면:
+
+1. **즉시 TaskCreate로 follow-up 태스크 등록** (backlog에 적재)
+2. **현재 실행은 기존 구조로 완수** — 시간·토큰 이미 투입된 진행을 버리지 않는다
+3. **완료 후 backlog 훑으며 단 한 번만 묻기**: "지금 구조 개선 진행할지 / 다음 실행부터 적용할지"
+
+예외 (실행 즉시 중단 허용):
+- **치명적 correctness 결함**: 데이터 소실 확정 (예: HIT 번역 플레이스홀더 사태), 잘못된 파일 덮어쓰기 직전, user/privacy 정보 유출 위험
+- **사용자 명시적 stop 지시**
+
+"멈추고 시스템 전반 리팩터 → 다시 실행" 패턴 금지. 그렇게 하면 한 세션이 90분+로 늘어난다 (HIT 2026-04-24).
+
+## 🧭 TaskCreate 사용 의무
+
+**≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
+
+- `평가해줘` — claim-extract → 축별 dispatch → aggregator → delta mark-done → sync update → work-plan 갱신 (≥6 단계)
+- `작업 시작해줘` (HUNT) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). HUNT 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
+- `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
+- `초안 작성해줘` — writing-architect Phase 1/2 → chapter-editor × N → claim-extract → 평가 (≥4 단계)
+- `Chapter X 수정해줘` — snapshot → chapter-editor → citation-auditor → claim-extract (≥4 단계)
+- `flow 업데이트해줘` — snapshot → flow-refiner → 사용자 승인 → 반영 → 평가 (≥4 단계)
+
+**왜 필요한가 (HIT 2026-04-24 실패 사례)**: 다단계 파이프라인에서 중간 단계(예: abstract 번역)가 조용히 누락된 채 "완료" 보고가 올라오는 사고가 발생. 태스크 리스트가 있었다면 열린 in_progress 항목이 사용자 보고 전 불일치를 가시화. 태스크 누락 자체가 품질 signal.
+
+**태스크 granularity**: 각 태스크는 **완료 조건(post-condition)이 검증 가능**해야 함. "번역" 같은 추상 태스크 금지. "번역 대기 placeholder가 0건" 같이 grep으로 확인 가능한 조건으로 잘게 쪼갠다.
+
 ## 5축 평가 기준
 
 flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100점 만점 (하위 기준 각 25점).
@@ -179,6 +226,10 @@ mkdir -p projects
 mkdir -p projects/{PROJECT_NAME}/papers/collected
 mkdir -p projects/{PROJECT_NAME}/papers/candidates
 mkdir -p projects/{PROJECT_NAME}/papers/analyzed
+mkdir -p projects/{PROJECT_NAME}/papers/.hunt-raw
+mkdir -p projects/{PROJECT_NAME}/papers/.translations
+mkdir -p projects/{PROJECT_NAME}/papers/.curation
+mkdir -p projects/{PROJECT_NAME}/papers/consensus-results.archive
 mkdir -p projects/{PROJECT_NAME}/flow
 mkdir -p projects/{PROJECT_NAME}/chapters
 mkdir -p projects/{PROJECT_NAME}/chapters/history
@@ -304,7 +355,13 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            │   ├── candidates/                  (다운로드 후 처리 대기)
            │   ├── collected/                   (처리 완료된 PDF)
            │   ├── analyzed/                    (paper-analyst 분석 v1/v2/v3/[critical])
-           │   └── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
+           │   ├── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
+           │   ├── .hunt-raw/                   (Stage A — MCP 원본 응답 JSON, HUNT별 1파일, SSOT)
+           │   ├── .translations/               (Stage B — haiku 한글 번역 markdown, HUNT별 1파일)
+           │   ├── .curation/                   (Stage C — 6 카테고리 curated 블록, HUNT별 1파일)
+           │   ├── .context-pack.md             (main이 HUNT 시작 전 1회 생성, workers 공유 입력)
+           │   ├── consensus-results.md         (Stage D — .curation/*.md concat + 누적 요약)
+           │   └── consensus-results.archive/   (pre-respin 등 주요 버전 스냅샷)
            ├── final/
            ├── activity.log                     (모든 명령 자동 로그)
            ├── .paper-metadata.json             (메타데이터 + intellectual_ambition)
@@ -698,47 +755,206 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
 5. `claim-extraction-flow.md / claim-extraction-draft.md` (stage에 맞게)에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
 6. `work-plan.md`의 REANALYZE 체크박스를 `- [x]`로 갱신
 
-### 단계 2b: HUNT 과제를 Consensus MCP에 투입
+### 단계 2b: Context pack 사전 빌드 (main 세션, ~30s)
 
-각 미완료 HUNT 과제마다:
+**의도**: workers가 flow.md·claim-extraction·axis1-reference를 각자 읽지 않도록, main이 한 번만 요약 파일을 만들어 공유.
 
-1. **검색 키워드 리스트를 순차 실행**:
-   - 각 키워드에 대해 `mcp__consensus__search` 호출
-   - **MCP 지시에 따라 배치당 최대 3개 쿼리 병렬 실행** 후 대기 (rate limit 회피)
-   - Rate limit 에러 시 30초 대기 후 재시도
+```bash
+mkdir -p projects/{P}/papers/.hunt-raw projects/{P}/papers/.translations projects/{P}/papers/.curation
+```
 
-2. **결과 누적**:
-   - 각 HUNT 결과를 `papers/consensus-results.md`에 **누적 저장** (기존 내용 유지, 새 섹션 추가)
-   - 각 결과에 출처 HUNT ID 태그 (예: `## [HUNT-001] S004 — EF 측정 혼입 요인`)
+main 세션이 다음 3개 파일을 읽고 `projects/{P}/papers/.context-pack.md` 한 파일로 요약 작성:
+- `flow/flow.md` — thesis + key argument skeleton (3-5줄)
+- `flow/claim-extraction-flow.md` — R-NN → S-NNN 매핑 + 카테고리 요약표
+- `evaluations/latest/evaluation.md` + `axis1-reference.md` — 점수 가장 낮은 축·하위 기준·복원 우선순위
 
-2a. **중복 탐지 (번역 전 필수 단계)**:
-   - 새 HUNT 결과를 기록하기 전에 기존 `papers/consensus-results.md`에서 동일 논문이 이미 있는지 확인. 판정 기준 우선순위: (1) consensus.app URL 동일 (가장 확실), (2) URL 부재 시 `저자(연도)` + 제목 조합 일치.
-   - 중복 논문은 **번역 호출 대상에서 제외**하고 다음 포맷으로 기재:
-     ```
-     N. **저자 (연도)** — [제목](URL). ⚠️ **중복** — HUNT-XXX #M에서 전체 번역·주석 참조.
-     ```
-   - Bash 예시 (URL 기반 dedup 체크):
-     ```bash
-     grep -oE "consensus\.app/papers/(details/)?[a-z0-9]+" papers/consensus-results.md | sort -u
-     ```
-   - 중복이어도 **주석(annotation)은 새 HUNT 맥락에 맞게 다시 작성** 가능 (같은 논문이 다른 섹션에서 다른 역할을 할 수 있음)
+이 파일은 세션 종료 시까지 읽기 전용. workers는 이 하나만 읽으면 됨.
 
-2b. **Abstract 한글 번역 (중복 제외한 신규 논문만)**:
-   - **각 신규 논문마다 영어 abstract 원문 전체를 한글로 번역하여 논문 제목/링크 바로 아래 들여쓰기 인용블록(`> `)으로 기재** (사용자가 논문 선별 속도를 높이기 위함). **요약이 아니라 원문 전체 번역**.
-   - **번역은 반드시 `abstract-translator` 서브에이전트(haiku 모델)에 위임** — 메인 세션(opus)에서 직접 번역 금지.
-   - 호출 순서:
-     1. `skills/agents/abstract-translator.md` 파일을 읽는다
-     2. Agent 도구로 호출 (model: `haiku`) — 입력: HUNT-NNN의 신규 논문 abstract 원문 목록 (각 논문마다 `[N] 식별자` 포함). 출력: 각 `[N]`에 대응하는 한글 번역 인용블록
-   - 반환된 번역을 `consensus-results.md` 해당 논문 아래에 삽입
-   - Abstract가 없는 논문은 `> (abstract 없음)` 표기 (번역 호출 불필요)
+### 단계 2c: Stage A — 검색 (main 세션, serial/adaptive, 각 1~3분)
 
-3. **claim-extraction 매칭 상태 갱신** (`flow/claim-extraction-flow.md 또는 chapters/claim-extraction-draft.md`):
-   - 해당 문장의 MATCHED 상태를 ✅로 변경
-   - 찾은 대표 논문 2-3편을 인용 후보로 기록
+**HUNT = 실행 단위**: claim-extractor가 이미 R(Research Target)들을 병합해 HUNT(execution unit)로 제안. 각 HUNT 카드 = 1 Consensus 쿼리 = 1 raw JSON = 1 curation 블록.
 
-4. **work-plan.md 진척 갱신** (`work-plan.md`):
-   - 완료된 HUNT는 `- [x]` 체크
-   - 찾은 논문이 기대 프로필에 못 미치면 `⚠️ 재검색 필요` 주석 추가
+**Rate limit 정책 (adaptive)**: 초기 **1-serial**. 연속 3회 성공 시 2-parallel 승격. 429 시 30s 대기 + 1-serial로 강등. 처음부터 3-parallel 시도 금지.
+
+각 미완료 HUNT 카드마다 main 세션이 직접:
+
+1. `mcp__consensus__search` 호출 (HUNT 카드의 `query` 필드 사용)
+2. 응답 전체를 `papers/.hunt-raw/HUNT-NNN.json`에 즉시 저장 — **SSOT**. 다음 스테이지는 여기만 읽음:
+   ```json
+   {"hunt_id": "HUNT-001", "covers": ["R-01", "R-04"], "query": "...", "executed_at": "...",
+    "papers": [{"url": "...", "title": "...", "authors": "...", "year": 2025,
+                "journal": "...", "citations": 2, "abstract": "<full English text>"}]}
+   ```
+3. 429 시 sleep 30 후 단일 직렬로 강등 재시도
+
+**중단 복구**: 이미 `.hunt-raw/HUNT-NNN.json` 존재하면 재검색 스킵.
+
+### 단계 2d: Stage B — 번역 (haiku workers 병렬, 각 ≤1분)
+
+각 HUNT마다 **abstract-translator(haiku) worker 1개** 디스패치. rate limit 없으므로 **최대 10 parallel**.
+
+Worker 한 개의 단일 책임:
+1. `skills/agents/abstract-translator.md` 읽기 (공용 스펙)
+2. `papers/.hunt-raw/HUNT-NNN.json` 로드 → papers[].abstract 목록 추출
+3. 각 abstract를 한글로 전문 번역 → `> `-quoted 블록 형태
+4. `papers/.translations/HUNT-NNN.md`에 저장 (포맷: 논문 번호 헤더 + 한글 번역 블록)
+5. "OK: N papers translated" 한 줄 반환
+
+**중단 복구**: `.translations/HUNT-NNN.md` 존재하면 재번역 스킵.
+
+### 단계 2e: Stage C — Curation (sonnet workers 병렬, 각 3-5분)
+
+각 HUNT마다 **curation worker(sonnet) 1개** 디스패치. **최대 6 parallel** (sub-agent 조정 부하 방지).
+
+Worker 한 개의 단일 책임:
+1. `papers/.context-pack.md` 읽기 (단계 2b 산출, 공용)
+2. `papers/.hunt-raw/HUNT-NNN.json` + `papers/.translations/HUNT-NNN.md` 로드 (같은 HUNT만)
+3. 논문 필터링 (off-topic 제거)
+4. 6 카테고리 분류 (🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-HUNT)
+5. 논문마다 1-3문장 주석 (flow §Section / S-NNN 매핑 + 역할 + 인용 필수성)
+6. 액션 아이템 `[ ]` 3+개
+7. **`papers/.curation/HUNT-NNN.md`에 저장** (단계 2d 형식 그대로)
+8. "OK: HUNT-NNN curated, {M} papers" 한 줄 반환
+
+**프롬프트 길이 제한**: worker 프롬프트는 800 토큰 이하 (스펙 경로 참조만, 전문 copy-paste 금지).
+
+**중단 복구**: `.curation/HUNT-NNN.md` 존재하면 스킵. 거부/실패된 worker만 재디스패치.
+
+### 단계 2f: Stage D — Assembly (main 세션, ~1분)
+
+모든 `.curation/HUNT-NNN.md`가 존재하면 main이:
+
+1. HUNT 번호 순으로 concat → `papers/consensus-results.md` 헤더 + 본문
+2. **Cross-HUNT dedup pass**: URL 기준. 첫 등장 HUNT가 full entry, 이후 등장은 `⚠️ 중복 — HUNT-XXX 참조` 한 줄로 치환
+3. 파일 끝 **누적 요약 섹션** 작성:
+   - 🏆 최중요 발견 Top-N (thesis 영향도 순)
+   - 📥 PDF 다운로드 우선순위 10편
+   - 🔗 Cross-HUNT 교차 논문 표
+   - 👉 다음 단계 권장
+4. `claim-extraction-flow.md` MATCHED 상태 갱신
+5. `work-plan.md` HUNT 카드 진행 로그 append
+
+### 단계 2g: Post-condition 검증 (⚠️ 보고 전 gate)
+
+```bash
+python3 scripts/hunt_postcheck.py {PROJECT}
+```
+
+이 스크립트가 다음을 모두 확인 (하나라도 실패 시 "완료" 보고 차단):
+
+1. work-plan.md의 active/completed HUNT 수 == `.hunt-raw/*.json` 수 == `.curation/*.md` 수 (1:1:1)
+2. 각 `.curation/*.md`에 6 카테고리 헤더 모두 존재 + 액션 아이템 3+개
+3. `consensus-results.md`에 `번역 대기` 0건
+4. `consensus-results.md`의 HUNT 블록 수 == `.curation/*.md` 수
+
+**검증 실패 시 재진입**: 누락 HUNT만 개별 단계로 재개 (Stage A 필요하면 1개만, Stage B or C는 해당 worker만).
+
+### 단계 2h: Curation 출력 포맷 스펙
+
+**단계 2b에서 consensus-results.md에 쓰는 각 HUNT 블록은 다음 구조를 반드시 따른다.** 단순 번호 리스트 금지. curation(판단·분류·주석) 없이는 사용자가 225편 raw 리스트를 직접 훑어야 하는 상황이 재발한다 (HIT 2026-04-24 1차 실행 사례).
+
+**Sub-agent 입력**: HUNT 실행 전 다음 파일을 **반드시 읽어** "synthesize context"를 확보:
+- `flow/flow.md` (thesis + argument chain)
+- `flow/claim-extraction-flow.md` (문장별 NEEDS_CITATION 분류)
+- `evaluations/latest/evaluation.md` + `axis1-*.md` (낮은 축 복원 우선순위)
+- `critical-questions.md` + `critical-commitments.md` (Critical Mode일 때)
+
+**각 HUNT 블록 포맷**:
+
+```markdown
+## [HUNT-NNN] (covers R-NN, R-MM) {topic from hunts[].topic}
+
+**검색 쿼리**: `{query}`
+**실행일**: YYYY-MM-DD
+**확보 논문**: M편 (신규 X / 중복 Y)
+
+### 🎯 최우선 인용 (MUST CITE)
+ thesis backbone 또는 세미널 원전. 인용 없으면 축 1·3·4 심각 감점.
+
+1. **저자 (연도)** — [제목](URL). *저널*. 인용 N회.
+   {1-3문장 주석: flow.md §어느 Section·S어느 문장을 뒷받침/공격하는지, 어떤 역할(backbone / Steelman target / 정의 차용)인지. 인용 필수성 근거.}
+   > {영어 abstract 원문 전체의 한글 번역, abstract-translator 결과}
+
+2. ...
+
+### 🟢 보조 증거 (Supporting)
+ 최우선을 뒷받침하는 실증·리뷰·추가 근거. triangulation용.
+
+{동일 포맷}
+
+### 🔴 반론·Steelman (Counter / Steelman)
+ 저자 thesis에 도전하는 경쟁 이론 또는 강력 반론. 축 3 방어 논리 보강용.
+
+{동일 포맷}
+
+### 🌏 발달·횡문화 (Developmental / Cross-cultural)
+ 연령·문화·SES 차이를 다루는 실증. 축 1-Balance + 4-Implications 보강.
+
+{동일 포맷}
+
+### ⚙️ 방법론 비판 (Methodological critique)
+ 측정·설계·재현성 이슈. 축 3 Falsifiability + Limitations 방어.
+
+{동일 포맷}
+
+### 🔗 Cross-HUNT 재등장
+ 이미 다른 HUNT의 full 섹션에 수록된 논문. 현 HUNT 맥락에서의 의의만 1-2줄. 전체 번역·주석은 원 위치 참조.
+
+1. **저자 (연도)** — [제목](URL). ⚠️ **중복** — HUNT-XXX §카테고리 #M 참조. 현 맥락 의의: {1-2줄}.
+
+### 📌 액션 아이템
+ 사용자가 바로 실행할 구체적 다음 단계. `[ ]` 체크박스 형태.
+
+- [ ] **저자(연도)** PDF 다운로드 → `papers/candidates/`
+- [ ] flow.md §Section X 문단 Y의 `(레퍼런스)` 자리 = {논문1} + {논문2} 공동 인용
+- [ ] {저자 주장 S-NNN} ↔ {논문} 교차 확인 (paper-analyst 조사)
+
+---
+```
+
+**모든 HUNT 블록 완료 후, 파일 끝에 누적 요약 섹션**:
+
+```markdown
+---
+
+## 🏆 가장 중요한 발견 (thesis 영향도 순)
+
+1. **저자(연도)** — 왜 중요한지 1문장 (어느 축 복원, 어느 section backbone 등)
+2. ...
+
+## 📥 PDF 다운로드 우선순위
+
+Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
+1. **저자(연도)** — MUST (thesis 출발점)
+2. **저자(연도)** — MUST (Steelman 핵심)
+...
+
+## 🔗 Cross-HUNT 교차 논문 (복수 역할)
+
+| 논문 | 교차 HUNT | 교차 의의 |
+|------|----------|----------|
+| 저자(연도) | HUNT-010 + HUNT-034 | {역할1} ↔ {역할2} |
+
+## 👉 다음 단계
+
+1. PDF 우선순위 10편 수동 다운로드 → `papers/candidates/`
+2. `"새 논문 처리해줘"` → paper-analyst 일괄 분석
+3. `"flow 업데이트해줘"` → `(레퍼런스)` 자리 실제 인용 교체
+4. `"평가해줘"` 재실행 → 축 1 점수 복원 확인
+```
+
+**카테고리 배정 원칙**:
+- 논문 1편은 원칙적으로 **한 카테고리만**. 여러 역할 가능하면 가장 주된 역할 선택.
+- 명백히 2+ 역할이면 "최우선 인용"으로 올리고 주석에 추가 역할 명시.
+- 카테고리 간 이동 기준 모호하면 주석에서 명시적으로 판단 근거 밝힘.
+
+**논문 수 가이드**: HUNT당 ~15-25편 확보 (Consensus max 20). 카테고리별 편차 허용 — 강제 분배 금지. 중복은 전체 수 제한 없이 one-liner로 기재.
+
+**Curation 품질 체크리스트 (sub-agent 자기 검증)**:
+- [ ] 각 카테고리 헤더 존재 (해당 카테고리 논문 0편이면 `_(해당 없음)_`)
+- [ ] 모든 신규 논문에 주석 1-3문장 (단순 "중요함" 같은 공허 문구 금지 — flow §Section / S-NNN 참조 포함)
+- [ ] 액션 아이템 `[ ]` 체크박스 최소 3개 (PDF 다운로드 + flow 배치 + 교차 확인 등)
+- [ ] 전체 파일 끝에 누적 요약 4 섹션 (최중요 발견 · PDF 우선순위 · Cross-HUNT · 다음 단계)
 
 ### 단계 3: 결과 보고
 
@@ -2005,81 +2221,10 @@ MD 지시는 **Claude가 명령 처리 중 직접 호출**하므로 hooks 장애
 
 ---
 
-## 전체 명령어 요약
+## 명령어 레퍼런스
 
-| 명령어 | 동작 | 에이전트 | Stage |
-|--------|------|----------|-------|
-| `"[이름] 프로젝트 만들어줘"` | 프로젝트 생성 (+ .sync-state.json 초기화) | - | 0 |
-| 🎯 `"평가해줘"` | **5축 냉정 평가 + 작업계획서** (sync 체크 → archive 스냅샷 → 평가) | 🤖 evaluation-orchestrator (+ claim-extractor + originality + concept-clarity) | flow / v1 / revised / final |
-| 🔍 `"레퍼런스 점검해줘"` | **축 1 경량 재평가** (빠름, archive 없음) | evaluation-orchestrator (axis-1 mode) | Stage 1 직후 |
-| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 | 🤖 flow-refiner | Stage 1 직후 |
-| `"작업 시작해줘"` | work-plan.md REANALYZE 먼저 → HUNT → Consensus 자동 검색 | 🤖 paper-analyst (Mode B) + MCP | 1 리서치 |
-| `"새 논문 처리해줘"` | PDF 처리 + 심층 분석 (v1) + sync 갱신 | 🤖 paper-analyst (Mode A, 자동) | 1 리서치 |
-| 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (v2 append) | 🤖 paper-analyst (Mode B, 자동) | 모든 단계 |
-| 🗑 `"논문 제거해줘: {파일}"` | 안전 archived 이동 + dangling citation 경고 | - | 모든 단계 |
-| `"초안 작성해줘"` | 구조 설계 → 확인 → 초안 | 🤖 writing-architect (Mode A, 자동) | 2 1차작성 |
-| `"Chapter X 수정해줘"` | 수정 + 일관성 + 인용 감사 + sync 갱신 | 🤖 chapter-editor + citation-auditor (자동 체이닝) | 3 수정 |
-| 📦 `"최종 통합해줘"` | chapters 병합 + docx 재빌드 + sync 갱신 | - | 4 최종 |
-| 🔄 `"sync 확인해줘"` | 아티팩트 간 동기화 상태 점검 + 해결 가이드 | sync_state.py | 모든 단계 |
-| `"gap 분석해줘"` | 연구 Gap 탐색 | 🤖 gap-finder | 리서치 보조 |
-| `"방법론 추천/검증해줘"` | 방법론 제안 또는 검증 | 🤖 methodology-advisor | 리서치/수정 보조 |
-| `"리뷰 체크/답변 도와줘"` | 심사 시뮬레이션 또는 대응 | 🤖 peer-reviewer | 4 최종 |
-| `"독창성 평가해줘"` | 축 4 심층 평가 (단독 호출) | 🤖 axis4-originality-scorer | 모든 단계 |
-| `"정의 정밀도 평가해줘"` | 축 5 심층 평가 (단독 호출) | 🤖 axis5-concept-scorer | 모든 단계 |
-| 🎭 `"비판적 시각 평가해줘"` | 비판적 시각·패러다임 평가 (ambition ≥ critical) | 🤖 axis6-critical-scorer | 모든 단계 |
-| 🤔 `"질문 업데이트해줘"` | Socratic 질문 v+1 생성 + 정합성 점검 | 🤖 critical-companion | Stage 마일스톤 + 수동 |
-| 🔍 `"비판적으로 분석해줘: {파일}"` | paper-analyst Mode C — hidden assumptions 등 | 🤖 paper-analyst (Mode C) | 리서치 보조 |
-| 🧠 `"작업 추천해줘"` | activity.log 기반 다음 명령 추천 (이유 + 로그 근거) | activity_log.py | 모든 단계 |
-| ⏪ 로그 라인 복사 + "이 시점 X 보여줘" | time-travel archive 조회 (읽기 전용) | activity_log.py + Read | 모든 단계 |
+명령어 전체 리스트·플래그·에이전트 매핑은 본 파일 상단 §전체 작업 흐름과 각 명령 섹션의 스펙을 참조. 사용자 대상 요약은 `GUIDE.md`, 전체 레퍼런스는 `MANUAL.md`.
 
 **주요 명령 실행 시 자동 sync 동작**:
-- `"평가해줘"` / `"작업 시작해줘"` 등 주요 명령 **시작 시** → `sync_state.py check` → stale 이슈 사용자 보고 (중대 이슈 시 중단 옵션)
-- 각 명령 **완료 후** → `sync_state.py update-*` → 해당 아티팩트 상태 기록
-
-**권장 흐름 (줄글 prose flow 기준, sync 통합)**:
-```
-프로젝트 생성 → .sync-state.json 초기화 → flow.md 자유 줄글 작성
-
-  → 🎯 평가해줘 (1차)
-     ├── sync 체크 (초기 상태)
-     ├── claim-extractor → INTERNAL / EXTERNAL 분류
-     ├── evaluation-orchestrator → evaluation.md (5축)
-     ├── work-plan.md: 🔄 REANALYZE + 🔍 HUNT 체크박스
-     └── archive/001-{date}-flow/
-
-  → [Stage 1 리서치]
-     ├── 작업 시작해줘
-     │   ├── REANALYZE 먼저 (기존 PDF 재스캔 → analyzed/*.md v2 append)
-     │   └── HUNT (Consensus 신규 검색)
-     ├── (사용자) PDF 다운로드 → candidates/
-     └── 새 논문 처리해줘 → paper-analyst Mode A + sync 갱신
-
-  → 🔍 레퍼런스 점검해줘 (축 1 경량)
-
-  → (선택) 📝 flow 업데이트해줘 → flow-refiner diff 제안
-
-  → [Stage 2] 초안 작성해줘
-     ├── writing-architect: analyzed/*.md 섹션별 인용 다발 우선 참조
-     ├── 부족 시 on-demand PDF 직접 읽기
-     └── sync 갱신 (chapters 각 파일)
-
-  → 🎯 평가해줘 (2차) → archive/002-{date}-v1-draft/
-
-  → [Stage 3] Chapter X 수정해줘 (반복)
-     ├── citation-auditor PDF 대조 감사
-     └── sync 갱신
-
-  → 🎯 평가해줘 (3차) → archive/003-{date}-revised/
-
-  → [Stage 4]
-     ├── 📦 최종 통합해줘 (final/* 재빌드)
-     ├── 리뷰 체크해줘 (peer-reviewer 시뮬레이션)
-     └── 🎯 평가해줘 (최종) → archive/004-{date}-final/
-
-언제든: 🔄 sync 확인해줘 / 🗑 논문 제거해줘 / 🔄 논문 재분석해줘
-```
-
-**핵심 변경점**:
-- Stage 1 직후에는 **경량 "레퍼런스 점검"**만 권장 (축 1 외 다른 축은 flow.md 미변경이면 움직이지 않으므로 전체 평가는 낭비)
-- 전체 5축 재평가는 **실질적 변화(flow 업데이트 or 초안 작성 or 수정) 이후**에만 실행
-- 각 전체 평가마다 `archive/` 스냅샷이 자동 생성되어 delta 추적 가능
+- 실행 시작 시 → `sync_state.py check` → Critical stale 시 사용자 확인
+- 실행 완료 후 → `sync_state.py update-*` → 해당 아티팩트 상태 기록

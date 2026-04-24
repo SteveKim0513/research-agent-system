@@ -229,17 +229,21 @@ projects/my-essay/
 > "작업 시작해줘"
 ```
 
-시스템이 `work-plan.md`의 미완료 `[HUNT-NNN]` 체크박스를 전량 파싱하여 순차 Consensus 검색을 실행합니다:
+시스템이 `work-plan.md`의 미완료 `[HUNT-NNN]` 카드를 4단계 디스크 SSOT 파이프라인으로 처리합니다:
 
-- 쿼리는 **3개씩 병렬 배치** (MCP rate limit 회피)
-- Rate limit 발생 시 30초 대기 후 재시도
-- 결과를 `papers/consensus-results.md`에 **누적 저장** (각 결과에 HUNT ID 태그)
-- `claim-extraction.md`의 MATCHED 상태를 ✅로 갱신
-- `work-plan.md`의 HUNT 체크박스를 `- [x]` 로 갱신
+- **Stage A** `.hunt-raw/HUNT-NNN.json` — MCP 원본 응답 (adaptive rate limit, main 세션 직렬 검색)
+- **Stage B** `.translations/HUNT-NNN.md` — abstract-translator(haiku) 한글 번역, HUNT별 1 worker
+- **Stage C** `.curation/HUNT-NNN.md` — sonnet worker가 6 카테고리(🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-HUNT)로 분류 + 논문별 주석 + 📌 액션 아이템
+- **Stage D** `consensus-results.md` — `.curation/*.md` concat + 🏆 최중요 발견 / 📥 PDF 우선순위 / 🔗 Cross-HUNT 교차표 / 👉 다음 단계 누적 요약
+- **Post-check** `scripts/hunt_postcheck.py {P}` — 4 스테이지 파일 수 1:1 일치 · 각 curation 6 카테고리 + 액션 아이템 3+개 · `번역 대기` 0건 자동 검증
+
+**상세 절차 스펙**: `skills/SKILL.md` §"Consensus 검색" 단계 2a~2h 참조 (canonical). 각 worker는 `≤5분 wall clock · 디스크 출력 · idempotent` 규율 따름.
+
+실행 후: `claim-extraction-flow.md` MATCHED 상태 ✅ 갱신 · `work-plan.md` HUNT 카드 진행 로그 append.
 
 #### 4-2. 사용자가 PDF 다운로드
 
-`consensus-results.md`에 저장된 각 논문의 링크에서 원문 PDF를 받아 `papers/candidates/`에 보관합니다. (저작권 접근은 사용자 책임)
+`consensus-results.md` 끝의 **📥 PDF 다운로드 우선순위** 섹션을 보고 상위 10편을 원문 PDF로 받아 `papers/candidates/`에 보관합니다. (저작권 접근은 사용자 책임)
 
 #### 4-3. PDF 처리 + 심층 분석
 
@@ -701,7 +705,7 @@ python3 scripts/evaluation_delta.py reset {project}
 # 평가 aggregator (axis*-*.md → evaluation.md + work-plan.md 갱신)
 python3 scripts/evaluation_aggregator.py {project}
 #   - v1 work-plan 자동으로 work-plan.archive/000-legacy-v1.md로 이동
-#   - HUNT-PROPOSAL-X → HUNT-NNN 번호 발급 + claim-extraction back-reference
+#   - claim-extraction의 hunts[] → work-plan HUNT-NNN 카드 1:1 발급 (covers 필드 포함)
 #   - 대시보드 재계산 + 사용자 브리핑 섹션 갱신
 
 # 논문 triage 관리 (Pass 1 결과 집계·tier 승격)
@@ -713,8 +717,8 @@ python3 scripts/paper_triage.py promote {project} <filename> --to=1|2|3
 python3 scripts/paper_reanalysis_delta.py {project} [--full]
 
 # 프로젝트 v1→v2 마이그레이션 (일회성, 멱등)
-python3 scripts/migrate_v2.py {project} [--dry-run]
-python3 scripts/migrate_v2.py --all [--dry-run]
+python3 scripts/archive/migrate_v2.py {project} [--dry-run]
+python3 scripts/archive/migrate_v2.py --all [--dry-run]
 ```
 
 ### 에이전트별 sync 호출 의무 (누락 시 아티팩트 어긋남)
@@ -1134,7 +1138,11 @@ claude --dangerously-skip-permissions
 | `evaluations/latest/axis5-concept.md` | "평가해줘" / "정의 정밀도 평가해줘" | 축 5: Definition·Operationalization·Boundary |
 | `evaluations/latest/axis6-critical.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 🎭 축 6: Paradigm·Fault-line·Bold Defense·Minority Recovery |
 | `evaluations/archive/{NNN}-{date}-{stage}/` | 매 평가 실행 직전 | 이전 평가 스냅샷 (delta 추적용) |
-| `papers/consensus-results.md` | "작업 시작해줘" | HUNT 검색 결과 누적 |
+| `papers/.hunt-raw/HUNT-NNN.json` | "작업 시작해줘" Stage A | MCP 원본 응답 (SSOT — 재개·복구 기반) |
+| `papers/.translations/HUNT-NNN.md` | "작업 시작해줘" Stage B | haiku 한글 abstract 번역 |
+| `papers/.curation/HUNT-NNN.md` | "작업 시작해줘" Stage C | sonnet 6-카테고리 curation per HUNT |
+| `papers/.context-pack.md` | "작업 시작해줘" 시작 시 | main이 1회 빌드 · workers 공용 요약 |
+| `papers/consensus-results.md` | "작업 시작해줘" Stage D | `.curation/*.md` concat + 누적 요약 |
 | `papers/collected/*.pdf` | "새 논문 처리해줘" | 처리 완료 PDF |
 | `papers/analyzed/*.md` | "새 논문 처리해줘" / "논문 재분석해줘" | paper-analyst 심층 분석 (v1, v2, ... append) |
 | `papers/archived/` | "논문 제거해줘" | 제거된 PDF 보관 (복구 가능) |

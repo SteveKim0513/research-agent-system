@@ -127,16 +127,22 @@ python3 scripts/evaluation_aggregator.py {PROJECT}
 - `evaluations/latest/evaluation.md` 생성 (요약 + delta 표 + 심사 판정)
 - `work-plan.md` 갱신 (루트 위치). 감점 사유 → 작업 항목 변환
 
-### 5.5 HUNT·REANALYZE 번호 발급 (work-plan 단일 source)
+### 5.5 R·HUNT·REANALYZE 번호 발급 (work-plan 단일 source)
 
-claim-extractor가 제안한 **HUNT-PROPOSAL** / **REANALYZE-PROPOSAL**을 orchestrator가 work-plan.md의 기존 ID와 대조:
+claim-extractor가 2층 구조로 제안:
+- **R-NN** (Research Target, claim-level fine-grained) — UNMATCHED 문장/클러스터별 fine-grained 근거 요구
+- **HUNT-NN** (execution unit, R들을 같은 쿼리로 커버 가능하게 병합) — JSON 요약의 `hunts[]` 배열
+
+orchestrator(aggregator 경유) 처리:
 
 1. 기존 work-plan.md를 스캔해 현재 최대 HUNT-NNN / REANALYZE-NNN 번호 확인
-2. 신규 PROPOSAL에 다음 번호 할당 (HUNT-{NNN+1}, HUNT-{NNN+2}, ...)
-3. work-plan.md에 새 HUNT 섹션 append (체크박스 `[ ]`, 키워드, 기대 프로필, 배치 위치)
-4. claim-extraction-flow.md (또는 claim-extraction-draft.md)의 해당 PROPOSAL 라벨을 확정된 HUNT-NNN으로 치환
+2. claim-extraction의 `hunts[]`에서 아직 work-plan에 없는 HUNT를 다음 번호로 할당 (HUNT-{NNN+1}, ...)
+3. work-plan.md에 새 HUNT 카드 append (`covers: R-XX, R-YY` 필수 필드, query, 기대 프로필)
+4. claim-extraction-flow.md (또는 claim-extraction-draft.md)의 `hunts[]` 내부 HUNT ID를 발급된 HUNT-NNN으로 치환
 
-이 단계가 있어야 **두 파일의 HUNT 번호가 절대 엇갈리지 않는다.**
+R은 claim-extraction 내부 ID로 그대로 유지 (work-plan.md에는 card로 올라가지 않음 — HUNT의 `covers`로만 참조).
+
+이 단계가 있어야 **work-plan의 HUNT 번호와 claim-extraction의 HUNT ID가 절대 엇갈리지 않는다.**
 
 ### 6. 캐시 갱신
 
@@ -166,7 +172,7 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 평가는 **신규 task 발급이 주**. 기존 active/in-progress/blocked task는 건드리지 않음.
 
 - aggregator가 각 scorer의 감점 사유를 분석해 HUNT/REANALYZE/DRAFT/EDIT/FIX 카드 생성 → 🟡 Active에 append
-- claim-extractor의 HUNT-PROPOSAL-A/B/C → 다음 HUNT-NNN 번호로 치환 → claim-extraction-*.md에 back-reference
+- claim-extractor의 `hunts[]` 배열 → 다음 HUNT-NNN 번호로 1:1 발급 (`covers: R-XX` 필드 주입) → claim-extraction-*.md의 HUNT ID 치환
 - 대시보드 재계산 (Stage 진척도·상태 카운트·축별 잔여·다음 권장 명령)
 - 포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수. 카드 스키마·필드 순서·이모지 5종·섹션 구조 어김 금지.
 

@@ -5,7 +5,7 @@ evaluation_aggregator.py (v2) — axis reports → evaluation.md + work-plan.md 
 책임:
 1. axis1~6-*.md 점수 파싱 → evaluations/latest/evaluation.md 생성
 2. work-plan.md v2 skeleton 보장 (v1 감지 시 work-plan.archive/000-legacy-v1.md로 자동 이동)
-3. claim-extraction-*.md의 HUNT-PROPOSAL-X 라벨 → 다음 HUNT-NNN 번호 발급 + back-reference
+3. claim-extraction-*.md의 JSON 요약 `hunts[]` 배열 → work-plan.md HUNT-NNN 카드 1:1 발급 (covers 필드 포함) + claim-extraction back-reference
 4. work-plan.md 대시보드 재계산 (WORK-PLAN-FORMAT.md §5 스펙)
 5. 기존 task 카드 (Active / In-progress / Blocked / Completed / Deferred)는 그대로 보존
 
@@ -443,53 +443,87 @@ def iter_cards(section_text: str):
 
 
 # ──────────────────────────────────────────────────────────
-# HUNT-PROPOSAL processing
+# HUNT processing (from claim-extraction hunts[] → work-plan cards)
 # ──────────────────────────────────────────────────────────
 
-PROPOSAL_LABEL_RE = re.compile(r"HUNT-PROPOSAL-([A-Z0-9]+)")
+# claim-extraction의 ```json ... ``` 요약 블록 추출 (nested [] 안전)
+JSON_BLOCK_RE = re.compile(r"```json\s*\n(\{.*?\n\})\s*\n```", re.DOTALL)
 
 
-def process_hunt_proposals(project: str, work_plan_text: str):
-    """claim-extraction-*.md의 HUNT-PROPOSAL-X → HUNT-NNN 번호 발급.
+def extract_hunts_from_claim_extraction(ce_paths: list) -> list:
+    """claim-extraction-*.md의 ```json 요약 블록에서 hunts[] 배열 파싱.
 
+    Returns: list of {"id": "HUNT-001", "covers": [R-IDs], "query": "...", "topic": "..."} dicts.
+    순서 보존 (claim-extractor 출력 순서대로).
+    """
+    collected = []
+    seen_ids = set()
+    for p in ce_paths:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for m in JSON_BLOCK_RE.finditer(text):
+            try:
+                data = json.loads(m.group(1))
+            except Exception:
+                continue
+            hunts = data.get("hunts")
+            if not hunts:
+                continue
+            for h in hunts:
+                hid = h.get("id")
+                if not hid or hid in seen_ids:
+                    continue
+                seen_ids.add(hid)
+                collected.append({
+                    "id": hid,
+                    "covers": h.get("covers") or [],
+                    "query": h.get("query") or "",
+                    "topic": h.get("topic") or "",
+                    "source_file": p.name,
+                })
+            break  # 첫 매치만 사용
+    return collected
+
+
+def process_hunts(project: str, work_plan_text: str):
+    """claim-extraction의 hunts[] → work-plan.md HUNT-NNN 카드로 1:1 발급.
+
+    기존 work-plan에 이미 등록된 HUNT(같은 covers)는 중복 발급 금지.
     Returns: (new_hunt_cards: list[str], updated_ce_texts: dict[Path, str])
     """
     ce_paths = claim_extraction_paths(project)
     if not ce_paths:
         return [], {}
 
-    # 파일별로 발견된 proposal 라벨 수집 (순서 보존, 중복 제거)
-    all_proposals_ordered = []
-    per_file_proposals = {}
-    for p in ce_paths:
-        try:
-            text = p.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        labels = PROPOSAL_LABEL_RE.findall(text)
-        dedup = list(dict.fromkeys(labels))
-        per_file_proposals[p] = dedup
-        for lb in dedup:
-            if lb not in all_proposals_ordered:
-                all_proposals_ordered.append(lb)
-
-    if not all_proposals_ordered:
+    proposed = extract_hunts_from_claim_extraction(ce_paths)
+    if not proposed:
         return [], {}
 
-    # ID 발급
+    # 기존 work-plan의 HUNT covers 수집 (중복 발급 방지)
+    existing_covers = set()
+    for m in re.finditer(r"\[HUNT-\d+\][^\n]*\n.*?\*\*covers\*\*:\s*([^\n]+)", work_plan_text, re.DOTALL):
+        covers_line = m.group(1)
+        for r in re.findall(r"R-\d+", covers_line):
+            existing_covers.add(r)
+
+    # claim-extraction의 제안 HUNT ID (HUNT-001, ..) → work-plan의 가용 번호 재매핑
     next_id = find_max_id(work_plan_text, "HUNT") + 1
-    replacement_map = {}
+    replacement_map = {}  # ce 내부 ID → 발급된 work-plan ID
     new_cards = []
-    for proposal_letter in all_proposals_ordered:
+    for h in proposed:
+        # 이 HUNT의 covers 중 이미 기존 work-plan이 커버하는 게 있으면 스킵
+        if h["covers"] and set(h["covers"]).issubset(existing_covers):
+            continue
         new_id_str = f"HUNT-{next_id:03d}"
-        replacement_map[f"HUNT-PROPOSAL-{proposal_letter}"] = new_id_str
-        # Proposal 카드 minimal: 자세한 필드는 claim-extraction에 있으므로 referenced
-        ce_files_with_this = [p.name for p, labels in per_file_proposals.items() if proposal_letter in labels]
-        source = ce_files_with_this[0] if ce_files_with_this else "unknown"
-        new_cards.append(build_hunt_card_skeleton(new_id_str, proposal_letter, source))
+        replacement_map[h["id"]] = new_id_str
+        new_cards.append(build_hunt_card(new_id_str, h))
+        for r in h["covers"]:
+            existing_covers.add(r)
         next_id += 1
 
-    # claim-extraction 파일에 back-reference 치환
+    # claim-extraction 파일의 HUNT ID 라벨을 발급된 ID로 치환 (back-reference)
     updated_ce_texts = {}
     for p in ce_paths:
         try:
@@ -498,33 +532,43 @@ def process_hunt_proposals(project: str, work_plan_text: str):
             continue
         changed = text
         for old, new in replacement_map.items():
-            changed = changed.replace(f"[{old}]", f"[{new}]")
-            changed = changed.replace(old, new)
+            if old == new:
+                continue
+            changed = re.sub(rf"\[{old}\]", f"[{new}]", changed)
+            # JSON 필드 내부도 치환
+            changed = changed.replace(f'"{old}"', f'"{new}"')
         if changed != text:
             updated_ce_texts[p] = changed
 
     return new_cards, updated_ce_texts
 
 
-def build_hunt_card_skeleton(hunt_id: str, proposal_letter: str, source: str) -> str:
-    """PROPOSAL → 확정 HUNT 카드. 세부 필드는 claim-extraction 원문 참조."""
+def build_hunt_card(hunt_id: str, h: dict) -> str:
+    """hunts[] 항목 → work-plan HUNT 카드. covers·query·topic 필드 포함."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    covers_str = ", ".join(h["covers"]) if h["covers"] else "(없음)"
+    topic = h.get("topic") or "claim-extraction 참조"
+    query = h.get("query") or ""
+    source = h.get("source_file", "claim-extraction-flow.md")
     return f"""### [{hunt_id}] 🟡 active · P2 · axis1 · Stage 1
 
-**무엇**: claim-extraction의 HUNT-PROPOSAL-{proposal_letter}에서 승격 — 세부는 `{source}` 참조
+**무엇**: {topic}
 
 **담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색
 
-**예상 회복**: 축 1-1 +3 (대략)
+**예상 회복**: 축 1-1 +{max(3, len(h['covers'])*2)} (대략, covers 수 비례)
 
-**검색 키워드**: `{source}`의 HUNT-PROPOSAL-{proposal_letter} 블록 참조
-**기대 논문 프로필**: `{source}`의 HUNT-PROPOSAL-{proposal_letter} 블록 참조
+**covers**: {covers_str}
+
+**query**: `{query}`
+
+**검색 키워드 / 기대 논문 프로필**: `{source}`의 각 R 섹션 참조
 
 **의존성**: 없음
 **차단하는 것**: 없음
 
 **진행 로그**:
-- {now} · created by evaluation_aggregator (HUNT-PROPOSAL-{proposal_letter} → {hunt_id})
+- {now} · created by evaluation_aggregator (from hunts[] in {source})
 """
 
 
@@ -935,8 +979,8 @@ def aggregate(project: str) -> int:
                                   "_(브리핑은 아래에서 재계산)_",
                                   trigger="initial")
 
-    # 3. HUNT-PROPOSAL 처리 (번호 발급 + claim-extraction back-ref)
-    new_cards, updated_ce_texts = process_hunt_proposals(project, existing)
+    # 3. HUNT 발급 (claim-extraction의 hunts[] → work-plan HUNT 카드 1:1)
+    new_cards, updated_ce_texts = process_hunts(project, existing)
     if new_cards:
         print(f"🆕 HUNT 신규 발급: {len(new_cards)}건")
         for p, text in updated_ce_texts.items():
