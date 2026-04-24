@@ -591,7 +591,7 @@ def cmd_check(project_name: str) -> int:
                 "evaluations/latest/ (재평가 권장)",
                 "output/*.md (sync 경고 — 내용 반영 필요할 수 있음)",
             ],
-            "resolve": '"평가해줘" (claim-extractor 자동 호출됨)',
+            "resolve": '"flow 레퍼런스 분석해줘" (claim-extractor 자동 호출됨)',
         })
 
     # 1b. claim-extraction stale 감지
@@ -622,7 +622,7 @@ def cmd_check(project_name: str) -> int:
             "kind": "claim_extraction_stale",
             "msg": f"claim-extraction 재분석 필요 ({len(ce_stale_sources)}건)",
             "impacted": ce_stale_sources,
-            "resolve": '"평가해줘" 실행 시 자동 갱신',
+            "resolve": '"flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 실행 시 자동 갱신',
         })
 
     # 2. 논문 추가/삭제
@@ -730,7 +730,7 @@ def cmd_check(project_name: str) -> int:
         stales.append({
             "kind": "evaluation_stale",
             "msg": "evaluations/latest/ 가 현재 flow/chapters와 불일치",
-            "resolve": '"평가해줘"',
+            "resolve": '"flow 레퍼런스 분석해줘"',
         })
 
     for s in stales:

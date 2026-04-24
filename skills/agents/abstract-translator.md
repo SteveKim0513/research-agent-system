@@ -19,7 +19,7 @@ model: haiku
 2. **기존 리스트 소급 적용**: 번역이 누락된 오래된 `consensus-results.md` 섹션 업데이트
 3. **독립 번역 요청**: RESEARCH 파이프라인 외부에서 abstract 묶음 번역 필요 시
 
-**RESEARCH Stage B는 research-processor(sonnet)가 Phase B로 직접 수행**한다. 따라서 `"작업 시작해줘"` 플로우에서 이 agent는 **호출되지 않고** — §번역 규칙만 research-processor 내부에서 참조된다. 메인 에이전트가 직접 번역하면 안 됨 — 비용·속도 이유.
+**RESEARCH Stage B는 research-processor(sonnet)가 Phase B로 직접 수행**한다. 따라서 `"리서치 진행해줘"` 플로우에서 이 agent는 **호출되지 않고** — §번역 규칙만 research-processor 내부에서 참조된다. 메인 에이전트가 직접 번역하면 안 됨 — 비용·속도 이유.
 
 ## 입력 포맷
 

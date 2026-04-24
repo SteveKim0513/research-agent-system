@@ -60,7 +60,7 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 **≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
 
 - `평가해줘` — claim-extract → 축별 dispatch → aggregator → delta mark-done → sync update → work-plan 갱신 (≥6 단계)
-- `작업 시작해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
+- `리서치 진행해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
 - `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
 - `초안 작성해줘` — writing-architect Phase 1/2 → chapter-editor × N → claim-extract → 평가 (≥4 단계)
 - `Chapter X 수정해줘` — snapshot → chapter-editor → citation-auditor → claim-extract (≥4 단계)
@@ -234,7 +234,7 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
-| **evaluation-orchestrator** 🎯 | `skills/agents/evaluation-orchestrator.md` | "평가해줘" — delta 감지 + 병렬 디스패치 + aggregate | 자동 (평가 진입점) |
+| **evaluation-orchestrator** 🎯 | `skills/agents/evaluation-orchestrator.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" — delta 감지 + 병렬 디스패치 + aggregate | 자동 (평가 진입점) |
 | **axis1-reference-scorer** | `skills/agents/axis1-reference-scorer.md` | 축 1 레퍼런스 충실도 (sonnet) | 자동 (orchestrator dispatch) |
 | **axis2-logic-scorer** | `skills/agents/axis2-logic-scorer.md` | 축 2 논리 전개 완성도 (opus) | 자동 |
 | **axis3-defense-scorer** | `skills/agents/axis3-defense-scorer.md` | 축 3 반박·강화 논리 (opus, steelman tag 논문) | 자동 |
@@ -338,7 +338,7 @@ projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/f
   ---
 
   (여기에 줄글로 자유롭게 작성. 연구 질문과 핵심 주장은 반드시 한 문장씩 명시.
-   작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "평가해줘" 입력.)
+   작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 입력.)
   ```
 
 **작성 방식**: 사용자가 자유 줄글(prose)로 작성하면 `평가해줘` 단계에서 claim-extractor가 문장 단위로 자동 분석합니다. 구조적 템플릿을 강요하지 않습니다.
@@ -358,7 +358,7 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 }
 ```
 
-`research_type`은 사용자가 flow.md 작성 후 첫 `"평가해줘"` 실행 시 자동 판별하여 채워진다:
+`research_type`은 사용자가 flow.md 작성 후 첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시 자동 판별하여 채워진다:
 - `"theoretical"` — 이론·개념 에세이 (기존 개념 비판, 새 프레임워크 제안)
 - `"empirical"` — 경험 연구 (데이터 수집·분석·해석)
 
@@ -432,11 +432,11 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
       - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
       - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
       - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
-   2. "평가해줘" 입력 → claim-extractor(stage=flow, 문장 단위 주장 추출) + 6축 평가 실행
+   2. "flow 레퍼런스 분석해줘" 입력 → claim-extractor(stage=flow, 문장 단위 주장 추출) + 6축 평가 실행
       - 생성 파일: evaluations/latest/evaluation.md + axis1~6-*.md, work-plan.md (루트), flow/claim-extraction-flow.md
-   3. "작업 시작해줘" 입력 → work-plan.md의 RESEARCH 과제로 Consensus 자동 검색
+   3. "리서치 진행해줘" 입력 → work-plan.md의 RESEARCH 과제로 Consensus 자동 검색
    4. "새 논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
-   5. "평가해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
+   5. "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -449,7 +449,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 ## 🎯 6축 평가 (evaluation-orchestrator, 병렬 delta 아키텍처)
 
-사용자가 "평가해줘", "flow 평가해줘", "원고 평가해줘", "점수 매겨줘" 등을 말하면:
+사용자가 "flow 레퍼런스 분석해줘"·"flow 내용 분석해줘"·"output 레퍼런스 분석해줘"·"output 내용 분석해줘" 등 분석 명령을 말하면:
 
 **플래그 지원**:
 - `평가해줘` — delta 모드 (변경된 축만 재계산, 기본)
@@ -476,7 +476,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 현재: {체크 결과}
 
-"flow/flow.md"를 먼저 채운 후 다시 "평가해줘"를 실행하세요.
+"flow/flow.md"를 먼저 채운 후 다시 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"를 실행하세요.
 `flow/FLOW-TEMPLATE.md`를 참고하세요.
 ```
 
@@ -659,7 +659,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 👉 다음 단계:
    1. work-plan.md 검토
    2. Stage 1부터 순차 진행:
-      - "작업 시작해줘" → RESEARCH(reanalyze) + RESEARCH(search) 자동 실행
+      - "리서치 진행해줘" → RESEARCH(reanalyze) + RESEARCH(search) 자동 실행
       - "새 논문 처리해줘" → PDF 처리
       - "초안 작성해줘" → Stage 2
       - "Chapter X 수정해줘" → Stage 3
@@ -671,9 +671,9 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 
 - **각 Stage 완료 시 재평가 권장 (차별화)**:
   - Stage 1 (리서치) 후 → `"레퍼런스 점검해줘"` (축 1 경량)
-  - Stage 2 (초안) 후 → `"평가해줘"` (전체 5축)
-  - Stage 3 (수정) 후 → `"평가해줘"` (전체 5축)
-  - Stage 4 (최종) 전 → `"평가해줘"` (최종 5축)
+  - Stage 2 (초안) 후 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (전체 5축)
+  - Stage 3 (수정) 후 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (전체 5축)
+  - Stage 4 (최종) 전 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (최종 5축)
 - **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시, `evaluation.md`에 이전 점수 대비 변화(+X, −X)를 함께 표시
 - **목표 달성 확인**: 각 축이 90점 이상이면 🟢, 70-89점이면 🟡, 70점 미만이면 🔴
 
@@ -793,7 +793,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
 
 ## Consensus 검색 (작업 시작) — work-plan.md 기반 자동 실행
 
-사용자가 "작업 시작해줘", "논문 검색해줘", "RESEARCH 실행" 등을 말하면:
+사용자가 "리서치 진행해줘", "논문 검색해줘", "RESEARCH 실행" 등을 말하면:
 
 ### 단계 1: 선행 조건 확인
 
@@ -1022,7 +1022,7 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 1. PDF 우선순위 10편 수동 다운로드 → `papers/candidates/`
 2. `"새 논문 처리해줘"` → paper-analyst 일괄 분석
 3. `"flow 업데이트해줘"` → `(레퍼런스)` 자리 실제 인용 교체
-4. `"평가해줘"` 재실행 → 축 1 점수 복원 확인
+4. `"flow 레퍼런스 분석해줘"` 재실행 → 축 1 점수 복원 확인
 ```
 
 **카테고리 배정 원칙**:
@@ -1073,7 +1073,7 @@ RESEARCH 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
   [A] "레퍼런스 점검해줘"  → 축 1만 빠르게 재평가 (권장, 가벼움)
   [B] "flow 업데이트해줘"  → 새 논문 반영하여 flow.md 보강 제안
-                            (이 후 "평가해줘" 시 축 3·4도 유의미하게 움직임)
+                            (이 후 "flow 내용 분석해줘" 시 축 3·4도 유의미하게 움직임)
   [C] "초안 작성해줘"      → Stage 2로 바로 진입 (flow가 이미 충분하다면)
 ```
 
@@ -1429,8 +1429,8 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}�
 | 시점 | 제안 메시지 |
 |------|-----------|
 | 프로젝트 생성 직후 flow.md 저장 시 | "empirical 프로젝트로 감지됨. 방법론 추천을 받아보시겠습니까? → `방법론 추천해줘`" |
-| 첫 `"평가해줘"` 실행 시 | "이 프로젝트는 empirical이지만 방법론이 flow.md에 아직 명시되지 않음. `방법론 추천해줘` 권장" |
-| `"작업 시작해줘"` 실행 시 | "Stage 1 리서치 전 방법론 방향 확정 권장. `방법론 추천해줘` 또는 `방법론 검증해줘`" |
+| 첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시 | "이 프로젝트는 empirical이지만 방법론이 flow.md에 아직 명시되지 않음. `방법론 추천해줘` 권장" |
+| `"리서치 진행해줘"` 실행 시 | "Stage 1 리서치 전 방법론 방향 확정 권장. `방법론 추천해줘` 또는 `방법론 검증해줘`" |
 | Stage 2 초안 작성 직전 | "초안 작성 전 `방법론 검증해줘`로 최종 점검 권장" |
 
 사용자는 이 제안을 무시하거나 "skip" 가능. 그러나 **Stage 3 수정** 단계에서 방법론 약점이 축 2·3 감점의 주요 원인으로 나타나면 강력히 권고.
@@ -1532,7 +1532,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "리뷰 {시뮬|대응}" "
 
 사용자가 "sync 확인해줘", "sync 점검", "상태 확인해줘", "stale 체크" 등을 말하면:
 
-> **참고**: "평가해줘" 명령은 단계 0에서 동일한 sync 체크를 자동 실행. 이 명령은 평가 없이 **sync만 독립 점검**할 때 사용.
+> **참고**: 분석 명령은 단계 0에서 동일한 sync 체크를 자동 실행. 이 명령은 평가 없이 **sync만 독립 점검**할 때 사용.
 
 ### 단계 1: sync_state.py check 실행
 
@@ -1559,7 +1559,7 @@ sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ord
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. [flow_changed] flow.md 변경됨 (score: 30)
    영향: analyzed/*.md 일부 구버전, evaluations/latest/ 재생성 필요
-   → "논문 재분석해줘" 후 "평가해줘"
+   → "논문 재분석해줘" 후 "flow 레퍼런스 분석해줘"
 
 2. [paper_removed] Zelazo_2022.pdf 제거됨 (score: 40, dangling 2챕터)
    영향: Chapter 2, 4에 dangling citation 3건
@@ -1590,7 +1590,7 @@ sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ord
 3. "논문 재분석해줘" (flow_changed 전파)                 — P1
 4. "Chapter 3 수정해줘", "Chapter 4 수정해줘" (drift 해소) — P2
 5. "최종 통합해줘" (final 재빌드)                        — P3
-6. "평가해줘" (전체 재평가 마지막)                       — P3
+6. "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘" (전체 재평가 마지막)                       — P3
 
 ⚠️ 이 순서로 진행하지 않으면 후속 단계에서 같은 stale이 다시 감지됩니다
    (예: Chapter 수정 전에 평가해도 여전히 구버전 기반 경고).
@@ -1667,7 +1667,7 @@ mv projects/{PROJECT_NAME}/papers/analyzed/{파일명}-analysis.md \
   "Chapter 2 수정해줘: Zelazo (2022) 인용을 Doebel (2020)으로 대체 또는 제거"
   "Chapter 4 수정해줘: Zelazo (2022) 인용 재검토"
 
-이후 "평가해줘" 실행하여 축 1 점수 변화 확인.
+이후 분석 명령 실행하여 축 1 점수 변화 확인.
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -1727,7 +1727,7 @@ python3 scripts/sync_state.py update-final {PROJECT_NAME}
 
 👉 다음 단계:
    - "리뷰 체크해줘" → peer-reviewer 심사 시뮬레이션
-   - "평가해줘" → 최종 5축 평가
+   - 분석 명령 → 최종 평가
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -1823,7 +1823,7 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 👉 다음 단계:
    - "Chapter X 수정해줘: 새 분석 반영"
    - 모든 sync 확인: "sync 확인해줘"
-   - 평가 갱신: "평가해줘"
+   - 평가 갱신: "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -1906,12 +1906,12 @@ flow.md 분석 결과:
   "비판 모드 incremental로 설정해줘"
 
 다음 단계:
-  "평가해줘"로 Critical Mode 포함 전체 평가 실행
+  "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"로 Critical Mode 포함 전체 평가 실행
 ```
 
 ### 자동 제안 트리거
 
-첫 `"평가해줘"` 실행 시, intellectual_ambition이 `incremental`이고 flow.md에서 critical 신호 ≥ 3개 감지되면 evaluation-orchestrator가 사용자에게 자동 제안:
+첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시, intellectual_ambition이 `incremental`이고 flow.md에서 critical 신호 ≥ 3개 감지되면 evaluation-orchestrator가 사용자에게 자동 제안:
 
 ```
 💡 제안: 이 프로젝트는 "critical" 성향이 강합니다.
@@ -1972,7 +1972,7 @@ critical-companion의 Phase 1-5는 스킵하고 **Phase 6 (commitment 추출)만
 👉 다음 단계:
   1. UNFULFILLED 해소: "Chapter 5 수정해줘: [C-003] 급진적 대안 steelman 강화"
   2. 또는 답변 자체를 재고: critical-questions.md 답변 수정 후 다시 "답변 반영해줘"
-  3. 전체 평가: "평가해줘"
+  3. 전체 평가: "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"
 ```
 
 **이 명령의 가치**: 사용자가 답변만 쓰고 끝내는 것이 아니라, **답변이 시스템에 actionable하게 등록되었음을 즉시 확인**. writing 작업 전에 commitment 추출을 보장.
@@ -2027,12 +2027,12 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 
 ⚠️ 중요: 시스템이 답변하지 않습니다. 직접 작성하세요.
     답변 작성이 새로운 관점의 발견 과정입니다.
-    답변 후 "평가해줘" 재실행하면 axis6-critical-scorer가 반영합니다.
+    답변 후 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 재실행하면 axis6-critical-scorer가 반영합니다.
 
 👉 다음 단계:
    1. critical-questions.md 열어 질문에 자기 언어로 답변
    2. 답변한 내용을 원고에 반영할지 결정
-   3. "평가해줘" → 답변·원고 정합성 점검
+   3. 분석 명령 → 답변·원고 정합성 점검
 ```
 
 ### 단계 5: 활동 로그 기록 (MD Layer 4)
@@ -2189,7 +2189,7 @@ JSON을 파싱하여 아래 형식으로 출력:
    예상 효과: critical-lens 축 6 +12점, commitment 커버리지 60%→80%
    🔗 근거 로그: [2026-04-20 14:30] 답변 반영 | ... | 2 UNFULFILLED
 
-2. 🟡 "평가해줘"
+2. 🟡 "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"
    이유: 초안 후 3일 경과, 전체 5축 재평가 시점
    예상 효과: delta 기준으로 어느 축이 움직였는지 확인
    🔗 근거 로그: [2026-04-20 11:00] 초안 작성 | ...
@@ -2272,7 +2272,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "{action_label}" \
 | 평가해줘 | "평가 완료" | stage, result=점수/판정, ref:eval-NNN, agents |
 | 레퍼런스 점검해줘 | "레퍼런스 점검 완료" | result=축1 delta |
 | flow 업데이트해줘 | "flow 업데이트" | result=제안/반영 수 |
-| 작업 시작해줘 | "RESEARCH 실행" | result=완료 수 |
+| 리서치 진행해줘 | "RESEARCH 실행" | result=완료 수 |
 | 새 논문 처리해줘 | "논문 처리" | target=PDF 수, agents=paper-analyst |
 | 논문 재분석해줘 | "논문 재분석" | target=파일, result=v→v+1 |
 | 논문 제거해줘 | "논문 제거" | target=파일, dangling 메타 |

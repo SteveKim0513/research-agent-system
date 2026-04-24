@@ -513,7 +513,22 @@ def write_evaluation_md(project: str, axis_data: dict, missing: list, ambition: 
         f"*생성: evaluation_aggregator.py at {datetime.now().isoformat()}*",
     ])
 
-    (lat / "evaluation.md").write_text("\n".join(out), encoding="utf-8")
+    eval_path = lat / "evaluation.md"
+    eval_path.write_text("\n".join(out), encoding="utf-8")
+
+    # frontmatter 부여 — based_on은 axis 파일들의 version 합집합
+    stage = lat.parent.name  # flow|output
+    flow_md = project_root(project) / "flow" / "flow.md"
+    flow_v = version_manager.get_version_info(flow_md).get("version", 0)
+    ce_path = (project_root(project) / stage / f"claim-extraction-{stage}.md")
+    ce_v = version_manager.get_version_info(ce_path).get("version", 0)
+    based_on = {}
+    if flow_v:
+        based_on["flow"] = flow_v
+    if ce_v:
+        based_on["claim-extraction"] = ce_v
+    version_manager.update_version(eval_path, based_on=based_on, updated_by="aggregator")
+
     return total, prev_total
 
 
@@ -828,7 +843,7 @@ def build_research_card(card_id: str, mode: str, h: dict, note: str | None = Non
         query = h.get("query", "")
         body = f"""**mode**: search
 
-**담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
+**담당 명령**: `"리서치 진행해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
 
 **covers**: {covers_str}
 
@@ -851,6 +866,196 @@ def build_research_card(card_id: str, mode: str, h: dict, note: str | None = Non
     return f"""### [{card_id}] 🟡 active · P2 · axis1 · Stage 1
 
 **무엇**: {topic}
+
+{body}
+
+**의존성**: 없음
+**차단하는 것**: 없음
+
+**진행 로그**:
+{log_line}
+"""
+
+
+# ──────────────────────────────────────────────────────────
+# WRITE 카드 발급 — axis*.md의 "🛠 WRITE 후보" 섹션 파싱 → card_registry
+# ──────────────────────────────────────────────────────────
+
+WRITE_SECTION_RE = re.compile(
+    r"##\s+🛠\s+WRITE\s+후보(?!\s*출력\s*명세)(.*?)(?=\n##\s+|\Z)",
+    re.DOTALL,
+)
+WRITE_ITEM_RE = re.compile(
+    r"###\s+(W-\d+)\s*\[mode=(modify|create)\](.*?)(?=\n###\s+W-\d+|\Z)",
+    re.DOTALL,
+)
+
+
+def _extract_field(block: str, label: str) -> str:
+    m = re.search(rf"\*\*{re.escape(label)}\*\*\s*:\s*([^\n]+(?:\n(?!\*\*|##|###)[^\n]+)*)", block)
+    return m.group(1).strip() if m else ""
+
+
+def extract_write_proposals_from_axes(project: str, stage: str) -> list:
+    """{stage}/evaluations/axis*.md를 모두 스캔해 WRITE 후보 추출.
+
+    Returns: list of {axis, temp_id, mode, target, what, location/detail/etc, cause}
+    """
+    proposals = []
+    eval_dir = latest_dir(project, stage)
+    if not eval_dir.exists():
+        return proposals
+
+    for axis_path in sorted(eval_dir.glob("axis*.md")):
+        text = axis_path.read_text(encoding="utf-8")
+        axis_id = axis_path.stem  # 예: axis2-logic
+        sec_m = WRITE_SECTION_RE.search(text)
+        if not sec_m:
+            continue
+        section = sec_m.group(1)
+        for item_m in WRITE_ITEM_RE.finditer(section):
+            temp_id, mode, body = item_m.group(1), item_m.group(2), item_m.group(3)
+            target = _extract_field(body, "대상")
+            what = _extract_field(body, "무엇")
+            cause = _extract_field(body, "원인") or axis_id
+            entry = {
+                "axis": axis_id,
+                "temp_id": temp_id,
+                "mode": mode,
+                "target": target,
+                "what": what,
+                "cause": cause,
+            }
+            if mode == "modify":
+                entry["detail"] = _extract_field(body, "상세")
+            else:  # create
+                entry["location"] = _extract_field(body, "위치")
+                entry["content_req"] = _extract_field(body, "내용 요구")
+            if target and what:
+                proposals.append(entry)
+    return proposals
+
+
+def process_write_proposals(project: str, work_plan_text: str, stage: str) -> tuple:
+    """axis*.md WRITE 후보 → work-plan WRITE 카드 발급.
+
+    Returns: (new_cards, reactivated_ids)
+    """
+    proposed = extract_write_proposals_from_axes(project, stage)
+    if not proposed:
+        return [], []
+
+    root = project_root(project)
+    write_reg = card_registry.load(root, "write")
+
+    # bootstrap: work-plan에 WRITE 카드 있으나 registry에 없으면 역복원
+    if not write_reg["cards"] and work_plan_text:
+        added = card_registry.bootstrap_from_work_plan(write_reg, work_plan_text)
+        if added:
+            print(f"   🔧 write registry bootstrap: {added}건 역복원 (output/.registry.json)")
+
+    new_cards = []
+    reactivated_ids = []
+    skipped_active = 0
+    by_axis: dict[str, list[str]] = {}
+
+    for prop in proposed:
+        if prop["mode"] == "modify":
+            dedup_raw = [prop["target"], prop["what"]]
+        else:
+            dedup_raw = [prop["target"], prop.get("location") or prop["what"]]
+
+        existing = card_registry.find_by_dedup_key(write_reg, prop["mode"], dedup_raw)
+        if existing:
+            status = write_reg["cards"][existing]["status"]
+            if status == "completed":
+                card_registry.reactivate(write_reg, existing,
+                                          reason=f"동일 dedup_key 재제안 (from {prop['axis']}/{prop['temp_id']})")
+                meta = write_reg["cards"][existing]["metadata"]
+                new_cards.append(build_write_card(existing, prop["mode"], {
+                    **meta,
+                    "무엇": prop["what"],
+                    "원인": prop["cause"],
+                }, prop, note="reactivated"))
+                reactivated_ids.append(existing)
+            else:
+                skipped_active += 1
+            continue
+
+        new_id = card_registry.next_id(write_reg)
+        metadata = {
+            "무엇": prop["what"],
+            "대상 챕터": prop["target"],
+            "원인": prop["cause"],
+        }
+        if prop["mode"] == "modify" and prop.get("detail"):
+            metadata["수정 내용"] = prop["detail"]
+        if prop["mode"] == "create":
+            if prop.get("location"):
+                metadata["위치"] = prop["location"]
+            if prop.get("content_req"):
+                metadata["내용 요구"] = prop["content_req"]
+
+        card_registry.add_new(write_reg, new_id, prop["mode"], dedup_raw, metadata)
+        new_cards.append(build_write_card(new_id, prop["mode"], metadata, prop))
+        by_axis.setdefault(prop["axis"], []).append(new_id)
+
+    card_registry.save(root, write_reg)
+
+    if skipped_active:
+        print(f"   ↪︎ 이미 활성 WRITE 스킵 ({skipped_active}건)")
+    if reactivated_ids:
+        print(f"   🔄 WRITE reactivation: {len(reactivated_ids)}건")
+    if new_cards:
+        summary = ", ".join(f"{ax}:{len(ids)}" for ax, ids in by_axis.items())
+        n_new = len(new_cards) - len(reactivated_ids)
+        print(f"   🆕 신규 WRITE 발급: {n_new}건 ({summary})")
+
+    return new_cards, reactivated_ids
+
+
+def build_write_card(card_id: str, mode: str, metadata: dict, prop: dict, note: str | None = None) -> str:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    target = metadata.get("대상 챕터", prop.get("target", ""))
+    what = metadata.get("무엇", prop.get("what", ""))
+    cause = metadata.get("원인", prop.get("cause", ""))
+
+    # axis number → 영향 축 표기
+    axis_id = prop.get("axis", "")
+    axis_n_m = re.match(r"axis(\d+)", axis_id)
+    axis_tag = f"axis{axis_n_m.group(1)}" if axis_n_m else "axis?"
+
+    if note == "reactivated":
+        log_line = f"- {now} · 🔄 **reactivated** by evaluation_aggregator (동일 dedup_key 재제안)"
+    else:
+        log_line = f"- {now} · created by aggregator (from {axis_id}/{prop.get('temp_id', '?')})"
+
+    if mode == "modify":
+        body = f"""**mode**: modify
+
+**담당 명령**: `"output {Path(target).name} 수정해줘: {card_id}"` → output-editor
+
+**대상 챕터**: {target}
+
+**수정 내용**: {metadata.get('수정 내용', prop.get('detail', ''))}
+
+**원인**: {cause}"""
+    else:  # create
+        body = f"""**mode**: create
+
+**담당 명령**: `"초안 작성해줘"` → writing-architect (Phase 1 구조 설계 → Phase 2 작성)
+
+**대상 챕터**: {target}
+
+**위치**: {metadata.get('위치', prop.get('location', ''))}
+
+**내용 요구**: {metadata.get('내용 요구', prop.get('content_req', ''))}
+
+**원인**: {cause}"""
+
+    return f"""### [{card_id}] 🟡 active · P2 · {axis_tag} · Stage 2
+
+**무엇**: {what}
 
 {body}
 
@@ -951,7 +1156,7 @@ def recommend_commands(sections: dict, stats: dict) -> list:
         preview = ", ".join(search_active[:3])
         if len(search_active) > 3:
             preview += f" 외 {len(search_active) - 3}"
-        recs.append(f'`"작업 시작해줘"` — RESEARCH search {len(search_active)}건 대기 ({preview})')
+        recs.append(f'`"리서치 진행해줘"` — RESEARCH search {len(search_active)}건 대기 ({preview})')
 
     if reanalyze_active:
         recs.append(f'`"논문 재분석해줘"` — RESEARCH reanalyze {len(reanalyze_active)}건 대기')
@@ -979,7 +1184,7 @@ def recommend_commands(sections: dict, stats: dict) -> list:
         if stats["state_counts"]["blocked"] > 0:
             recs.append(f'`"상태 확인해줘"` — 🔴 Blocked {stats["state_counts"]["blocked"]}건 의존성 검토 필요')
         else:
-            recs.append('_(권장 명령 없음 — 🟡 Active 비어있음. `"평가해줘"`로 새 task 발급 가능)_')
+            recs.append('_(권장 명령 없음 — 🟡 Active 비어있음. `"flow 레퍼런스 분석해줘"` / `"flow 내용 분석해줘"`로 새 카드 발급)_')
 
     return recs[:3]
 
@@ -1031,7 +1236,7 @@ def render_briefing(project: str, sections: dict, stats: dict, recs: list,
     for i, r in enumerate(recs, 1):
         commands_block.append(f"{i}. {r}")
     if not commands_block:
-        commands_block.append('1. `"평가해줘"` — 아직 평가 없음. 먼저 flow를 평가하세요')
+        commands_block.append('1. `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` — 아직 분석 없음')
 
     # 4. 중요 알림
     alerts = []
@@ -1387,6 +1592,11 @@ def aggregate(project: str, mode: str = "full", stage: str | None = None) -> int
     for p, text in updated_ce_texts.items():
         p.write_text(text, encoding="utf-8")
         print(f"   {p.relative_to(project_root(project))} 업데이트")
+
+    # 3.2 WRITE 카드 발급 (axis*.md의 "🛠 WRITE 후보" 섹션 → output/.registry.json)
+    new_write_cards, reactivated_write_ids = process_write_proposals(project, existing, stage)
+    new_cards = new_cards + new_write_cards
+    reactivated_ids = reactivated_ids + reactivated_write_ids
 
     # 3.5 research registry sync: work-plan completed 섹션의 RESEARCH를 mark_completed.
     # mode=search 카드는 완료 시 work-plan에서 제거 (4-stage 산출물이 별도 파일에 남음).

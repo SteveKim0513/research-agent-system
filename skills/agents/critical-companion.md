@@ -39,7 +39,7 @@ model: opus
 ## 호출 조건
 
 ### 자동 호출
-- `"평가해줘"` 실행 시 **intellectual_ambition ≥ critical**일 때 evaluation-orchestrator가 stage 마일스톤 맞춰 호출
+- 분석 명령 실행 시 **intellectual_ambition ≥ critical**일 때 evaluation-orchestrator가 stage 마일스톤 맞춰 호출
 - 주요 마일스톤 완료 직후: flow 작성, Stage 1 리서치 완료, Stage 2 초안 완료, Stage 3 수정 완료, Stage 4 진입 전
 
 ### 수동 호출
@@ -239,7 +239,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 ### Commitment별 추천 실행 순서 (의존성)
 1. UNFULFILLED·CONFLICTING 우선 해소 (draft 수정 필요)
 2. PARTIAL 완전화
-3. 이후 `"평가해줘"` 재실행 시 축 6 점수 상승 기대
+3. 이후 분석 명령 재실행 시 축 6 점수 상승 기대
 
 ---
 
@@ -337,7 +337,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
    {N}개 신규 질문 | {M}개 carry-over | {K}개 정합성 경고
    
    ⚠️ 시스템이 답변하지 않습니다. 직접 작성하세요.
-       답변 작성 후 "평가해줘" 재실행하면 반영됩니다.
+       답변 작성 후 분석 명령 재실행하면 반영됩니다.
    ```
 
 2. evaluation-orchestrator가 stage 마일스톤으로 자동 호출한 경우, 평가 결과에 질문 업데이트 사실 포함.

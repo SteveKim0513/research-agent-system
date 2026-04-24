@@ -121,7 +121,7 @@ python3 scripts/sync_state.py update-paper {PROJECT_NAME} {파일명}
    definition: {Nf}편
 
 👉 다음 단계:
-   - "평가해줘" → axis1·3·4·6이 새 논문 반영해 재계산
+   - "flow 내용 분석해줘" → axis2~6이 새 논문 반영해 재계산
    - 특정 Tier 3를 승격: "X 논문 재분석해줘 --tier=2"
 ```
 

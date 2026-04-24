@@ -611,7 +611,7 @@ def cmd_recommend(project: str, days: int = 14) -> int:
         if last_stage in ("v1", "revised"):
             recs.append({
                 "priority": "P1",
-                "command": '"평가해줘"',
+                "command": '"flow 레퍼런스 분석해줘"',
                 "reason": f"{days_since_last}일 미활동. 마지막 stage는 {last_stage}. 재평가로 현재 상태 확인 권장.",
                 "ref_log": last_action["ts"] if last_action else "",
             })
@@ -627,7 +627,7 @@ def cmd_recommend(project: str, days: int = 14) -> int:
     if last_stage == "flow":
         recs.append({
             "priority": "P2",
-            "command": '"작업 시작해줘"',
+            "command": '"리서치 진행해줘"',
             "reason": "flow 평가 완료 후 자연 다음 단계. RESEARCH 카드 자동 실행.",
             "ref_log": last_eval["ts"] if last_eval else "",
         })

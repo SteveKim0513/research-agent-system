@@ -1241,7 +1241,7 @@ claude --dangerously-skip-permissions
      └── archive/001-{date}-flow/
 
   → [Stage 1]
-     ├── 작업 시작해줘
+     ├── 리서치 진행해줘
      │   ├── 🔄 RESEARCH(reanalyze) 먼저 (내부 재활용 우선)
      │   └── 🔍 RESEARCH (Consensus 신규 검색)
      ├── PDF 다운로드 (사용자)

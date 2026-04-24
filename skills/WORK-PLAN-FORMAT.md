@@ -81,7 +81,7 @@
 
 **mode**: search
 
-**담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
+**담당 명령**: `"리서치 진행해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
 
 **covers**: R-02
 
@@ -104,7 +104,7 @@
 | **헤더 라인 (priority 포함)** | 위 + `P{1\|2\|3}` 태그 (axis 앞) | `### [RESEARCH-002] 🟡 active · P1 · axis1 · Stage 1` | 선택 (대시보드 권장 명령 정렬에 활용) |
 | **무엇** | `**무엇**: {1줄 설명}` | `**무엇**: S017 — EF 전통적 보편성 가정` | ✅ |
 | **mode** | `**mode**: {search\|reanalyze\|create\|modify}` | `**mode**: search` | ✅ (2-type+mode 체계) |
-| **담당 명령** | `**담당 명령**: \`"..."\` → {후속 동작}` | `**담당 명령**: "작업 시작해줘" → Consensus 자동 검색` | ✅ |
+| **담당 명령** | `**담당 명령**: \`"..."\` → {후속 동작}` | `**담당 명령**: "리서치 진행해줘" → Consensus 자동 검색` | ✅ |
 | **covers** (RESEARCH mode=search) | `**covers**: R-NN, R-MM` | `**covers**: R-02` | search는 ✅ (registry dedup_key) |
 | **query** (RESEARCH mode=search) | `**query**: \`<consensus 통합 쿼리>\`` | (예시 참조) | search는 ✅ |
 | **진행 로그** | `**진행 로그**:` 아래 bullet list | (예시 참조) | ✅ |
@@ -148,10 +148,19 @@
 
 | Card · mode | 발급 시점 (자동) | 실행 명령 | 담당 에이전트 |
 |-------------|----------------|----------|--------------|
-| **RESEARCH · search** | `"{stage} 레퍼런스 분석해줘"` (UNMATCHED-EXTERNAL) | `"리서치 진행해줘"` | Consensus MCP (4-stage 파이프라인) |
+| **RESEARCH · search** | `"{stage} 레퍼런스 분석해줘"` (UNMATCHED-EXTERNAL → claim-extraction의 `search[]`) | `"리서치 진행해줘"` | Consensus MCP (4-stage 파이프라인) |
 | **RESEARCH · reanalyze** | `"{stage} 레퍼런스 분석해줘"` (UNMATCHED-INTERNAL), `paper_reanalysis_delta.py` (flow 변경) | `"리서치 진행해줘"` | paper-analyst Mode B |
-| **WRITE · create** | `"{stage} 내용 분석해줘"` (axis2~5 감점) | `"초안 작성해줘"` | writing-architect |
-| **WRITE · modify** | `"{stage} 내용 분석해줘"` (axis3·4·6 감점) + citation-auditor/peer-reviewer (사후 체이닝) | `"output {파일명} 수정해줘: WRITE-NNN"` | output-editor |
+| **WRITE · create** | `"{stage} 내용 분석해줘"` (axis2~6의 `## 🛠 WRITE 후보` 섹션) + writing-architect | `"초안 작성해줘"` | writing-architect |
+| **WRITE · modify** | `"{stage} 내용 분석해줘"` (axis2~6의 `## 🛠 WRITE 후보` 섹션) + citation-auditor/peer-reviewer (사후 체이닝) | `"output {파일명} 수정해줘: WRITE-NNN"` | output-editor |
+
+**WRITE 카드 자동 발급 흐름**:
+1. `"{stage} 내용 분석해줘"` 명령 → axis2~6 scorer 병렬 실행
+2. 각 axis scorer는 출력 끝에 `## 🛠 WRITE 후보` 섹션을 명시 (mode=create|modify, 대상, 무엇, 원인 등)
+3. aggregator가 해당 섹션을 파싱 → `card_registry`(domain=write)로 dedup 후 WRITE-NNN 발급
+4. dedup_key:
+   - mode=modify: `(modify, 대상_filename, 무엇_norm)`
+   - mode=create: `(create, 대상_filename, 위치_norm)`
+5. 신규 → work-plan 🟡 Active append. 기존 활성 → skip. completed → reactivation.
 
 `{stage}` ∈ {`flow`, `output`}. 자세한 명령어 체계는 `skills/SKILL.md` §명령어 참조.
 
@@ -520,7 +529,7 @@ aggregator가 `search[]`를 파싱하여 `card_registry`(domain=research)로 신
 - 축 6 (비판적 시각): — (Critical Mode 비활성)
 
 ### 🎯 다음 권장 명령
-1. `"작업 시작해줘"` — RESEARCH-002 (Consensus 검색 1건 대기, mode=search)
+1. `"리서치 진행해줘"` — RESEARCH-002 (Consensus 검색 1건 대기, mode=search)
 2. `"초안 작성해줘"` — WRITE-001 (Introduction "So What" 블록, mode=create)
 
 ---
@@ -533,7 +542,7 @@ aggregator가 `search[]`를 파싱하여 `card_registry`(domain=research)로 신
 
 **mode**: search
 
-**담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
+**담당 명령**: `"리서치 진행해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
 
 **covers**: R-07, R-12 (EF universal cognitive history 관련 claim들)
 
@@ -592,7 +601,7 @@ _(없음)_
 
 **mode**: search
 
-**담당 명령**: `"작업 시작해줘"` (실행 완료)
+**담당 명령**: `"리서치 진행해줘"` (실행 완료)
 
 **covers**: R-01
 

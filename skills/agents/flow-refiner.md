@@ -131,7 +131,7 @@ model: opus
    python3 scripts/sync_state.py update-flow {PROJECT_NAME}
    ```
 
-반영 완료 후 사용자에게 **"평가해줘" 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
+반영 완료 후 사용자에게 **분석 명령 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
 
 ## work-plan.md와의 관계 — 카드 발급 없음
 

@@ -12,7 +12,7 @@ model: sonnet
 
 ## 호출 조건
 
-`"작업 시작해줘"` 실행 중 main이 `.research-raw/RESEARCH-NNN.json` 저장 직후 **즉시 `run_in_background=true`** 로 dispatch. main은 반환을 기다리지 않고 다음 카드의 Stage A로 진행.
+`"리서치 진행해줘"` 실행 중 main이 `.research-raw/RESEARCH-NNN.json` 저장 직후 **즉시 `run_in_background=true`** 로 dispatch. main은 반환을 기다리지 않고 다음 카드의 Stage A로 진행.
 
 ## 입력 (프롬프트에 명시)
 

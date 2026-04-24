@@ -152,6 +152,48 @@ opus 필수.
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
 
+
+## 🛠 WRITE 후보 출력 명세 (aggregator가 자동 발급)
+
+본 axis의 진단 결과 중 **글 자체에 수정·작성을 요구하는 항목**은 출력 끝에 다음 섹션으로 명시:
+
+```markdown
+## 🛠 WRITE 후보
+
+### W-01 [mode=modify]
+**대상**: {flow.md 또는 output/{파일명}.md}
+**무엇**: {1줄 요약}
+**상세**: {구체 수정 지시 1-3줄}
+**원인**: {axisN Critical Issue 번호 또는 sub-criterion 라벨}
+
+### W-02 [mode=create]
+**대상**: {flow.md 또는 output/{파일명}.md}
+**위치**: {Section N · 문단 M}
+**무엇**: {1줄 요약 — 새로 작성할 블록}
+**내용 요구**: {구체 구조 — 필요 문장·논증·인용}
+**원인**: {axisN 진단 라벨}
+```
+
+**필드 규약**:
+- `mode=modify`: **상세** 필드 필수 (어떤 구절을 어떻게 바꾸는지)
+- `mode=create`: **위치** + **내용 요구** 필드 필수 (어디에 무엇을 새로 쓰는지)
+- `대상`: stage 폴더 내 실제 파일명 (flow는 flow.md, output은 output/*.md 중 명시)
+- `원인`: 본 axis의 어느 진단에서 도출됐는지 명시 (back-reference)
+
+**자동 발급 흐름**:
+1. aggregator가 본 axis 파일의 `## 🛠 WRITE 후보` 섹션 파싱
+2. 각 W-NN 항목을 `card_registry.find_by_dedup_key`로 dedup 검사
+   - dedup_key (mode=modify): `(mode, 대상_filename, 무엇_norm)`
+   - dedup_key (mode=create): `(mode, 대상_filename, 위치_norm)`
+3. 신규: `WRITE-NNN` 발급 + work-plan 🟡 Active에 append
+4. 기존 활성: skip (안 발급)
+5. 기존 completed: reactivation
+
+**임시 ID `W-NN`은 본 axis 출력 내부 참조용**. 실제 work-plan 카드 ID(`WRITE-NNN`)는 aggregator가 발급. `claim-extraction`의 R-ID 패턴과 동일.
+
+**발급 대상이 없으면**: 섹션을 빈 채로 두지 말고 `## 🛠 WRITE 후보\n\n_(없음 — 본 axis는 신규 카드 발급 사유 없음)_` 형식으로 명시.
+
+
 ## 📋 산출 파일 frontmatter 의무
 
 이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).

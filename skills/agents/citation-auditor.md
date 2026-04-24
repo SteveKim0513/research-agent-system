@@ -115,7 +115,7 @@ collected/에 있지만 한 번도 인용되지 않은 논문:
 
 - **"챕터 수정" 명령 시 자동 호출** (output-editor Phase 7 체이닝)
 - **output-stage 평가 시 축 1이 실행되면 자동 체이닝** (orchestrator 단계 7)
-- **output-stage `"평가해줘"` 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
+- **output-stage 분석 명령 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
 
 ## 입력 경로
 
