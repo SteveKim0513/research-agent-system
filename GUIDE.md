@@ -1,264 +1,490 @@
-# Research Agent — 빠른 사용 가이드
+# Research Agent — 사용 가이드
 
-**3분 안에 사용 가능**. 복잡한 원리·아키텍처는 [MANUAL.md](./MANUAL.md) 참조.
+**이 가이드의 목표**: 시스템을 **가장 잘** 쓰는 법.
+- 처음 쓰는 사람은 §1 → §3 → §4를 따라가면 첫 평가까지 10분.
+- 두 번째 세션부터는 §5(반복 루프)가 본체입니다.
+- 명령 레퍼런스는 §7, 막혔을 때는 §8.
+
+복잡한 원리·아키텍처는 [MANUAL.md](./MANUAL.md), 설계 철학은 [PRINCIPLES.md](./PRINCIPLES.md).
 
 ---
 
-## 🚀 시작
+## 1. ⚡ 1분 시작
 
 ```bash
 cd ~/Documents/research-agent
 claude
 ```
 
+이 세션 안에서 모든 작업이 자연어 명령으로 진행됩니다. Claude Code는 시스템의 인터페이스이자 실행 엔진이에요.
+
+설치가 안 됐으면 [README.md § 설치](./README.md#-설치)를 먼저.
+
 ---
 
-## 📝 7단계 표준 흐름
+## 2. 🧠 핵심 모델: 평가가 엔진, work-plan.md가 핸들
+
+이 시스템은 **선형 레시피가 아니라 루프**입니다. 한 문장으로 요약하면:
+
+> **"평가해줘" → `work-plan.md`가 갱신됨 → 계획대로 작업 → 다시 "평가해줘"**
 
 ```
-① 프로젝트 생성
-② flow.md 작성 (에세이처럼 자유 서술)
-③ 평가 (5축 점수 + 작업 계획서)
-④ 리서치 (논문 자동 검색 + PDF 처리)
-⑤ 초안 작성
-⑥ 챕터 수정 (반복)
-⑦ 최종 통합 + 리뷰 체크
+           ┌─────────────────────────────┐
+           │   평가해줘 (5축 점수 산출)      │
+           │   ↓                          │
+           │   work-plan.md 갱신           │◀──┐
+           │   (HUNT/REANALYZE/DRAFT/EDIT)│    │
+           └────────────┬────────────────┘    │
+                        ↓                      │
+              계획대로 명령 실행                  │
+              (작업 시작해줘 / 새 논문 /          │
+               초안 작성해줘 / Chapter 수정)     │
+                        │                      │
+                        └──────────────────────┘
+                           stage가 끝날 때마다
+                           다시 평가해줘
 ```
+
+### 세 가지 핵심 파일
+
+세션 사이에 기억해야 할 건 **이 세 개뿐**입니다:
+
+| 파일 | 역할 | 언제 보나 |
+|------|------|----------|
+| `projects/{P}/flow/flow.md` | 연구 방향 (자유 줄글) | 방향 바꿀 때 |
+| `projects/{P}/work-plan.md` | **오늘의 할 일 대시보드** | **매 세션마다** |
+| `projects/{P}/evaluations/latest/evaluation.md` | 최근 점수·delta | 평가 직후 |
+
+`work-plan.md`를 매일 여는 습관이 곧 이 시스템을 잘 쓰는 법입니다.
+
+---
+
+## 3. 📍 Stage 지도 — "평가해줘"는 stage를 자동 감지합니다
+
+**명령어는 하나(`"평가해줘"`)지만, 시스템이 프로젝트 상태를 보고 stage를 자동 판별**하여 다르게 동작합니다. 이 점을 이해하면 같은 명령을 네 번 쓰면서 네 가지 다른 결과를 얻습니다.
+
+| Stage | 조건 | `평가해줘`가 하는 일 | 권장 재평가 명령 |
+|-------|------|---------------------|-----------------|
+| **flow** | `flow/flow.md`만 존재 | flow 줄글을 문장 단위로 분석(`claim-extraction-flow.md`) + 6축 점수 + work-plan 생성 | `"평가해줘"` |
+| **v1-draft** | `chapters/*.md`가 존재 | chapters 통합 분석(`claim-extraction-draft.md`) + 6축 재평가 + work-plan 갱신 | `"평가해줘"` |
+| **revised** | `final/complete-draft.md` + 수정 이력 | 수정 반영 후 재평가 + delta 표시 | `"평가해줘"` |
+| **final** | "최종 평가" 명시 또는 final 직전 | 전체 감사 + `citation-auditor` 전량 + reviewer 준비 | `"평가해줘"` 또는 `"리뷰 체크해줘"` |
+
+**경량 보조 명령** (각 stage 중간에):
+- Stage 1 리서치 후 → `"레퍼런스 점검해줘"` (축 1만 빠르게)
+- flow 갱신 후 → `"논문 재분석해줘"` (기존 PDF를 새 각도로)
+
+**결론**: 워크플로우 어디에 있든 일단 `"평가해줘"`를 쓰면 시스템이 알아서 맞는 평가를 해줍니다.
+
+---
+
+## 4. 🚀 첫 프로젝트 (End-to-End)
+
+새 사용자가 첫 평가까지 가는 최소 경로.
 
 ### ① 프로젝트 생성
 
 ```
 "my-essay 프로젝트 만들어줘"
 ```
+
 `projects/my-essay/` 폴더 자동 생성. 이 안에서만 작업합니다.
 
-### ② flow.md 작성
+### ② flow.md 작성 (에세이처럼 자유 줄글)
 
-`projects/my-essay/flow/flow.md` 파일을 에디터로 열어 **자유 줄글**로 씁니다:
+`projects/my-essay/flow/flow.md`를 에디터로 열어 **줄글**로 씁니다.
 
-- **필수 2가지**:
-  - 연구 질문 한 문장: `"이 글은 X를 묻는다"`
-  - 핵심 주장 한 문장: `"본 에세이는 Y라고 주장한다"`
-- **권장**: 문제 → 기존 관점 비판 → 자기 제안 → 예상 반론 → 함의를 **에세이처럼** 서술
+**필수 2가지**:
+- 연구 질문 한 문장: `"이 글은 X를 묻는다"`
+- 핵심 주장 한 문장: `"본 에세이는 Y라고 주장한다"`
 
-체크박스·목차 형식 **금지**. 시스템이 줄글을 알아서 분석.
+**권장 구조**: 문제 → 기존 관점 비판 → 자기 제안 → 예상 반론 → 함의 (에세이처럼)
 
-### ③ 평가
+체크박스·목차 형식 **금지**. 시스템이 줄글을 알아서 문장 단위로 분석합니다.
+
+템플릿은 `skills/FLOW-TEMPLATE.md` 참고.
+
+### ③ 첫 평가
 
 ```
 "평가해줘"
 ```
 
 **생성되는 것**:
-- 5축 점수 (레퍼런스·논리·반박·독창성·구성개념)
-- `work-plan.md` — 해야 할 작업 목록 (HUNT·REANALYZE 체크박스 포함)
+- `evaluations/latest/evaluation.md` — 5축(또는 Critical Mode 시 6축) 점수·판정
+- `evaluations/latest/axis1-reference.md` ~ `axis6-critical.md` — 축별 상세 감점 이유
+- `flow/claim-extraction-flow.md` — flow 문장 단위 주장 분류 (MATCHED / UNMATCHED-INTERNAL / SUPPORTED)
+- `work-plan.md` — **오늘부터 할 일 대시보드** (HUNT·REANALYZE·DRAFT·EDIT 카드)
 
-### ④ 리서치
+### ④ 리서치 (work-plan HUNT 자동 실행)
 
 ```
 "작업 시작해줘"
 ```
-→ work-plan.md의 HUNT 과제가 Consensus에서 자동 검색 → `papers/consensus-results.md` 누적
 
-**consensus-results.md 구조** (사용자가 5분 안에 선별 가능하도록 큐레이션):
-- 1 HUNT = 1 Consensus 쿼리 = 1 블록 (HUNT 카드는 `covers: R-01, R-04` 필드로 어느 claim들을 커버하는지 명시)
-- 각 HUNT 블록이 6 카테고리로 분리: 🎯 최우선 인용 / 🟢 보조 증거 / 🔴 반론·Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-HUNT
-- 각 논문에 주석 1-3문장 (flow §어느 Section·어느 문장에 어떻게 쓰는지)
-- 영어 abstract 원문 전체의 한글 번역 인용블록
-- HUNT 끝 📌 액션 아이템 `[ ]` (PDF 다운로드 / 인용 배치 / 교차 확인)
-- 파일 끝 누적 요약 (🏆 최중요 발견 / 📥 PDF 다운로드 우선순위 / 🔗 Cross-HUNT 교차표 / 👉 다음 단계)
+work-plan의 HUNT 카드를 Consensus에서 자동 검색 → `papers/consensus-results.md`에 6 카테고리(🎯 최우선 인용 / 🟢 보조 / 🔴 반론 / 🌏 발달 / ⚙️ 방법론 / 🔗 Cross-HUNT)로 큐레이션.
 
-**사용자가 할 일**: 📥 우선순위 리스트대로 PDF 다운로드 → `projects/my-essay/papers/candidates/`에 저장
+각 논문에 **영어 abstract 원문 한글 전체 번역**이 인용블록으로 첨부됩니다.
 
-그 다음:
+**사용자가 할 일**: 📥 우선순위 리스트대로 PDF 다운로드 → `projects/my-essay/papers/candidates/`에 넣기.
+
 ```
 "새 논문 처리해줘"
 ```
-→ PDF 자동 분석 (paper-analyst)
+
+→ candidates의 PDF를 triage(haiku) → Tier 분기(Tier 1 opus+Critical / Tier 2·3 sonnet)로 자동 분석.
 
 ### ⑤ 초안 작성
 
 ```
 "초안 작성해줘"
 ```
-→ 구조 설계 제시 → 사용자 승인 → `chapters/*.md` 생성 + `final/complete-draft.md` + `.docx`
 
-### ⑥ 챕터 수정
+→ Phase 1: 구조 설계 제시(사용자 승인 필요) → Phase 2: `chapters/*.md` + `final/complete-draft.md` + `.docx` 생성.
+
+이 시점에서 stage가 **v1-draft**로 전환됩니다.
+
+### ⑥ 재평가 → 수정 반복
+
+```
+"평가해줘"            ← 이제 draft 평가로 자동 분기
+```
+
+work-plan에 EDIT 카드가 생기면:
 
 ```
 "Chapter 2 수정해줘: impurity problem 부분을 Löffler 2024 논증으로 강화"
 ```
-→ 자동 일관성 체크 + PDF 대조 인용 감사
 
-여러 챕터 반복 가능.
+→ 자동 일관성 체크 + PDF 대조 인용 감사(citation-auditor).
+
+**여러 챕터 반복 → `"평가해줘"` → 점수 변화 추적**. 목표 점수 도달까지 루프.
 
 ### ⑦ 최종 통합 + 리뷰
 
 ```
-"최종 통합해줘"
-"리뷰 체크해줘"
+"최종 통합해줘"       ← chapters → final/*.md + .docx 재빌드
+"리뷰 체크해줘"       ← 가상 심사자 3-4명 시뮬레이션
 ```
-→ 통합본 재생성 + 가상 심사자 3~4명 시뮬레이션
+
+실제 심사 결과를 받으면:
+```
+"리뷰 답변 도와줘: [리뷰 텍스트]"
+```
 
 ---
 
-## 🎯 전체 명령어 (실행 가능한 모든 것)
+## 5. 🔁 반복 루프 — 두 번째 세션부터
 
-### 필수 워크플로우 (대부분의 사용자가 쓰는 것)
+일단 ④까지 한 번 돌리면 이후 모든 세션은 같은 루프의 변형입니다.
+
+### 매 세션 표준 시작
+
+```
+1. projects/{P}/work-plan.md 열기
+2. 🧭 "현재 당신이 해야 할 일" 섹션 확인
+3. 🟡 Active 또는 🔵 In-progress에서 위부터 카드 하나 집기
+4. 해당 카드의 **담당 명령** 필드대로 실행
+```
+
+**뭘 할지 모르겠으면**:
+```
+"작업 추천해줘"
+```
+→ 로그·work-plan을 분석해 **다음 명령과 이유**를 제시. 정체 구간 탈출용.
+
+### work-plan의 task 타입별 담당 명령
+
+| 카드 타입 | 의미 | 담당 명령 |
+|----------|------|----------|
+| **HUNT-NNN** | 누락된 근거 논문 찾기 | `"작업 시작해줘"` |
+| **REANALYZE-NNN** | 기존 PDF를 새 각도로 재분석 | `"작업 시작해줘"` (HUNT와 함께) |
+| **DRAFT-NNN** | 초안 생성 | `"초안 작성해줘"` |
+| **EDIT-NNN** | 챕터 수정 지시 | `"Chapter X 수정해줘: {내용}"` |
+| **FIX-NNN** | flow 문장 교체 | `"flow 업데이트해줘"` |
+
+각 카드에는 `**예상 회복**` 필드(예: `축 1-1 +3`)가 있어 우선순위를 자동 정렬합니다. 👉 **위에서부터 처리**.
+
+### 재평가는 언제?
+
+- Stage 1(리서치) 끝 → `"레퍼런스 점검해줘"` (경량, 축 1만)
+- Stage 2(초안) 끝 → `"평가해줘"` (전체)
+- Stage 3(수정) 끝 → `"평가해줘"` (전체)
+- Stage 4(최종) 직전 → `"평가해줘"` (전체 + citation 전량 감사)
+
+중간에 재평가 남발은 피하세요 — delta가 움직이지 않는 재계산은 토큰만 소모.
+
+---
+
+## 6. 📖 산출물 읽는 법
+
+시스템이 생성하는 파일 셋을 정확히 읽을 수 있어야 제대로 활용 가능합니다.
+
+### `evaluations/latest/evaluation.md` — 종합 점수표
+
+```
+📊 종합: XX/600 (평균 XX/100)
+평가 단계: [flow / v1-draft / revised / final]
+심사 판정: [Reject / Major / R&R / Accept]
+
+| 축 | 이름 | 점수 | 이전 | Δ |
+|---|------|------|------|---|
+| 1 | 레퍼런스 충실도 | 82 | 75 | +7 |
+...
+```
+
+**보는 법**:
+- 점수 절대치보다 **Δ**가 중요. 전 세션 대비 움직임이 실제 진전.
+- 🟢 90+ / 🟡 70-89 / 🔴 <70 — 🔴 축부터 우선 수리.
+- **심사 판정**: Reject(<250) · Major(250-349) · R&R(350-449) · Accept(450+).
+
+### 축별 상세 `axis{N}-*.md`
+
+각 축은 **100점 만점 = 4개 하위 기준 × 25점**. 감점 사유가 **actionable**(구체 문장·위치)로 적혀있어야 좋은 평가. 예를 들어 축 1 감점 사유에 "S017에 레퍼런스 없음"이 있으면 그 문장이 work-plan의 HUNT-XXX로 자동 발급.
+
+### `work-plan.md` — 대시보드
+
+```
+> 📅 마지막 갱신: 2026-04-24 15:00 (평가 #003)
+> Stage: v1-draft
+> intellectual_ambition: critical
+
+## 🧭 현재 당신이 해야 할 일
+{시스템이 쓴 한 문단 브리핑}
+
+## 📊 대시보드
+{우선순위 상위 3-5개 명령 리스트}
+
+## 🟡 Active / 🔵 In-progress / 🔴 Blocked / 🟢 Recent completed / ⚪ Deferred
+{각 섹션에 task 카드들}
+```
+
+**보는 법**:
+- `**담당 명령**`을 그대로 복사해서 Claude에 붙여넣기.
+- `**covers**: R-01, R-04` — 이 HUNT가 어느 claim을 커버하는지.
+- `**예상 회복**: 축 1-1 +3` — 완료 시 축 1의 1번 하위 기준이 +3점.
+- `**의존성**` — 선행 완료 필요한 카드 ID.
+- 포맷 엄격 스펙: [WORK-PLAN-FORMAT.md](./skills/WORK-PLAN-FORMAT.md).
+
+### `activity.log` — 시계열 기록
+
+```
+[2026-04-24 15:00] 평가 완료 | v1-draft | all | 430/600 (+12) | ref:eval-003 | agents:...
+```
+
+- 모든 명령이 자동 기록(Claude Code hooks).
+- 라인 복사해서 `"이 시점 X 보여줘"`로 **time-travel archive 조회** (읽기 전용).
+
+### `papers/consensus-results.md` — 리서치 큐레이션
+
+HUNT별로 6 카테고리 블록 + 각 논문에 **한글 abstract 번역 인용블록** + 📌 액션 아이템.
+
+- 파일 끝 누적 요약(🏆 최중요 / 📥 PDF 우선순위 / 🔗 Cross-HUNT 교차표)부터 보세요 — 5분에 전체 파악.
+
+---
+
+## 7. 🗂 명령어 맵 (의사결정 기준)
+
+**언제 쓰는가** 기준으로 재분류. 단순 목록은 `"명령어 보여줘"`로도 확인 가능.
+
+### 🏁 언제든 (상태 관리)
 
 | 명령 | 용도 |
 |------|------|
-| `"[이름] 프로젝트 만들어줘"` | 새 프로젝트 시작 |
-| 🎯 `"평가해줘"` | 5축 냉정 평가 + 작업 계획서 |
-| `"작업 시작해줘"` | work-plan HUNT→Consensus 자동 검색 |
-| `"새 논문 처리해줘"` | candidates/의 PDF 처리 + 분석 |
-| `"초안 작성해줘"` | Phase 1 구조 설계 → Phase 2 초안 |
-| `"Chapter X 수정해줘: ..."` | 챕터 부분 수정 + 인용 감사 자동 |
-| 📦 `"최종 통합해줘"` | chapters → final/*.md + .docx 재빌드 |
-| 💬 `"리뷰 체크해줘"` | peer-reviewer 심사 시뮬 (Stage 4) |
-| 💬 `"리뷰 답변 도와줘: [리뷰 텍스트]"` | 실제 심사 대응 전략 + 답변 초안 |
+| `"작업 추천해줘"` | **뭘 해야 할지 모를 때** — 로그·work-plan 기반 다음 명령 제안 |
+| `"sync 확인해줘"` | 아티팩트 동기화 상태 점검 + 해결 가이드 |
+| `"평가해줘"` | 현재 stage에 맞는 평가 자동 분기 |
 
-### Stage별 경량 보조 (선택)
+### 📝 flow 작성/갱신 단계
 
 | 명령 | 시점 |
 |------|------|
-| 🔍 `"레퍼런스 점검해줘"` | Stage 1 후 축 1만 경량 재평가 (빠름) |
-| 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md diff 제안 |
-| 🔄 `"논문 재분석해줘"` | flow 변경 시 기존 PDF를 새 각도로 재스캔 |
-| 🗑 `"논문 제거해줘: {파일명}"` | 안전 archived/ 이동 + dangling citation 탐지 |
+| `"[이름] 프로젝트 만들어줘"` | 새 프로젝트 |
+| `"평가해줘"` | flow 첫 작성 후 |
+| `"flow 업데이트해줘"` | 논문 수집 후 flow.md를 다듬고 싶을 때 |
+| `"비판 모드 critical로 설정해줘"` | Oxford·ENS 스타일 비판적 시각을 원할 때 (선택) |
 
-### 심층 평가 (개별 축 깊이 검토)
+### 🔬 리서치 단계
 
-| 명령 | 평가 축 |
-|------|--------|
+| 명령 | 시점 |
+|------|------|
+| `"작업 시작해줘"` | work-plan의 HUNT·REANALYZE 자동 실행 |
+| `"새 논문 처리해줘"` | candidates/에 PDF를 넣은 뒤 |
+| `"레퍼런스 점검해줘"` | 리서치 직후 축 1만 경량 재평가 |
+| `"논문 재분석해줘"` | flow가 바뀌어 기존 PDF를 새 각도로 스캔 |
+| `"논문 제거해줘: {파일명}"` | 철회된 논문 안전 이동 + dangling citation 탐지 |
+
+### ✍️ 초안·수정 단계
+
+| 명령 | 시점 |
+|------|------|
+| `"초안 작성해줘"` | Phase 1 구조 설계 → 승인 → Phase 2 초안 |
+| `"Chapter X 수정해줘: ..."` | 챕터 부분 수정 + 자동 citation 감사 |
+| `"평가해줘"` | 초안/수정 직후 delta 추적 |
+
+### 📦 최종 단계
+
+| 명령 | 시점 |
+|------|------|
+| `"최종 통합해줘"` | chapters → final/*.md + .docx 재빌드 |
+| `"리뷰 체크해줘"` | peer-reviewer 3-4명 심사 시뮬 |
+| `"리뷰 답변 도와줘: [리뷰 텍스트]"` | 실제 심사 대응 전략 + 답변 초안 |
+
+### 🔍 심층 평가 (개별 축)
+
+| 명령 | 축 |
+|------|----|
 | `"독창성 평가해줘"` | 축 4 — "So What?" + Novelty Delta Map |
 | `"정의 정밀도 평가해줘"` | 축 5 — 구성개념 정의 감사 |
-| 🎭 `"비판적 시각 평가해줘"` | 축 6 — Paradigm/Fault-line/Bold Defense (Critical Mode 전용) |
+| `"비판적 시각 평가해줘"` | 축 6 — Critical Mode 전용 |
 
-### Critical Mode (비판적 시각 지원, 선택 활성화)
-
-| 명령 | 용도 |
-|------|------|
-| 🎭 `"비판 모드 critical로 설정해줘"` | Critical Mode 활성화 (incremental/critical/paradigm-shifting) |
-| 🤔 `"질문 업데이트해줘"` | Socratic 질문 v+1 생성 (답은 사용자 몫) |
-| 💬 `"답변 반영해줘"` | 답변을 actionable commitment로 추출 |
-| 🔍 `"비판적으로 분석해줘: {파일}"` | paper-analyst Mode C — hidden assumptions 등 발굴 |
-
-### 보조 도구
+### 🛠 보조 도구
 
 | 명령 | 용도 |
 |------|------|
 | `"gap 분석해줘"` | 분야의 빈틈 5종 탐색 (후속 연구 아이디어) |
-| `"방법론 추천해줘"` / `"방법론 검증해줘"` | empirical 연구 전용 — 방법론 3종 비교 또는 검증 |
+| `"방법론 추천해줘"` / `"방법론 검증해줘"` | empirical 연구 전용 |
 
-### 상태 관리 (언제든)
-
-| 명령 | 용도 |
-|------|------|
-| 🔄 `"sync 확인해줘"` | 아티팩트 동기화 상태 점검 + 우선순위 해결 가이드 |
-| 🧠 `"작업 추천해줘"` | **뭘 해야 할지 모를 때** — work-plan 대시보드 + 로그 기반 추천 + 이유 |
-| ⏪ **로그 라인 복사** + `"이 시점 X 보여줘"` | time-travel archive 조회 (읽기 전용) |
-
-### 고급 플래그 (선택)
+### ⚙️ 고급 플래그
 
 | 플래그 | 의미 |
 |-------|------|
 | `"평가해줘 --full"` | delta 무시, 전체 6축 강제 재계산 |
 | `"평가해줘 axis3,4"` | 명시 축만 실행 |
-| `"새 논문 처리해줘 --tier=1"` | 모든 논문 Tier 1 강제 (triage 생략) |
-| `"새 논문 처리해줘 --priority {파일 목록}"` | 지정 파일만 Tier 1, 나머지는 triage만 |
-| `"가볍게 처리해줘"` | 전부 Tier 3 (간소판) 강제 |
-| `"논문 재분석해줘 --full"` | delta 무시, 모든 논문 Mode B 전량 |
-| `"{파일} 논문 재분석해줘 --tier=1"` | 지정 파일을 Tier 1로 승격 + Critical Reading 추가 |
+| `"새 논문 처리해줘 --tier=1"` | 모든 논문 Tier 1 강제 |
+| `"새 논문 처리해줘 --priority {파일 목록}"` | 지정 파일만 Tier 1 |
+| `"가볍게 처리해줘"` | 전부 Tier 3 강제 |
+| `"논문 재분석해줘 --full"` | 모든 논문 Mode B 전량 |
+| `"{파일} 논문 재분석해줘 --tier=1"` | 지정 파일 Tier 1 승격 + Critical Reading |
 
 ---
 
-## 💡 사용 팁
+## 8. 🆘 막혔을 때
 
-### 평가 점수 해석
+### 점수가 움직이지 않아요
 
-| 구간 | 의미 |
-|------|------|
-| 450+/500 | 제출 가능 |
-| 350-449 | 소폭 수정 필요 (Minor Revision) |
-| 250-349 | 대폭 수정 (Major Revision) |
-| <250 | 근본 재설계 |
+거의 항상 **축 1·3·4**가 원인. 새 논문을 실제로 반영했는지 확인.
 
-각 축(5개) 100점 만점. 90+는 🟢, 70-89 🟡, <70 🔴.
+```
+"레퍼런스 점검해줘"   ← 축 1 먼저
+"평가해줘 axis3,4"    ← 반론·독창성만 재계산
+```
 
-### 정체 구간 탈출
+그래도 그대로면 flow 자체의 **주장**이 약한 것. `"독창성 평가해줘"`(축 4)의 "So What?" 진단을 읽으세요.
 
-3일 이상 작업 안 했거나 뭘 해야 할지 모르면:
+### 3일 이상 멈춰있어요
+
 ```
 "작업 추천해줘"
 ```
-시스템이 로그 분석해서 다음 명령과 **이유**를 제시합니다.
 
-### 과거 상태 조회
+시스템이 activity.log를 분석해 **다음 명령 + 이유**를 제시합니다.
 
-`projects/{프로젝트}/activity.log` 파일을 열어 과거 라인을 복사:
+### work-plan이 없어요 / 이상해요
+
+flow.md를 썼는데 평가를 안 했을 가능성. `"평가해줘"`를 먼저.
+
+포맷이 깨진 경우: `"sync 확인해줘"` → 자동 복구 가이드.
+
+### 인용이 의심스러워요 (dangling / over-claim)
+
+수정 명령 시 `citation-auditor`가 자동 실행되지만 명시적으로:
+```
+"Chapter 2 수정해줘: citation 재검증"
+```
+
+또는 최종 단계 `"리뷰 체크해줘"`에서 감사 전량 실행.
+
+### 초안을 처음부터 다시 쓰고 싶어요
+
+```
+"초안 작성해줘"
+```
+
+재실행. 기존 `chapters/*.md`는 `chapters/history/{chapter_id}/`에 자동 스냅샷 → 복구 가능.
+
+### 과거 특정 시점 상태를 보고 싶어요
+
+`projects/{P}/activity.log`에서 라인 복사:
 ```
 [2026-04-10 14:30] 평가 완료 | v1-draft | ... | ref:eval-003 | ...
 ```
 
-채팅에 붙여넣고 요청:
+채팅에 붙여넣고:
 ```
 "이 시점 work-plan 보여줘"
 ```
+
 → 해당 시점의 archive 내용 출력 (읽기 전용).
 
-### 비판 모드 (선택)
+### 설치·권한·MCP 오류
 
-Oxford·Cambridge 스타일의 **비판적 시각**을 원하면:
+| 증상 | 해결 |
+|------|------|
+| `claude: command not found` | `npm install -g @anthropic-ai/claude-code` |
+| 스킬이 인식 안 됨 | `rm ~/.claude/skills/user/research-agent && bash install.sh` |
+| Consensus 검색이 3개만 | `claude` → `/mcp` → consensus 선택 → Authenticate |
+| 권한 prompt 반복 | `.claude/settings.json`에 패턴 추가 (또는 `/fewer-permission-prompts`) |
+| PyPDF2 오류 | `pip3 install pypdf2 --break-system-packages` |
+
+더 많은 경우는 [MANUAL.md § 트러블슈팅](./MANUAL.md#-트러블슈팅).
+
+---
+
+## 9. 🎭 심화 (선택)
+
+### Critical Mode — Oxford·ENS 스타일 비판적 시각
+
 ```
 "비판 모드 critical로 설정해줘"
 ```
-→ 추가 평가 축 + Socratic 질문 (critical-questions.md) 생성. 답변은 **사용자가 직접** 작성.
+
+활성화되면:
+- **축 6 critical-lens** 평가 추가 (Paradigm Mapping / Fault-line / Bold Defense / Minority Recovery)
+- **critical-companion**이 stage별 **Socratic 질문** 자동 생성 (`critical-questions.md`). **답은 사용자가 직접** — 시스템이 암시하지 않습니다.
+- 답 작성 후 `"답변 반영해줘"` → `critical-commitments.md`에 actionable spec으로 자동 추출 → 이후 writing 에이전트들이 필수 참조.
+
+`intellectual_ambition`: `incremental` (기본) / `critical` / `paradigm-shifting`. flow.md 내용에 따라 자동 제안될 수도 있습니다.
+
+### Gap 분석
+
+```
+"gap 분석해줘"
+```
+
+분야의 빈틈 5종 탐색 → 후속 연구 아이디어 / 논문 포지셔닝 재설계.
+
+### 방법론 조언 (empirical 전용)
+
+```
+"방법론 추천해줘"    ← 3종 비교
+"방법론 검증해줘"    ← 내 방법론 감사
+```
+
+### Time-travel archive
+
+과거 평가·work-plan 스냅샷 조회. activity.log 라인을 그대로 사용한 §8 참조.
 
 ---
 
-## 🆘 자주 만나는 문제
-
-**"claude: command not found"**
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-**Consensus 검색이 3개만 나옴**
-```
-claude
-> /mcp → consensus → Authenticate
-```
-
-**스킬이 인식 안 됨**
-```bash
-bash install.sh
-```
-
-**권한 prompt가 여전히 자주 뜸**
-→ `.claude/settings.json`에 해당 명령 패턴 추가. 또는 `claude --dangerously-skip-permissions` (비권장).
-
-**초안이 이상해서 재작성하고 싶음**
-→ `"초안 작성해줘"` 재실행. 기존 챕터는 `chapters/archive/`에 자동 스냅샷되어 복구 가능.
-
----
-
-## 📚 더 깊이 알고 싶다면
+## 10. 📚 다음 문서
 
 | 문서 | 내용 |
 |------|------|
-| [README.md](./README.md) | 시스템 개요, 설치, 사전 준비 |
-| **GUIDE.md** (이 문서) | 3분 빠른 사용법 |
-| [MANUAL.md](./MANUAL.md) | **전체 참고** — 18개 에이전트 상세, **병렬 delta 평가 아키텍처**, sync, Critical Mode, 활동 로그, 권한 관리, 모델 라우팅, 모든 명령, troubleshooting |
+| [README.md](./README.md) | 설치·시스템 개요·사전 준비 |
+| **GUIDE.md** (이 문서) | 사용 가이드 |
+| [MANUAL.md](./MANUAL.md) | **전체 레퍼런스** — 19개 에이전트 상세, 병렬 delta 평가 아키텍처, sync, Critical Mode, 활동 로그, 권한, 모델 라우팅, 플래그, troubleshooting |
 | [PRINCIPLES.md](./PRINCIPLES.md) | 설계 철학 + 학술 글쓰기 원칙 (5축의 학술적 근거, Kuhn·Popper·Foucault 전통) |
+| [skills/WORK-PLAN-FORMAT.md](./skills/WORK-PLAN-FORMAT.md) | work-plan.md 엄격 포맷 스펙 |
+| [skills/FLOW-TEMPLATE.md](./skills/FLOW-TEMPLATE.md) | flow.md 줄글 작성 가이드 |
 
 ---
 
 ## ⚡ 한 줄 요약
 
 ```
-프로젝트 만들어줘 → flow.md 줄글 작성 → 평가 → 작업 시작
-→ 논문 처리 → 초안 → 수정 반복 → 최종 통합 + 리뷰
+매 세션: work-plan.md 열기 → 위 카드부터 담당 명령 실행 → stage 끝나면 "평가해줘"
+막히면: "작업 추천해줘"
 ```
 
-이게 전부입니다. 복잡한 건 시스템이 알아서 처리합니다.
+평가가 엔진, work-plan이 핸들. 복잡한 건 시스템이 알아서 처리합니다.
