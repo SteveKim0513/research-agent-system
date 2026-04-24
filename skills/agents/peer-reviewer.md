@@ -236,7 +236,7 @@ model: opus
 - **수정 내용**: 리뷰어 코멘트 요약 + 권고 대응
 - **원인**: `peer-reviewer Mode A · Reviewer {1|2|3|Iconoclast}`
 - **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
-- **예상 회복**: 축 3-4 Reviewer attack surface +{N}
+- **영향 축**: axis3 (Attack Surface Preparedness)
 
 Minor issue는 task 생성하지 않고 리뷰 리포트에 요약만.
 

@@ -112,7 +112,37 @@ python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|v1-draft}
 | axis5 | `axis5-concept-scorer.md` | sonnet | `axis5-concept.md` |
 | axis6 | `axis6-critical-scorer.md` | opus | `axis6-critical.md` |
 
-**Critical Mode**: `.paper-metadata.json`의 `intellectual_ambition >= critical`이면 axis6 강제 stale (명시 dispatch).
+**Critical Mode**: `.paper-metadata.json`의 `intellectual_ambition >= critical`이면 axis6 강제 stale (명시 dispatch). 그 외 (incremental·baseline) axis6은 dispatch 자체를 안 함.
+
+#### Dispatch 규율 (채점자 독립성 보호) ⚠️
+
+axis-scorer Agent prompt에 **다음만** 주입:
+1. 해당 `axis*-scorer.md` 사양 전문
+2. 선로드 context (위 §3 — 원고 / claim-extraction / tag된 papers / archive)
+3. 출력 파일 경로 + Stage 정보
+
+**금지** (위반 시 채점 결과 신뢰도 손상):
+- 평가 가이드 ("약점 후보: ..." 식 사전 식별)
+- 점수·상태 힌트 ("X점 정도 예상", "outline 단계라 보수적으로 X 점")
+- 사전 작성된 체크리스트·표 (채점자가 빈 표만 채우게 됨)
+- 채점자가 도달해야 할 결론 암시
+- 카테고리 사전 부여 ("이 축은 🟠일 듯")
+
+채점은 사양 + 입력만 보고 채점자가 **독립** 수행. orchestrator는 dispatcher 역할만.
+
+#### 카테고리 시스템 reference
+
+각 axis-scorer는 sub-criteria + 축 전체에 5단계 카테고리 부여:
+
+| 상태 | 라벨 | 의미 |
+|------|------|------|
+| 🟢 | 충실 (Strong) | 분야 표준 충족, 약점 minimal |
+| 🟡 | 적정 (Adequate) | 통과 가능, 작은 보강만 |
+| 🟠 | 보강 필요 (Needs Work) | 통과 위해 의미 있는 보강 필요 |
+| 🔴 | 구조적 결함 (Critical Gap) | 통과 어려움, 구조적 보강 필요 |
+| ⚫ | 측정 불가 (Cannot Assess) | 측정 데이터 부재 (0-state) |
+
+카테고리가 **메인 시그널**, 점수는 trend tracking용 보조. aggregator가 카테고리 roll-up으로 verdict(Reject/Major/R&R/Accept) 산출.
 
 ### 5. Aggregator 실행
 
@@ -160,12 +190,16 @@ Axis 1이 실행되었고 `intellectual_ambition >= baseline`이면 3편 spot-ch
 
 ```bash
 python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
-  "stage={flow|v1-draft|revised|final}" "result={total}/{max}" \
+  "stage={flow|v1-draft|revised|final}" \
+  "verdict={Reject|Major|R&R|Accept}" \
+  "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" \
   "ref=ref:eval-{NNN}" \
   "agents=evaluation-orchestrator,{stale_axes}" \
   "delta_mode={true|false}" \
-  "stale={N}/6"
+  "stale={N}/{total_axes}"
 ```
+
+(`result={score}/500` 폐기 — 카테고리 카운트 + verdict 사용)
 
 ## work-plan.md 조작 규율
 
@@ -188,16 +222,21 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 ## 출력
 
 ```
-🎯 평가 완료 (stage=v1-draft, delta 모드, stale 2/6)
+🎯 평가 완료 (stage=v1-draft, delta 모드, stale 2/5)
 
-축 | 이름 | 점수 | 변화
-2 | 논리 전개 | 78 | +10
-3 | 반박·강화 | 82 | +30
+판정: 🟠 Major Revision
+축별 상태:
+| 축 | 이름 | 상태 | 변화 |
+| 1 | 레퍼런스 충실도 | 🟠 보강 필요 | (이전: 🔴) |
+| 2 | 논리 전개 | 🟡 적정 | (재평가) |
+| 3 | 반박·강화 | 🟢 충실 | (재평가) |
+| 4 | 독창성·기여도 | 🟠 보강 필요 | (이전 동일) |
+| 5 | 구성개념 정의 | 🟠 보강 필요 | (이전 동일) |
 
-실행된 축: axis2, axis3
-스킵된 축: axis1, axis4, axis5, axis6 (delta fresh)
+실행된 축: axis2, axis3 (delta stale)
+스킵된 축: axis1, axis4, axis5 (delta fresh — 이전 카테고리 유지)
 
-📝 claim-extraction: chapters/claim-extraction-draft.md 갱신 (3 새 문장 추가)
+📝 claim-extraction: chapters/claim-extraction-draft.md 갱신 (3 새 문장)
 📝 work-plan.md: HUNT-024~026 신규 발급
 
 ⏱ 소요: 2분 15초

@@ -141,8 +141,8 @@ claim-extraction-draft의 MATCHED 라벨이 기본 audit target이며, 모든 �
 - **수정 내용**: 구체적 문장·인용구·원문 대조 결과
 - **원인**: `citation-auditor #{NNN}`
 - **담당 명령**: `"Chapter {X} 수정해줘: EDIT-{NNN}"`
-- **예상 회복**: 축 1-2 Accuracy +{N} (오인용 개수에 비례)
+- **영향 축**: axis1 (Accuracy)
 
 ID 발급: 기존 work-plan.md에서 `grep -oE "\[EDIT-[0-9]+\]"` 최대값+1.
 
-대시보드의 🟡 active 카운트와 축 1 잔여 회복량 재계산.
+대시보드의 🟡 active 카운트와 축별 현재 상태 (카테고리) 재계산.

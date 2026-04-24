@@ -203,7 +203,7 @@ work-plan에 EDIT 카드가 생기면:
 | **EDIT-NNN** | 챕터 수정 지시 | `"Chapter X 수정해줘: {내용}"` |
 | **FIX-NNN** | flow 문장 교체 | `"flow 업데이트해줘"` |
 
-각 카드에는 `**예상 회복**` 필드(예: `축 1-1 +3`)가 있어 우선순위를 자동 정렬합니다. 👉 **위에서부터 처리**.
+각 카드에는 `**covers**: R-NN` 필드(HUNT의 경우)가 있어 어떤 claim을 커버하는지 명시합니다. 우선순위는 work-plan 대시보드의 "🎯 다음 권장 명령" 섹션이 자동 정렬해줍니다. 👉 **위에서부터 처리**.
 
 ### 재평가는 언제?
 
@@ -220,27 +220,38 @@ work-plan에 EDIT 카드가 생기면:
 
 시스템이 생성하는 파일 셋을 정확히 읽을 수 있어야 제대로 활용 가능합니다.
 
-### `evaluations/latest/evaluation.md` — 종합 점수표
+### `evaluations/latest/evaluation.md` — 평가 진단
 
 ```
-📊 종합: XX/600 (평균 XX/100)
-평가 단계: [flow / v1-draft / revised / final]
-심사 판정: [Reject / Major / R&R / Accept]
+🩺 종합 판정: 🟠 Major Revision
+근거: 🔴 구조적 결함 1축 (axis1)
 
-| 축 | 이름 | 점수 | 이전 | Δ |
-|---|------|------|------|---|
-| 1 | 레퍼런스 충실도 | 82 | 75 | +7 |
+| 축 | 이름 | 상태 | 이전 → 현재 | 핵심 진단 |
+|---|------|------|------|----------|
+| 1 | 레퍼런스 충실도 | 🔴 구조적 결함 | (첫 평가) | MATCHED 0편 — HUNT 15건 발급 |
+| 2 | 논리 전개 | 🟡 적정 | (첫 평가) | thesis 산만 |
 ...
+
+🚨 Critical Issues (이번 평가에서 가장 시급)
+- [축 1] HUNT-001~015 즉시 실행
+- [축 5] EF·hot/cool·규칙 깊이 정의 + 조작화 부재
 ```
 
 **보는 법**:
-- 점수 절대치보다 **Δ**가 중요. 전 세션 대비 움직임이 실제 진전.
-- 🟢 90+ / 🟡 70-89 / 🔴 <70 — 🔴 축부터 우선 수리.
-- **심사 판정**: Reject(<250) · Major(250-349) · R&R(350-449) · Accept(450+).
+- **메인 시그널**: 카테고리 (🟢🟡🟠🔴⚫) + 핵심 진단 + Critical Issues. 카테고리는 axis-scorer가 직접 판정.
+- **카테고리 5단계**: 🟢 충실 / 🟡 적정 / 🟠 보강 필요 / 🔴 구조적 결함 / ⚫ 측정 불가
+- **종합 판정 (verdict roll-up)**:
+  - 🔴 **Reject**: ≥2축 🔴 OR (axis1+axis5 둘 다 🔴) OR ≥3축 ⚫
+  - 🟠 **Major Revision**: ≥1축 🔴 OR ≥3축 🟠
+  - 🟡 **Revise & Resubmit**: ≥2축 🟠 OR ≥1축 ⚫
+  - 🟢 **Accept**: 모든 축 ≥ 🟡, 🔴/⚫ 0
+- **점수는 보조**: `<details>` 안에 trend tracking용으로 보존. **절대 판정·등급 산출에 사용 금지** (LLM 채점 noise ±10점).
 
 ### 축별 상세 `axis{N}-*.md`
 
-각 축은 **100점 만점 = 4개 하위 기준 × 25점**. 감점 사유가 **actionable**(구체 문장·위치)로 적혀있어야 좋은 평가. 예를 들어 축 1 감점 사유에 "S017에 레퍼런스 없음"이 있으면 그 문장이 work-plan의 HUNT-XXX로 자동 발급.
+각 축의 **상태 카테고리 + 핵심 진단 + Critical Issues + sub-criteria 4개 카테고리**가 메인. 점수는 `<details>` 접이식 안에. 진단이 **actionable**(구체 문장·위치)로 적혀있어야 좋은 평가. 예를 들어 축 1 진단에 "S017에 레퍼런스 없음"이 있으면 그 문장이 work-plan의 HUNT-XXX로 자동 발급.
+
+**0-State 규칙**: 측정 데이터가 부재 (예: 첫 평가, MATCHED 0편)이면 sub-criteria가 ⚫ 측정 불가로 표기. 잠정 만점·N/A 보류 금지.
 
 ### `work-plan.md` — 대시보드
 
@@ -261,15 +272,17 @@ work-plan에 EDIT 카드가 생기면:
 
 **보는 법**:
 - `**담당 명령**`을 그대로 복사해서 Claude에 붙여넣기.
-- `**covers**: R-01, R-04` — 이 HUNT가 어느 claim을 커버하는지.
-- `**예상 회복**: 축 1-1 +3` — 완료 시 축 1의 1번 하위 기준이 +3점.
+- `**covers**: R-01, R-04` — 이 HUNT가 어느 claim을 커버하는지. registry dedup의 key.
+- `**query**: \`...\`` — Consensus 검색 통합 쿼리.
 - `**의존성**` — 선행 완료 필요한 카드 ID.
+- 대시보드 "축별 현재 상태" — 각 축의 카테고리(🟢🟡🟠🔴⚫)와 active task 수.
 - 포맷 엄격 스펙: [WORK-PLAN-FORMAT.md](./skills/WORK-PLAN-FORMAT.md).
+- HUNT 영속 이력: `.hunt-registry.json` (work-plan은 활성 view, registry가 SSOT).
 
 ### `activity.log` — 시계열 기록
 
 ```
-[2026-04-24 15:00] 평가 완료 | v1-draft | all | 430/600 (+12) | ref:eval-003 | agents:...
+[2026-04-24 15:00] 평가 완료 | v1-draft | - | - | ref:eval-003 | agents:evaluation-orchestrator,axis1-5 | verdict=Major Revision categories=Crit:1,Need:3,Adeq:1
 ```
 
 - 모든 명령이 자동 기록(Claude Code hooks).

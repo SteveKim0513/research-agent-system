@@ -387,7 +387,7 @@ peer-reviewer Mode A 실행:
 > "평가해줘"
 ```
 
-`archive/004-{date}-final/` 스냅샷 생성. 모든 축이 90점 이상 🟢이고 종합이 450/500 이상이면 제출 준비 완료.
+`archive/004-{date}-final/` 스냅샷 생성. 모든 축이 🟢 충실(또는 🟡 적정 이상)이고 종합 판정이 🟢 Accept이면 제출 준비 완료.
 
 #### 10-3. 실제 리뷰 대응 (제출 후)
 
@@ -943,7 +943,7 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 
 ```
 # 로그 파일에서 과거 라인 복사
-[2026-04-10 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 | ref:eval-003 | ...
+[2026-04-10 14:30:15] ✅ 평가 완료 | v1-draft | - | - | ref:eval-003 | evaluation-orchestrator,axis1-5 | verdict=Major Revision categories=Crit:1,Need:3,Adeq:1
 
 # 채팅에 붙여넣고 요청
 "[2026-04-10 14:30:15] ... | ref:eval-003 이 시점 work-plan 보여줘"
@@ -981,12 +981,13 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 
 실제 예시:
 ```
-[2026-04-23 14:30:15] ✅ 평가 완료 | v1-draft | chapters | 287/500 (+32) | ref:eval-003 | evaluation-orchestrator,axis1-6 | ambition=critical commits=3/5
+[2026-04-23 14:30:15] ✅ 평가 완료 | v1-draft | - | - | ref:eval-003 | evaluation-orchestrator,axis1-6 | verdict=R&R categories=Crit:0,Need:2,Adeq:3,Strong:1 ambition=critical commits=3/5
 ```
 
 - 앞 4 필드 고정 (timestamp, action, stage, target)
 - 뒤 필드는 선택적 (result, ref, agents, meta)
 - 빈 필드는 `-`로 표시
+- **평가 결과**: 점수가 아니라 `verdict=Reject|Major|R&R|Accept` + `categories=Crit:N,Need:M,...` 사용 (카테고리 시스템)
 
 ### 아키텍처: 4계층 방어
 
@@ -1128,8 +1129,9 @@ claude --dangerously-skip-permissions
 | `.sync-state.json` | 프로젝트 생성 시 | **아티팩트 의존성·버전 추적** (sync 아키텍처의 핵심) |
 | `critical-questions.md` | Stage 마일스톤 (ambition ≥ critical) | **사용자가 답변하는 Socratic 질문** — 답변 없이는 평가 불완전 |
 | `critical-questions.archive/` | 매 critical-companion 재실행 | **질문·답변 버전 히스토리** (지적 여정 기록) |
-| `evaluations/latest/evaluation.md` | "평가해줘" (aggregator 집계) | 종합 요약 + 5축 점수 + 감점 사유 + delta (다운스트림 진입점) |
-| `work-plan.md` | "평가해줘" | 4단계별 작업 지시서 (🔄 REANALYZE + 🔍 HUNT 체크박스) |
+| `evaluations/latest/evaluation.md` | "평가해줘" (aggregator 집계) | 🩺 종합 판정(Reject/Major/R&R/Accept) + 축별 카테고리(🟢🟡🟠🔴⚫) + Critical Issues + (접힌) 점수 추세 |
+| `work-plan.md` | "평가해줘" | active HUNT/DRAFT/EDIT 카드의 live view — completed HUNT는 삭제됨 (registry 보존) |
+| `.hunt-registry.json` | 첫 평가 또는 bootstrap 시 | **HUNT 발급 SSOT** — 모든 HUNT의 ID·covers·lifecycle status(ready/in_progress/blocked/deferred/completed) 영속 보존 + reactivation 이력 |
 | `flow/claim-extraction-flow.md (flow stage) 또는 chapters/claim-extraction-draft.md (draft stage)` | "평가해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `evaluations/latest/axis1-reference.md` | "평가해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
 | `evaluations/latest/axis2-logic.md` | "평가해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |
@@ -1279,15 +1281,34 @@ claude --dangerously-skip-permissions
 - **모호 분류(🟠)는 사용자 판단** — 저자의 해석이면 E로, 근거가 있으면 A로
 - **UNMATCHED 건은 HUNT 과제로 자동 이어짐** — 실행 순서만 따르면 됨
 
-### 평가 점수 해석
+### 평가 카테고리 해석 (메인 시그널)
 
-| 구간 | 의미 | 권장 조치 |
-|------|------|----------|
-| 90+ 🟢 | Accept 수준 | 다음 Stage 진입 |
-| 70-89 🟡 | Minor Revision | 해당 축 작업 지시 실행 |
-| 70 미만 🔴 | Major Revision | 해당 축 근본 재검토 필요 |
+각 축은 axis-scorer가 **5단계 카테고리**로 직접 판정. 점수는 trend tracking용 보조 신호 (`<details>` 안 보존, 절대 판정 사용 금지).
 
-전체 평균이 **450/500 이상**이면 제출 준비 완료.
+| 카테고리 | 의미 | 권장 조치 |
+|---------|------|----------|
+| 🟢 충실 (Strong) | 분야 표준 충족 | 다음 Stage 진입 |
+| 🟡 적정 (Adequate) | 통과 가능, 작은 보강 | 작은 보강 후 진행 |
+| 🟠 보강 필요 (Needs Work) | 의미 있는 보강 필요 | 해당 축 작업 지시 실행 |
+| 🔴 구조적 결함 (Critical Gap) | 통과 어려움 | 해당 축 근본 재검토 |
+| ⚫ 측정 불가 (Cannot Assess) | 측정 데이터 부재 | HUNT 등 데이터 확보 후 재평가 |
+
+### 종합 판정 (verdict roll-up)
+
+점수 평균이 아닌 **카테고리 카운트** 기반:
+
+- 🔴 **Reject**: ≥2축 🔴 OR (axis1 AND axis5 둘 다 🔴) OR ≥3축 ⚫
+- 🟠 **Major Revision**: ≥1축 🔴 (Reject 미달) OR ≥3축 🟠
+- 🟡 **Revise & Resubmit**: ≥2축 🟠 (Major 미달) OR ≥1축 ⚫
+- 🟢 **Accept**: 모든 축 ≥ 🟡 Adequate, 🔴/⚫ 0개
+
+axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 논문의 기초 인프라.
+
+### 제출 준비 기준
+
+**모든 축 ≥ 🟡 Adequate, axis1·5 ≥ 🟢 Strong, 종합 판정 = 🟢 Accept**.
+
+(과거 점수 기준 "450/500 이상"은 폐기 — LLM 채점 noise로 신뢰 불가.)
 
 ### Archive 스냅샷 활용
 

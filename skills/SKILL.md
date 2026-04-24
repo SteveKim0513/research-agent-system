@@ -72,7 +72,7 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 
 ## 5축 평가 기준
 
-flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100점 만점 (하위 기준 각 25점).
+flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 4개 sub-criteria로 구성.
 
 | 축 | 이름 | 핵심 질문 | 전문 에이전트 |
 |---|------|----------|-------------|
@@ -83,7 +83,41 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 | **5** | 구성개념 정의 정밀도 | Definition + Operationalization + Boundary + Categorical/Dimensional | **axis5-concept-scorer** |
 | **6** | 비판 렌즈 (Critical Mode) | Paradigm Mapping + Fault-line + Bold Defense + Minority Recovery | **axis6-critical-scorer** |
 
+### 카테고리 시스템 (메인 시그널)
+
+각 sub-criteria + 축 전체에 5단계 중 하나를 부여:
+
+| 상태 | 라벨 |
+|------|------|
+| 🟢 | 충실 (Strong) — 분야 표준 충족, 약점 minimal |
+| 🟡 | 적정 (Adequate) — 통과 가능, 작은 보강만 |
+| 🟠 | 보강 필요 (Needs Work) — 통과 위해 의미 있는 보강 |
+| 🔴 | 구조적 결함 (Critical Gap) — 통과 어려움, 구조적 보강 |
+| ⚫ | 측정 불가 (Cannot Assess) — 측정 데이터 부재 (0-state) |
+
+### Verdict roll-up (점수 평균 폐기)
+
+```
+Reject              : ≥2 axes at 🔴 OR (axis1 AND axis5 둘 다 🔴) OR ≥3 axes at ⚫
+Major Revision      : ≥1 axis at 🔴 (Reject 미달) OR ≥3 axes at 🟠
+Revise & Resubmit   : ≥2 axes at 🟠 (Major 미달) OR ≥1 axis at ⚫ (Reject 미달)
+Accept              : all axes ≥ 🟡 Adequate, 🔴/⚫ 0개
+```
+
+axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 논문의 기초 인프라이므로.
+
+### 신뢰 가능 vs 보조
+
+- **신뢰 가능 (메인 시그널)**: 카테고리 (🟢🟡🟠🔴⚫), 진단 텍스트, Critical Issues, HUNT/Action item, 카테고리 변화 방향 (Δ)
+- **보조 (trend tracking 전용)**: 절대점수 X/100, sub-criteria 점수 X/25 — 추세 모니터링용. 절대 판정·등급 산출에 사용 금지. axis 파일에는 `<details>` 접이식 안에만 노출.
+
+### 0-State 규칙
+
+측정 데이터 부재 시 (예: MATCHED 0편, steelman tag 논문 0편) sub-criteria 카테고리는 **⚫ 측정 불가**로 명시. **잠정 만점·N/A 보류·임의 평균값 부여 금지**.
+
 **병렬 delta 오케스트레이션**: `evaluation-orchestrator`가 변경된 축만 병렬 디스패치. stale 판정은 `scripts/evaluation_delta.py`의 입력 해시 비교. 축 6은 Critical Mode 활성 시에만 포함. 감사(citation-auditor) · 구조 설계(writing-architect) · 심사 시뮬레이션(peer-reviewer)은 별개 명령으로 호출되며 채점 주체가 아님.
+
+**Dispatch 규율**: orchestrator는 axis-scorer prompt에 사양 + 선로드 context만 주입. 평가 가이드·점수 힌트·사전 작성된 체크리스트 주입 금지 (채점자 독립성 보호).
 
 ## 자동 재분석 규칙 (Stage-aware claim-extraction)
 
@@ -111,7 +145,14 @@ flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 100�
 | `critical-questions.md` mtime > `critical-commitments.md` mtime | `"답변 반영해줘"` 자동 → critical-companion Phase 6 호출 | `critical-commitments.md` 갱신·신규 생성 |
 | `초안 작성해줘` / `Chapter X 수정해줘` 실행 직전 | 위 mtime 비교 prehook → 필요 시 Phase 6 | commitment 최신화 후 실제 작업 진행 |
 
-**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 `work-plan.md`의 다음 HUNT-NNN·DRAFT-NNN 번호를 발급하고, claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+**HUNT·DRAFT ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 **HUNT registry (`.hunt-registry.json`)** 를 single source of truth로 사용해 번호 발급 + 중복 방지 + completed 관리 수행. claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+
+**HUNT registry 동작** (WORK-PLAN-FORMAT.md §4.2 참조):
+- **Single source**: `projects/{P}/.hunt-registry.json`이 모든 HUNT의 ID·metadata·lifecycle status 영속 보존
+- **중복 방지**: 제안 HUNT의 정규화 covers가 registry의 기존 HUNT와 일치 시 (a) 활성이면 skip (b) completed면 reactivation
+- **완료 시 work-plan에서 삭제**: HUNT가 🟢 Recent completed 섹션으로 이동하면 다음 aggregator 실행 시 work-plan에서 완전 제거 + registry에 status=completed 영속
+- **Reactivation**: 완료된 HUNT와 동일 covers가 claim-extraction에서 재제안되면 자동 부활 (status=ready + work-plan 재삽입 + reactivated_count 증가)
+- **CLI**: `python3 scripts/hunt_registry.py {list|stats|bootstrap} {PROJECT}`
 
 ## work-plan.md 사용 사이클 (공통)
 
@@ -555,32 +596,32 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 ### 단계 13: 사용자 보고
 
 ```
-🎯 6축 평가 완료 (delta 모드, stale {N}/6)
+🎯 평가 완료 (delta 모드, stale {N}/{total_axes})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 종합: XX/600 (평균 XX/100)
+🩺 종합 판정: [🔴 Reject / 🟠 Major Revision / 🟡 R&R / 🟢 Accept]
 평가 단계: [flow / v1-draft / revised / final]
-심사 판정: [Reject / Major / R&R / Accept]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-| 축 | 이름 | 점수 | 이전 | Δ |
-|---|------|------|------|---|
-| 1 | 레퍼런스 충실도 | XX | XX | +X |
-| 2 | 논리 전개 완성도 | XX | XX | +X |
-| 3 | 반박·강화 논리 | XX | XX | +X |
-| 4 | 독창성·기여도 | XX | XX | +X |
-| 5 | 구성개념 정의 정밀도 | XX | XX | +X |
-| 6 | 비판적 시각 | XX | XX | +X |
+| 축 | 이름 | 상태 | 변화 | 핵심 진단 |
+|---|------|------|------|----------|
+| 1 | 레퍼런스 충실도 | 🟠 보강 필요 | (이전 🔴) | <한 줄> |
+| 2 | 논리 전개 완성도 | 🟡 적정 | (재평가) | <한 줄> |
+| ... | | | | |
 
-📂 축별 상세: axis1-reference.md ~ axis6-critical.md
+🚨 Critical Issues (이번 평가 가장 시급):
+1. ...
+2. ...
+
+📂 축별 상세: axis1-reference.md ~ axis5-concept.md
 📋 작업 계획: work-plan.md
 ⏱ 소요: {N}분 (재계산 {N}축, 캐시 {M}축)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📚 Stage 1 (리서치): {N}개 작업 — 예상 회복 +{X}
-✍️ Stage 2 (1차 작성): {N}개 작업 — 예상 회복 +{X}
-🔧 Stage 3 (수정): {N}개 작업 — 예상 회복 +{X}
-✅ Stage 4 (최종): {N}개 작업 — 예상 회복 +{X}
+📚 Stage 1 (리서치): {N}개 작업
+✍️ Stage 2 (1차 작성): {N}개 작업
+🔧 Stage 3 (수정): {N}개 작업
+✅ Stage 4 (최종): {N}개 작업
 
 💾 저장 결과:
    ✓ evaluations/latest/evaluation.md              (종합 요약·aggregator)
@@ -620,8 +661,10 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1-draft|revised|final}" "target={대상 파일}" "result={score}/500 ({delta})" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-6{,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1-draft|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
 ```
+
+(점수 기반 `result={score}/500` 폐기 — verdict + 카테고리 카운트로 대체)
 
 ---
 
@@ -1040,7 +1083,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "HUNT·REANALYZE 실행" "
 ### 단계 4: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "레퍼런스 점검 완료" "stage=post-research" "result=axis1 {old}→{new} (+{delta})"
+python3 scripts/activity_log.py append {PROJECT_NAME} "레퍼런스 점검 완료" "stage=post-research" "axis1_status={emoji} {label}" "axis1_prev={prev_emoji} {prev_label}" "ref=ref:eval-{NNN}"
 ```
 
 ---
@@ -1980,12 +2023,12 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "질문 업데이트" "res
 
 ### 단계 3: 화면 보고
 
-축별 점수 + critical-questions.md 정합성 요약 + 심사자 예상 공격 + 개선 권장 우선순위.
+축별 카테고리 (🟢🟡🟠🔴⚫) + critical-questions.md 정합성 요약 + 심사자 예상 공격 + 개선 권장 우선순위. 점수는 보조 (axis6-critical.md의 `<details>` 안).
 
 ### 단계 4: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "축 6 심층" "result={score}/100" "agents=axis6-critical-scorer"
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 6 심층" "axis6_status={emoji} {label}" "agents=axis6-critical-scorer"
 ```
 
 ---
@@ -2037,7 +2080,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 Mode C" "target={�
 
 **활동 로그** (MD Layer 4):
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "축 4 심층" "result={score}/100" "agents=axis4-originality-scorer"
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 4 심층" "axis4_status={emoji} {label}" "agents=axis4-originality-scorer"
 ```
 
 ---
@@ -2054,7 +2097,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "축 4 심층" "result={sc
 
 **활동 로그** (MD Layer 4):
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "축 5 심층" "result={score}/100" "agents=axis5-concept-scorer"
+python3 scripts/activity_log.py append {PROJECT_NAME} "축 5 심층" "axis5_status={emoji} {label}" "agents=axis5-concept-scorer"
 ```
 
 ---
@@ -2095,7 +2138,7 @@ JSON을 파싱하여 아래 형식으로 출력:
 
    마지막 활동: 평가 완료 (3일 전)
    마지막 stage: v1-draft
-   평가 점수: 287/500
+   평가 판정: 🟠 Major Revision (카테고리: 🔴:1 🟠:3 🟡:1)
    로그 엔트리: 42건
 
    🔄 Sync 상태: P1:0 / P2:1 / P3:0 (총 1건 stale)

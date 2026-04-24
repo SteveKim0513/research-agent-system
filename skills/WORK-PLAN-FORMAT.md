@@ -81,12 +81,11 @@
 
 **담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색
 
-**예상 회복**: 축 1-1 +3
+**covers**: R-02
 
-**검색 키워드**:
-- `executive function universal cognitive history`
-- `Miyake Friedman definition`
-- `Diamond EF review`
+**query**: `executive function universal cognitive history`
+
+**검색 키워드 / 기대 논문 프로필**: `claim-extraction-flow.md`의 R-02 섹션 참조 / registry: `.hunt-registry.json`
 
 **의존성**: 없음
 **차단하는 것**: DRAFT-001 (축 1 재평가 후 "So What" 작성 가능)
@@ -101,10 +100,13 @@
 |------|------|------|------|
 | **헤더 라인 (기본)** | `### [TYPE-NNN] {상태이모지} {상태텍스트} · {axis} · Stage {N}` | `### [HUNT-002] 🟡 active · axis1 · Stage 1` | ✅ |
 | **헤더 라인 (priority 포함)** | 위 + `P{1\|2\|3}` 태그 (axis 앞) | `### [HUNT-002] 🟡 active · P1 · axis1 · Stage 1` | 선택 (대시보드 권장 명령 정렬에 활용) |
-| **무엇** | `**무엇**: {1줄 설명}` | `**무엇**: S017 — EF 전통적 보편성 가정` |
-| **담당 명령** | `**담당 명령**: \`"..."\` → {후속 동작}` | `**담당 명령**: "작업 시작해줘" → Consensus 자동 검색` |
-| **예상 회복** | `**예상 회복**: {축-하위} +{N}` 또는 `—` | `**예상 회복**: 축 1-1 +3` |
-| **진행 로그** | `**진행 로그**:` 아래 bullet list | (예시 참조) |
+| **무엇** | `**무엇**: {1줄 설명}` | `**무엇**: S017 — EF 전통적 보편성 가정` | ✅ |
+| **담당 명령** | `**담당 명령**: \`"..."\` → {후속 동작}` | `**담당 명령**: "작업 시작해줘" → Consensus 자동 검색` | ✅ |
+| **covers** (HUNT 전용) | `**covers**: R-NN, R-MM` | `**covers**: R-02` | HUNT는 ✅ (registry dedup key) |
+| **query** (HUNT 전용) | `**query**: \`<consensus 통합 쿼리>\`` | (예시 참조) | HUNT는 ✅ |
+| **진행 로그** | `**진행 로그**:` 아래 bullet list | (예시 참조) | ✅ |
+
+> 📌 **점수 회복 필드 폐기**: 기존 `**예상 회복**: 축 N +M` 필드는 카테고리 기반 평가 시스템 도입 시 폐기됨. 점수는 보조 신호이므로 task-level 회복량 예측은 더 이상 추적하지 않음.
 
 ### 2.2 Task 타입별 추가 필드
 
@@ -172,16 +174,58 @@
 
 | 전이 | 트리거 |
 |------|--------|
-| (없음) → 🟡 active | aggregator가 신규 task 생성 시 |
+| (없음) → 🟡 active | aggregator가 신규 task 생성 시 (HUNT는 registry에도 status=ready로 기록) |
 | 🟡 active → 🔵 in-progress | 담당 명령 실행 직후, 담당 에이전트가 시작 시 |
-| 🔵 → 🟢 completed | 에이전트가 작업 완료 시 |
+| 🔵 → 🟢 completed | 에이전트가 작업 완료 시 (🟢 Recent completed 섹션 이동) |
+| 🟢 completed → **삭제** | aggregator 다음 실행 시 HUNT는 work-plan에서 제거 + registry에 completed 보존 |
 | 🔵 → 🔴 blocked | 에이전트가 진행 불가 판정 (검색 0건, 의존성 미해결 발견 등) |
 | 🔴 blocked → 🟡 active | 의존성 해소 시 자동, 또는 사용자 `"HUNT-005 재개해줘"` |
 | 🟡/🔴 → ⚪ deferred | 사용자 `"HUNT-005 연기해줘"` 또는 에이전트 판단 |
 | ⚪ → 🟡 | 사용자 `"HUNT-005 재개해줘"` |
-| 🟢 → 📜 Older completed | Recent completed 16번째부터 (오래된 것부터 밀림) |
+| HUNT registry completed → 🟡 active | **Reactivation** — claim-extraction이 동일 covers의 HUNT 재제안 시 aggregator가 자동 부활 (registry: completed→ready + work-plan 재삽입) |
 
-### 4.2 카드 이동 절차 (에이전트가 Edit 시)
+### 4.2 HUNT registry (Single Source of Truth)
+
+**파일**: `projects/{P}/.hunt-registry.json`
+
+HUNT의 lifecycle은 **registry가 단일 source of truth**. work-plan.md는 active/in-progress/blocked/deferred HUNT의 "live view"일 뿐. completed HUNT는 work-plan에서 삭제되고 registry에만 보존됨.
+
+**Registry 스키마**:
+```json
+{
+  "schema_version": "1.0",
+  "next_id": 16,
+  "hunts": {
+    "HUNT-001": {
+      "id": "HUNT-001",
+      "covers": ["R-01"],
+      "query": "...",
+      "topic": "...",
+      "source_file": "flow/claim-extraction-flow.md",
+      "status": "ready | in_progress | blocked | deferred | completed",
+      "issued_at": "2026-04-24T14:00:00",
+      "completed_at": null,
+      "reactivated_count": 0,
+      "history": [{"at": "...", "event": "issued"}, ...]
+    }
+  }
+}
+```
+
+**중복 발급 방지**:
+- **Primary (covers 정규화 일치)**: 새 제안의 covers가 registry의 기존 HUNT와 일치하면:
+  - 기존이 ready/in_progress/blocked/deferred → skip (이미 활성)
+  - 기존이 completed → **reactivation** (status=ready + work-plan에 재삽입 + 진행 로그 "reactivated" 엔트리)
+- **Normalization**: `R-03 (보완)`, `R-03-supplement` 등은 `R-03`으로 정규화. 비 R-ID (`S040`)는 원형 보존.
+
+**CLI** (운영 조회):
+```bash
+python3 scripts/hunt_registry.py stats CDEA       # 상태별 카운트
+python3 scripts/hunt_registry.py list CDEA        # 전체 HUNT 리스트
+python3 scripts/hunt_registry.py bootstrap CDEA   # 기존 work-plan → registry 역복원
+```
+
+### 4.3 카드 이동 절차 (에이전트가 Edit 시)
 
 **필수 단계** (순서 준수):
 
@@ -189,12 +233,16 @@
 2. 헤더 라인의 이모지·상태 텍스트 변경 (`🟡 active` → `🔵 in-progress` 등)
 3. 진행 로그에 새 엔트리 append
 4. 새 섹션 **하단**에 append (`## 🟢 Recent completed`는 **최상단**에 append — 최신순 유지)
-5. Recent completed가 15개 초과 시 가장 오래된 1개를 `## 📜 Older completed` **상단**에 이동
+5. HUNT가 🟢 Recent completed 섹션으로 이동하면, **다음 aggregator 실행 시 자동으로**:
+   - registry에 mark_completed + completed_at 기록
+   - work-plan에서 해당 HUNT 카드 **완전 삭제** (💾 registry가 영속 이력 담당)
 6. 대시보드 (§5) 숫자 재계산
 
-### 4.3 삭제 금지
+### 4.4 삭제 정책
 
-Task는 **절대 삭제되지 않음**. 취소도 ⚪ deferred + `note: 취소 사유`로 기록. 이력 영속.
+- **HUNT**: Recent completed 이동 후 aggregator가 work-plan에서 삭제. registry가 completed 상태로 이력 영속.
+- **비-HUNT task (DRAFT/EDIT/FIX/REANALYZE)**: 삭제 없음. completed/deferred로 이력 보존.
+- **취소**: ⚪ deferred + `note: 취소 사유`로 기록. registry도 status=deferred.
 
 ---
 
@@ -267,13 +315,16 @@ Task는 **절대 삭제되지 않음**. 취소도 ⚪ deferred + `note: 취소 �
 ### 상태별 카운트
 🟡 active: {N}  |  🔵 in-progress: {N}  |  🔴 blocked: {N}  |  🟢 completed: {N}  |  ⚪ deferred: {N}
 
-### 축별 잔여 회복 잠재력 (예상)
-- 축 1: +{N}  ({M} tasks)
-- 축 2: +{N}  ({M} tasks)
-- 축 3: +{N}  ({M} tasks)
-- 축 4: +{N}  ({M} tasks)
-- 축 5: +{N}  ({M} tasks)
-- 축 6: +{N}  ({M} tasks)
+### 축별 현재 상태
+- 축 1 (레퍼런스 충실도): {emoji} {라벨}  ({active}/{total} tasks)
+- 축 2 (논리 전개 완성도): {emoji} {라벨}  ({active}/{total} tasks)
+- 축 3 (반박·강화 논리): {emoji} {라벨}  ({active}/{total} tasks)
+- 축 4 (독창성·기여도): {emoji} {라벨}  ({active}/{total} tasks)
+- 축 5 (구성개념 정의): {emoji} {라벨}  ({active}/{total} tasks)
+- 축 6 (비판적 시각): {emoji} {라벨}  ({active}/{total} tasks) — Critical Mode 시에만
+
+축 상태 emoji (axis-scorer가 직접 부여, task state emoji와 별도 column으로 의미 구분):
+- 🟢 충실 / 🟡 적정 / 🟠 보강 필요 / 🔴 구조적 결함 / ⚫ 측정 불가
 
 ### 🎯 다음 권장 명령
 1. `"{command}"` — {reason, task IDs}
@@ -405,13 +456,13 @@ aggregator가 `hunts[]`를 파싱하여 work-plan.md에 신규 HUNT-NNN 카드�
 ### 상태별 카운트
 🟡 active: 2  |  🔵 in-progress: 0  |  🔴 blocked: 0  |  🟢 completed: 4  |  ⚪ deferred: 0
 
-### 축별 잔여 회복 잠재력 (예상)
-- 축 1: +3  (1 tasks)
-- 축 2: +0
-- 축 3: +0
-- 축 4: +8  (1 task, DRAFT-001)
-- 축 5: +0
-- 축 6: +0
+### 축별 현재 상태
+- 축 1 (레퍼런스 충실도): 🟠 보강 필요  (1/1 tasks)
+- 축 2 (논리 전개 완성도): 🟡 적정  (0/0 tasks)
+- 축 3 (반박·강화 논리): 🟡 적정  (0/0 tasks)
+- 축 4 (독창성·기여도): 🟠 보강 필요  (1/1 tasks, DRAFT-001)
+- 축 5 (구성개념 정의): 🟡 적정  (0/0 tasks)
+- 축 6 (비판적 시각): — (Critical Mode 비활성)
 
 ### 🎯 다음 권장 명령
 1. `"작업 시작해줘"` — HUNT-002 (Consensus 검색 1건 대기)
@@ -427,20 +478,11 @@ aggregator가 `hunts[]`를 파싱하여 work-plan.md에 신규 HUNT-NNN 카드�
 
 **담당 명령**: `"작업 시작해줘"` → Consensus 자동 검색
 
-**예상 회복**: 축 1-1 +3
-
 **covers**: R-07, R-12 (EF universal cognitive history 관련 claim들)
 
 **query**: `executive function universal cognitive history Miyake Friedman Diamond review`
 
-**검색 키워드**:
-- `executive function universal cognitive history`
-- `Miyake Friedman definition`
-- `Diamond EF review`
-
-**기대 논문 프로필**:
-- 유형: 세미널 정의 논문 + 최신 리뷰
-- 최소 필요 논문: 2-3편
+**검색 키워드 / 기대 논문 프로필**: `claim-extraction-flow.md`의 R-07, R-12 섹션 참조 / registry: `.hunt-registry.json`
 
 **의존성**: 없음
 **차단하는 것**: 없음
@@ -454,8 +496,6 @@ aggregator가 `hunts[]`를 파싱하여 work-plan.md에 신규 HUNT-NNN 카드�
 **무엇**: Introduction에 "So What" 3문장 블록
 
 **담당 명령**: `"초안 작성해줘"` → writing-architect 필수 반영
-
-**예상 회복**: 축 4-1 +8
 
 **위치**: Section 1 Introduction 문단 3
 **내용 요구**:
@@ -492,14 +532,16 @@ _(없음)_
 
 **담당 명령**: `"작업 시작해줘"` (실행 완료)
 
-**예상 회복**: 축 1-1 +3 → **실측 +4** (MATCHED 4편 확보)
+**covers**: R-01
 
-**검색 키워드**: (생략)
+**query**: (생략)
 
 **진행 로그**:
 - 2026-04-23 14:50 · created by aggregator
 - 2026-04-23 15:10 · in-progress: Consensus 검색
 - 2026-04-23 15:25 · ✅ completed: 20 papers (Kroupin 2025, Jukes 2024, Miller 2023 핵심). consensus-results.md 참조
+
+> ⚠️ 이 카드는 다음 aggregator 실행 시 work-plan에서 자동 삭제됨 (registry에 status=completed로 영속 보존).
 
 ---
 
