@@ -101,7 +101,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 ### 단계 1 — 프로젝트 생성
 
 ```bash
-cd ~/Documents/research-agent
+cd <research-agent 설치 폴더>     # 본인 환경의 실제 경로
 claude
 ```
 

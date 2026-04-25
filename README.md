@@ -68,11 +68,21 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 
 ### 자동 설치
 
+원하는 폴더에 clone 후 `install.sh` 실행. 아래는 `~/Documents/research-agent`에 설치하는 예시 — 다른 경로 선택 가능:
+
 ```bash
-git clone https://github.com/SteveKim0513/research-agent-system.git ~/Documents/research-agent
-cd ~/Documents/research-agent
+# 1) 원하는 위치로 이동 (예: 홈 아래 Documents)
+cd ~/Documents
+
+# 2) clone (원하면 폴더명 변경 가능)
+git clone https://github.com/SteveKim0513/research-agent-system.git research-agent
+
+# 3) 설치 스크립트 실행
+cd research-agent
 bash install.sh
 ```
+
+> 💡 **이후 가이드의 명령은 본인이 설치한 경로 기준**으로 읽으세요. 예: `cd <설치 경로>` 표기는 사용자 환경의 실제 경로로 치환.
 
 `install.sh`가 자동으로 확인·설치:
 - ✅ Claude Code CLI
@@ -98,7 +108,7 @@ claude
 ## ⚡ 빠른 시작 (30초)
 
 ```bash
-cd ~/Documents/research-agent
+cd <research-agent 설치 폴더>     # 본인이 설치한 경로 (예: ~/Documents/research-agent)
 claude
 ```
 

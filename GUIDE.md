@@ -9,7 +9,7 @@
 ## 1. ⚡ 1분 시작
 
 ```bash
-cd ~/Documents/research-agent
+cd <research-agent 설치 폴더>     # 본인이 설치한 경로 (예: ~/Documents/research-agent)
 claude
 ```
 
