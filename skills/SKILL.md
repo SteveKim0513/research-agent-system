@@ -131,11 +131,18 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | `Chapter X 수정해줘` | chapter-editor 수정 후 | chapters 통합 | `output/claim-extraction-output.md` |
 | `flow 업데이트해줘` | flow-refiner 승인 반영 후 | flow | `flow/claim-extraction-flow.md` |
 
-**자동 체이닝 직전 history snapshot 의무**:
-- flow 수정: `sync_state.py snapshot-flow {P} {trigger}` — 이전 flow.md + claim-extraction-flow.md 쌍 보존
-- chapter 수정: `sync_state.py snapshot-output {P} {trigger} {chapter}` — 해당 챕터 + 당시 claim-extraction-output.md 쌍 보존
-- critical-questions 갱신: `sync_state.py snapshot-critical-questions {P} {trigger}` — 이전 답변 보존
-- critical-commitments 갱신: `sync_state.py snapshot-critical-commitments {P} {trigger}` — 이전 commitment 상태 보존
+**Snapshot 정책 — 두 메커니즘이 공존**:
+
+| 메커니즘 | 트리거 | 무엇이 보존되나 | 위치 |
+|---------|-------|--------------|------|
+| **자동 (version_manager)** | 모든 frontmatter v++ 직전 | 이전 버전 파일 그대로 | `history/{stage}/{type}/{NNN}-...-vN-pre-bump/` |
+| **명시 (sync_state.py snapshot-*)** | LLM이 doc 따라 호출 | 의미 있는 마일스톤 + manifest | 동일 |
+
+**원칙**: 일반 변경은 자동 백업으로 충분. **특수 마일스톤만** 명시 snapshot:
+- `snapshot-flow {P} pre-refine` — flow-refiner가 사용자 승인 직전
+- `snapshot-output {P} pre-redraft {chapter}` — output 전면 재작성 직전
+- `snapshot-evaluation {P} pre-respin` — 평가 시스템 큰 변경 전 (manifest 기반 증분)
+- `snapshot-work-plan {P} {trigger}` — work-plan 큰 재구성 전
 
 **Critical Mode 자동 재분석 규칙** (intellectual_ambition ≥ critical일 때만):
 

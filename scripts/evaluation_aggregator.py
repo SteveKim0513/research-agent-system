@@ -1613,6 +1613,61 @@ def rebalance_completed(recent: str, older: str):
 VALID_ACTIONS = ("reference", "content", "status")
 
 
+def _check_action_dependencies(project: str, stage: str, action: str) -> list[str]:
+    """action 진입 전 의존성 stale 체크 → LLM dispatch instruction 메시지 리스트 반환.
+
+    - reference action: claim-extraction-{stage}.md mtime > 본문 mtime 또는 부재 → claim-extractor 선행
+    - content action: axis2~6 mtime < 본문 mtime → 해당 stale axis만 재실행 권장
+    - stale axis 외에는 기존 결과 활용 (delta 모드)
+    """
+    root = project_root(project)
+    msgs = []
+
+    if stage == "flow":
+        body_md = root / "flow" / "flow.md"
+        body_files = [body_md] if body_md.exists() else []
+    else:
+        body_files = [p for p in (root / "output").glob("*.md")
+                      if not p.name.startswith("claim-extraction")]
+    if not body_files:
+        return msgs
+    body_mtime_max = max(p.stat().st_mtime for p in body_files)
+
+    if action == "reference":
+        # claim-extraction-{stage}.md 검사
+        ce = root / stage / f"claim-extraction-{stage}.md"
+        if not ce.exists():
+            msgs.append(f"📝 `{stage}/claim-extraction-{stage}.md` 부재 → "
+                        f"`claim-extractor` Agent를 먼저 dispatch (stage={stage})")
+        elif ce.stat().st_mtime < body_mtime_max:
+            ce_v = version_manager.get_version_info(ce).get("version", 0)
+            body_v = version_manager.get_version_info(body_files[0]).get("version", 0)
+            msgs.append(f"📝 `{stage}/claim-extraction-{stage}.md` stale "
+                        f"(v{ce_v}, 본문 v{body_v}) → `claim-extractor` Agent 재호출 (stage={stage})")
+
+    if action == "content":
+        # axis2~6 stale 검사 (delta 식별)
+        eval_dir = latest_dir(project, stage)
+        stale_axes = []
+        if eval_dir.exists():
+            for n in (2, 3, 4, 5, 6):
+                pattern = list(eval_dir.glob(f"axis{n}-*.md"))
+                if not pattern:
+                    stale_axes.append(f"axis{n}")  # 부재 → 새로 실행
+                    continue
+                ax = pattern[0]
+                if ax.stat().st_mtime < body_mtime_max:
+                    stale_axes.append(f"axis{n}")
+        else:
+            stale_axes = [f"axis{n}" for n in (2, 3, 4, 5, 6)]
+        if stale_axes:
+            msgs.append(f"📊 stale 축 {len(stale_axes)}개: {', '.join(stale_axes)} → "
+                        f"각 axis*-scorer Agent dispatch 권장 (stale 축만)")
+            msgs.append(f"   fresh 축은 기존 {stage}/evaluations/axis*.md 결과 그대로 활용 (delta 모드)")
+
+    return msgs
+
+
 def _issue_reanalyze_from_delta(project: str, affected: list) -> tuple:
     """paper_reanalysis_delta 결과 → RESEARCH(reanalyze) 카드 발급.
 
@@ -1757,6 +1812,14 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
 
     if action == "status":
         return render_status(project, stage)
+
+    # action별 stale 의존성 검사 — LLM에 명시적 "선행 dispatch" instruction 출력
+    stale_msgs = _check_action_dependencies(project, stage, action)
+    if stale_msgs:
+        print("\n⚠️  의존성 stale 감지 — 분석 전 다음을 먼저 실행해야 정합성 유지됩니다:")
+        for msg in stale_msgs:
+            print(f"   {msg}")
+        print()
 
     # 사용자 본문 파일 자동 version bump (사용자가 편집한 것 자동 감지)
     root = project_root(project)
@@ -2027,7 +2090,7 @@ def render_status(project: str, stage: str) -> int:
     print(f"   collected/: {len(coll)}편 처리 완료")
     print()
 
-    # 4. WRITE 카드
+    # 4. WRITE 카드 + 활성 카드 dispatch 가이드
     write_reg = card_registry.load(root, "write")
     n_w_total = len(write_reg["cards"])
     n_w_active = sum(1 for c in write_reg["cards"].values() if c["status"] in ("ready", "in_progress"))
@@ -2035,7 +2098,31 @@ def render_status(project: str, stage: str) -> int:
         print(f"✏️  Write")
         print(f"   WRITE 카드: {n_w_total} (활성 {n_w_active})\n")
 
-    # 5. 다음 권장 명령
+    # 5. 활성 카드 dispatch 가이드 (각 카드별 다음 명령)
+    active_cards = []
+    for cid, c in research_reg["cards"].items():
+        if c["status"] in ("ready", "in_progress"):
+            cmd = '"리서치 진행해줘"' if c["mode"] == "search" else '"논문 재분석해줘"'
+            active_cards.append((cid, c["mode"], cmd, c["metadata"].get("무엇", "")))
+    for cid, c in write_reg["cards"].items():
+        if c["status"] in ("ready", "in_progress"):
+            target = c["metadata"].get("대상 챕터", "")
+            fname = Path(target).name if target else "{파일명}"
+            cmd = '"초안 작성해줘"' if c["mode"] == "create" else f'"output {fname} 수정해줘: {cid}"'
+            active_cards.append((cid, c["mode"], cmd, c["metadata"].get("무엇", "")))
+
+    if active_cards:
+        print(f"🎯 처리 가능한 활성 카드 ({len(active_cards)}개)")
+        for cid, mode, cmd, what in active_cards[:8]:
+            preview = (what[:40] + "…") if len(what) > 40 else what
+            print(f"   {cid} ({mode:9}) → {cmd}")
+            if preview:
+                print(f"     └ {preview}")
+        if len(active_cards) > 8:
+            print(f"   ... 외 {len(active_cards)-8}개")
+        print()
+
+    # 6. 다음 권장 명령
     print(f"💡 권장 다음 명령:")
     recs = []
     if n_active > 0:

@@ -86,9 +86,24 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit 0{X}-{na
 2. **claim-extractor(stage=output) 자동 호출** — 통합 draft 분석 갱신. 해당 챕터의 문장만 재분류하고 나머지 챕터 분류는 보존
 3. 결과를 `output/claim-extraction-output.md`로 덮어쓰기 (Phase 5 snapshot이 이미 이전 버전 보존)
 
-### Phase 7: citation-auditor 자동 체이닝
+### Phase 7: citation-auditor 자동 체이닝 (필수)
 
-claim-extractor 재실행 후 citation-auditor를 호출하여 수정된 인용들이 PDF 원문과 정확히 일치하는지 검증.
+**output-editor가 Phase 6 완료 후 즉시 citation-auditor Agent를 dispatch한다.** 이는 선택이 아닌 **자동 체이닝 의무** — 사용자가 따로 명령하지 않아도 호출.
+
+**호출 방식**:
+```
+Agent dispatch: citation-auditor
+  대상: 방금 수정된 output/{파일명}.md
+  목표: 수정 부분 spot-check (전량 아닌 변경 hunk만)
+  결과: 인용 감사 리포트
+```
+
+**citation-auditor 결과 처리**:
+- ✅ 정확한 인용만 → output-editor가 Phase 8(sync 갱신)로 진행
+- ⚠️ 부정확한 인용 발견 → citation-auditor가 직접 `card_registry.py issue ... write modify ...` CLI로 **신규 WRITE 카드 발급** (dedup_key 자동 검사)
+- ❌ 검증 불가 인용 → 리포트에만 기록 (카드 발급 안 함)
+
+**왜 자동 체이닝?** chapter 수정과 인용 정확성은 한 묶음 작업. 사용자가 별도 호출하면 빠뜨리거나 시간차로 stale될 가능성 → **수정 직후 같은 세션 내 검증**이 정합성 보장.
 
 ### Phase 8: Sync 갱신
 

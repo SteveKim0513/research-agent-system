@@ -113,9 +113,15 @@ collected/에 있지만 한 번도 인용되지 않은 논문:
 
 ## 호출 조건
 
-- **"챕터 수정" 명령 시 자동 호출** (output-editor Phase 7 체이닝)
-- **output-stage 평가 시 축 1이 실행되면 자동 체이닝** (orchestrator 단계 7)
-- **output-stage 분석 명령 시 ambition ≥ baseline이면 3편 spot-check 모드로 체이닝**
+본 에이전트는 **단독 호출되지 않고 항상 사후 체이닝**으로 작동:
+
+| 트리거 | 호출자 | 시점 | scope |
+|--------|-------|------|------|
+| `"output {파일명} 수정해줘: WRITE-NNN"` | output-editor | Phase 6 완료 직후 | 변경 hunk spot-check |
+| `"output 레퍼런스 분석해줘"` (axis1 dispatch) | aggregator/orchestrator | axis1-scorer 실행 후 | ambition ≥ baseline 시 3편 spot-check |
+| `"리뷰 체크해줘"` (peer-reviewer Mode A) | peer-reviewer | Mode A 완료 후 | 인용 정확성 spot-check |
+
+**자동 체이닝 의무** — 호출자(output-editor·orchestrator·peer-reviewer)가 본 에이전트를 dispatch하는 것은 선택이 아니라 의무. 사용자가 따로 명령하지 않아도 발동해야 함.
 
 ## 입력 경로
 
