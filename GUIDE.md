@@ -2,13 +2,11 @@
 
 학술 글을 쓸 때 시스템이 옆에서 **레퍼런스 찾기·평가·수정 추적**을 도와주는 도구.
 
-핵심 모델 두 줄 요약:
-- 글은 **flow**(계획)와 **output**(원고) 두 단계로 작성
-- 각 단계에서 **레퍼런스 분석**(축 1)과 **내용 분석**(축 2~6)을 따로 돌려, 결과를 `work-plan.md`의 카드로 받아 처리
+> **핵심 모델**: 글은 `flow`(계획) → `output`(원고) **두 단계**로 완성합니다. 각 단계에서 사용자는 **work-plan을 통해 시키거나 직접 작업**할 수 있습니다.
 
 ---
 
-## 1분 시작
+## 1. ⚡ 1분 시작
 
 ```bash
 cd ~/Documents/research-agent
@@ -21,19 +19,81 @@ claude
 
 ---
 
-## 첫 프로젝트 7단계
+## 2. 🧠 시스템 모델
 
-### ① 프로젝트 만들기
+### 2.1 두 모드 — 글 완성의 두 단계
+
+| 모드 | 폴더 | 사용자 목표 |
+|------|------|-----------|
+| **flow** | `projects/{P}/flow/` | flow.md 완성 (연구 방향·논증 줄거리) |
+| **output** | `projects/{P}/output/` | output/*.md 완성 (실제 원고) |
+
+**순서**: flow 모드에서 작업 → flow 완성 → **output 모드로 전환** → 초안 작성 → output 완성.
+
+각 모드는 **self-contained** — 본문·분석 결과·평가·critical을 자기 폴더에 보관 (과거 버전은 `history/`에 자동 백업).
+
+**모드 전환**:
+- 명시 명령: `"flow 모드"` / `"output 모드"`
+- 자동 전환: 명령 prefix(`"output 레퍼런스 분석해줘"`)를 쓰면 시스템이 모드까지 변경
+
+### 2.2 각 모드에서 두 가지 작업 방식
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  방식 A:  work-plan을 통해 시키기                             │
+│  ──────────────────────────────────                          │
+│  카드 생성:                                                   │
+│    • 자동 — 분석 명령("레퍼런스/내용 분석해줘")으로 카드 발급  │
+│    • 수동 — 자연어로 "X 카드 추가해줘" 또는 파일 직접 편집     │
+│                                                              │
+│  카드 처리:                                                   │
+│    • 카드의 **담당 명령** 필드 그대로 입력                    │
+│    • 예: "리서치 진행해줘", "output ch3.md 수정해줘: WRITE-7" │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  방식 B:  직접 작업                                           │
+│  ──────────────                                              │
+│  • flow.md / output/*.md 에디터로 직접 편집                   │
+│  • 논문 PDF를 papers/candidates/ 에 직접 투입                 │
+│                                                              │
+│  ⚠️ 직접 작업 후 반드시 후속 명령:                            │
+│    파일 편집 후  → "레퍼런스 분석해줘" / "내용 분석해줘"      │
+│                    (자동 sync + history 백업 + 새 카드 발급)  │
+│    PDF 투입 후   → "논문 처리해줘"                            │
+│                    (triage + Tier 분석 + analyzed/ 생성)     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**핵심**: 두 방식은 섞어 써도 됨. 사용자가 직접 flow.md를 고치고 → AI에 분석 시키고 → 카드 받고 → 카드 처리시키고 → 다시 직접 고치고… 반복.
+
+### 2.3 핵심 파일 (매일 보는 것)
+
+| 파일 | 역할 |
+|------|------|
+| `projects/{P}/work-plan.md` | **할 일 대시보드** — 활성 카드 + 권장 명령 |
+| `projects/{P}/flow/flow.md` | flow 본문 (방향) |
+| `projects/{P}/output/*.md` | output 본문 (원고) |
+| `projects/{P}/{stage}/evaluations/evaluation.md` | 평가 결과 |
+
+---
+
+## 3. 🚀 첫 프로젝트 7단계
+
+전체 흐름은 **[Stage 1: flow 모드]** → **[Stage 2: output 모드]**.
+
+### ━━━ Stage 1 · flow 모드 ━━━
+
+#### ① 프로젝트 생성
 
 ```
 "my-essay 프로젝트 만들어줘"
 ```
+→ `projects/my-essay/` 폴더 자동 생성. 시작 모드는 `flow`.
 
-→ `projects/my-essay/` 자동 생성.
+#### ② flow.md 작성 (직접 작업)
 
-### ② flow.md 작성
-
-`projects/my-essay/flow/flow.md`를 에디터로 열어 **줄글로** 작성:
+`projects/my-essay/flow/flow.md`를 에디터로 열고 **줄글로** 작성:
 
 - 연구 질문 한 문장 (`이 글은 X를 묻는다`)
 - 핵심 주장 한 문장 (`본 에세이는 Y라고 주장한다`)
@@ -41,12 +101,11 @@ claude
 
 체크박스·목차 형식 ❌. 줄글만.
 
-### ③ 첫 분석
+#### ③ flow 분석 (work-plan 카드 자동 발급)
 
 ```
-"flow 모드"                  ← 한 번만 (기본값이라 보통 생략 가능)
-"레퍼런스 분석해줘"           ← 문장 단위 분석 + 부족한 논문 → RESEARCH 카드 발급
-"내용 분석해줘"              ← 논리·독창성 등 5축 평가 → WRITE 카드 발급
+"레퍼런스 분석해줘"     ← flow 문장 분석 + 부족한 논문 → RESEARCH 카드 발급
+"내용 분석해줘"         ← 논리·독창성 등 5축 → WRITE 카드 발급
 ```
 
 생성:
@@ -54,37 +113,37 @@ claude
 - `flow/evaluations/axis1~6.md` + `evaluation.md`
 - `work-plan.md` — 할 일 카드 모음
 
-### ④ 리서치 + 논문 처리
+#### ④ 리서치 + 논문 처리 (flow 완성)
 
 ```
-"리서치 진행해줘"             ← work-plan의 RESEARCH 카드 자동 실행
-                                Consensus MCP로 papers/consensus-results.md 생성
+"리서치 진행해줘"        ← work-plan의 RESEARCH 카드 자동 실행
+                          → papers/consensus-results.md (논문 후보 리스트)
 ```
 
-→ `consensus-results.md` 열어 후보 논문 검토 → **필요한 PDF만 직접 다운로드** → `papers/candidates/`에 넣기.
+📥 사용자: consensus-results.md 검토 → 필요한 PDF만 `papers/candidates/`에 투입 (직접 작업).
 
 ```
-"논문 처리해줘"               ← candidates/ PDF triage → Tier 1·2·3 분석
-                                papers/analyzed/*-analysis.md 생성
+"논문 처리해줘"          ← candidates/ PDF triage + Tier 분석
+                          → papers/analyzed/*-analysis.md 생성 + collected/로 이동
 ```
 
-### ⑤ 초안 작성
+→ 필요시 ③④를 반복. **flow 완성**되면 다음 단계.
+
+### ━━━ Stage 2 · output 모드 ━━━
+
+#### ⑤ 초안 작성 (flow → output, 모드 전환)
 
 ```
 "초안 작성해줘"
 ```
+→ writing-architect가 구조 설계 (사용자 승인 필요) → `output/*.md` 생성.
+→ 권장: `"output 모드"` 명시 (또는 다음 prefix 명령으로 자동 전환).
 
-→ writing-architect가 구조 설계(승인 필요) → `output/*.md` 생성.
-이제 자동으로 **output 모드**로 전환 권장:
+#### ⑥ output 분석 → 수정 반복 (work-plan 카드 처리)
 
 ```
 "output 모드"
-```
-
-### ⑥ output 분석 → 수정 반복
-
-```
-"레퍼런스 분석해줘"           ← 이제 output 대상 (모드 적용)
+"레퍼런스 분석해줘"      ← 이제 output 대상
 "내용 분석해줘"
 ```
 
@@ -93,41 +152,39 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 ```
 "output ch3.md 수정해줘: WRITE-007"
 ```
-
-→ output-editor가 카드 지시대로 수정 + citation-auditor 자동 체이닝.
+→ output-editor가 카드대로 수정 + citation-auditor 자동 검증.
 
 **반복**: 수정 → 재분석 → 새 카드 → 수정.
 
-### ⑦ 최종 통합 + 리뷰
+#### ⑦ 최종 통합 + 리뷰 (output 완성)
 
 ```
-"최종 통합해줘"     ← output → final/*.md + .docx
-"리뷰 체크해줘"     ← peer-reviewer 시뮬레이션
+"최종 통합해줘"          ← output → final/*.md + .docx
+"리뷰 체크해줘"          ← peer-reviewer 시뮬레이션
+"리뷰 답변 도와줘: [리뷰 텍스트]"  ← 실제 리뷰 받았을 때
 ```
 
 ---
 
-## 명령어 한눈
+## 4. 📜 명령어 한눈
 
-### 모드 (지금 어느 단계?)
+### 모드 전환
 
 | 명령어 | 동작 |
 |---|---|
 | `"flow 모드"` / `"output 모드"` | 현재 모드 전환 |
 | `"현재 모드"` | 현재 모드 출력 |
 
-기본값은 `flow`. 한 번 모드를 정하면 prefix 없이 명령 가능.
-
 ### 분석 (분석해줘 ≡ 평가해줘 혼용)
 
 | 명령어 | 동작 |
 |---|---|
-| `"레퍼런스 분석해줘"` | 현재 모드 적용 — claim-extractor + axis1 + RESEARCH 카드 |
-| `"내용 분석해줘"` | 현재 모드 적용 — axis2~6 + WRITE 카드 |
-| `"flow 레퍼런스 분석해줘"` | **모드를 flow로 자동 전환** + flow 분석 실행 |
-| `"output 내용 평가해줘"` | **모드를 output으로 자동 전환** + output 분석 실행 |
+| `"레퍼런스 분석해줘"` | 현재 모드 적용 — claim-extractor + axis1 → RESEARCH 카드 |
+| `"내용 분석해줘"` | 현재 모드 적용 — axis2~6 → WRITE 카드 |
+| `"flow 레퍼런스 분석해줘"` | **모드를 flow로 자동 전환** + flow 분석 |
+| `"output 내용 평가해줘"` | **모드를 output으로 자동 전환** + output 분석 |
 
-> 💡 **prefix 명시는 단발 override가 아니라 모드 변경 시그널**입니다. 사용자가 실수로 다음 명령도 잘못된 stage에서 치는 것을 방지하기 위해, prefix를 보면 시스템이 모드를 그쪽으로 옮기고 그 모드에서 실행합니다.
+> 💡 prefix는 단발 override가 아니라 **모드 변경 시그널**입니다.
 
 ### 실행 (work-plan 카드 처리)
 
@@ -152,66 +209,137 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 |---|---|
 | `"현재 상태"` | 폴더·진행도·모드·버전/싱크 한눈 |
 | `"버전 체크"` | 모든 파일 frontmatter 비교 |
-| `"flow 업데이트해줘"` | flow-refiner — interactive diff (카드 발급 없음) |
+| `"flow 업데이트해줘"` | flow-refiner — interactive diff 제안 (카드 발급 없음) |
 
 ---
 
-## 폴더 구조
+## 5. 🔁 매일 시작 패턴
+
+```
+1. "현재 상태"        ← 어디까지 했는지 한눈 + 모드 확인
+2. work-plan.md 열기  ← 활성 카드 + 권장 명령 확인
+3. 권장 명령 위에서부터 처리
+```
+
+뭘 할지 모르겠으면:
+```
+"작업 추천해줘"       ← 활동 로그·work-plan 분석해서 다음 명령 + 이유 제시
+```
+
+---
+
+## 6. 🎬 자주 쓰는 시나리오
+
+### A. 새 프로젝트 시작
+```
+"my-essay 프로젝트 만들어줘"
+→ flow.md 직접 작성
+"레퍼런스 분석해줘"
+"내용 분석해줘"
+"리서치 진행해줘"
+→ PDF 선별 → papers/candidates/ 투입
+"논문 처리해줘"
+"초안 작성해줘"
+```
+
+### B. output 단계 진입
+```
+"output 모드"
+"레퍼런스 분석해줘"   ← 이제 output 대상
+"내용 분석해줘"
+"output ch1.md 수정해줘: WRITE-001"
+```
+
+### C. flow 다시 손볼 때 (직접 수정 → sync)
+```
+"flow 모드"
+flow.md 에디터로 직접 편집 → 저장
+"레퍼런스 분석해줘"   ← 시스템이 hash 변경 감지 → flow 자동 v++
+                       이전 버전은 history/flow/body/...-pre-bump/에 자동 백업
+                       claim-extraction stale 자동 안내 + 새 RESEARCH 카드 발급
+```
+
+### D. 사용자가 work-plan에 직접 작업 추가
+
+평가가 잡지 못한 작업도 본인 판단으로 추가 가능. **두 방법**:
+
+**방법 1 — 자연어 채팅으로 요청**:
+```
+"work-plan에 카드 추가해줘:
+ ch3 Section 4 EF 보편성 논증을 Kroupin 2025·Liu 2024 인용으로 강화"
+```
+→ AI가 의도 읽고 정식 WRITE 카드로 변환 (registry 등록 + dedup 자동).
+
+**방법 2 — work-plan.md 에디터로 직접 편집**:
+```markdown
+### [TODO] Section 4 EF 보편성 논증 강화
+
+Kroupin 2025·Liu 2024 인용 추가하면 boldness 강해질 것.
+```
+→ 다음 세션에 `"이 TODO 카드로 만들어줘"` 또는 `"WRITE-NNN 처리해줘"` 호출 시 AI가 정식 카드로 변환.
+
+### E. 정체된 느낌일 때
+```
+"현재 상태"           ← 진행도·블로커 확인
+"작업 추천해줘"
+"버전 체크"           ← stale 파일 있는지 확인
+```
+
+---
+
+## 7. 📁 폴더 구조
 
 ```
 projects/{P}/
-├── flow/                           — 계획 단계
-│   ├── flow.md                     사용자 본문
-│   ├── claim-extraction-flow.md    레퍼런스 분석 결과
-│   ├── evaluations/                최신 axis1~6 + evaluation.md
-│   └── critical/                   Critical Mode 시 생성
+├── flow/                            계획 단계 (최신만)
+│   ├── flow.md                      사용자 본문
+│   ├── claim-extraction-flow.md     레퍼런스 분석 결과
+│   ├── evaluations/                 axis1~6 + evaluation.md
+│   └── critical/                    Critical Mode 시 생성
 │
-├── output/                         — 결과물 단계
-│   ├── *.md                        실제 원고
+├── output/                          결과물 단계 (최신만)
+│   ├── *.md                         실제 원고
 │   ├── claim-extraction-output.md
 │   ├── evaluations/
 │   ├── critical/
-│   └── .registry.json              WRITE 카드 SSOT
+│   └── .registry.json               WRITE 카드 SSOT
 │
-├── papers/                         — 자료
-│   ├── candidates/                 사용자 투입 PDF (대기)
-│   ├── collected/                  처리 완료
-│   ├── analyzed/                   *-analysis.md
-│   ├── consensus-results.md
-│   └── .registry.json              RESEARCH 카드 SSOT
+├── papers/                          자료 (3단계 수집)
+│   ├── candidates/                  ① 사용자 투입 PDF (대기)
+│   ├── collected/                   ② 처리 완료
+│   ├── analyzed/                    ③ *-analysis.md
+│   ├── consensus-results.md         리서치 결과 누적
+│   └── .registry.json               RESEARCH 카드 SSOT
 │
-├── history/                        — 모든 과거 버전 통합
-│   ├── flow/{body, claim-extraction, evaluations, critical}/
-│   ├── output/{body, claim-extraction, evaluations, critical}/
+├── history/                         모든 과거 버전 통합 (자동 백업)
+│   ├── flow/{body, evaluations, claim-extraction, critical}/
+│   ├── output/{body, evaluations, claim-extraction, critical}/
 │   └── work-plan/
 │
-├── work-plan.md                    — 활성 카드 대시보드 (매일 열기)
-├── activity.log                    — 활동 이력
-└── .current-mode                   — 현재 모드 (flow|output)
+├── work-plan.md                     활성 카드 대시보드
+├── activity.log                     활동 이력
+└── .current-mode                    현재 모드 (flow|output)
 ```
-
-**원칙**: stage 폴더에는 **최신만**. 모든 과거 버전은 `history/`에 자동 백업.
 
 ---
 
-## 카드 시스템
+## 8. 🎴 카드 시스템
 
 |  | RESEARCH | WRITE |
 |---|---|---|
 | **무엇** | 근거 논문 확보 | 글 작성·수정 |
 | **mode** | search · reanalyze | create · modify |
-| **발급 시점** | 레퍼런스 분석 시 자동 (claim-extractor) | 내용 분석 시 자동 (axis2~6의 🛠 WRITE 후보 섹션) + citation-auditor 사후 체이닝 |
+| **발급 시점** | 레퍼런스 분석 시 자동 + 사용자 자율 추가 | 내용 분석 시 자동 + citation-auditor 사후 + 사용자 자율 추가 |
 | **Registry** | `papers/.registry.json` | `output/.registry.json` |
 | **실행 명령** | `"리서치 진행해줘"` / `"논문 재분석해줘"` | `"초안 작성해줘"` / `"output X 수정해줘: WRITE-NNN"` |
 
-**flow 수정은 카드 아님**. 사용자가 `"flow 업데이트해줘"`로 명시 호출 시 flow-refiner가 interactive diff 제안 → 사용자가 항목별 승인.
+**flow 수정은 카드 아님** — flow.md는 사용자 자율 영역. `"flow 업데이트해줘"`는 flow-refiner의 interactive 제안 (사용자 승인 후 즉시 반영, 카드 없음).
 
 ---
 
-## 버전 + 싱크 (자동)
+## 9. 🔢 버전 + 싱크 (자동)
 
-각 산출물 상단에 frontmatter 자동 부여:
-
+각 산출물 상단 frontmatter:
 ```yaml
 ---
 version: 3
@@ -225,116 +353,10 @@ updated_by: claim-extractor
 ```
 
 **자동 동작**:
-- 사용자가 flow.md 편집 → 다음 명령 시 시스템이 hash 변경 감지 → version 자동 increment
+- 사용자가 본문 편집 → 다음 명령 시 hash 변경 감지 → version 자동 increment
 - **이전 버전은 history에 자동 백업** (실수 복구 가능)
-- 의존하던 파생 파일들은 `based_on.flow={이전}`이 되어 **stale 표시**
-- 분석 명령 실행 시 stale이면 자동 선행 갱신
-
-언제든 `"버전 체크"`로 모든 파일의 sync 상태 확인.
-
----
-
-## 매일 시작 패턴
-
-```
-1. "현재 상태"        ← 어디까지 했는지 한눈
-2. "현재 모드"        ← flow? output?
-3. work-plan.md 열기 → 🎯 권장 명령부터 처리
-```
-
-뭘 할지 모르겠으면:
-```
-"작업 추천해줘"
-```
-
-→ 활동 로그·work-plan 분석해서 다음 명령 + 이유 제시.
-
----
-
-## 자주 쓰는 시나리오
-
-### 새 프로젝트 시작
-```
-"my-essay 프로젝트 만들어줘"
-→ flow.md 직접 작성
-"레퍼런스 분석해줘"
-"내용 분석해줘"
-"리서치 진행해줘"
-→ PDF 선별 → candidates/ 투입
-"논문 처리해줘"
-"초안 작성해줘"
-```
-
-### output 단계 진입
-```
-"output 모드"
-"레퍼런스 분석해줘"   ← output 대상
-"내용 분석해줘"
-"output ch1.md 수정해줘: WRITE-001"
-```
-
-### flow 다시 손볼 때
-```
-"flow 모드"
-flow.md 편집 (에디터로 직접) → 시스템이 다음 명령 시 자동 v++
-"flow 업데이트해줘"   ← (선택) flow-refiner의 새 논문 반영 제안
-"레퍼런스 분석해줘"   ← stale 자동 선행, 새 R/RESEARCH 카드 발급
-```
-
-### 사용자가 work-plan에 직접 작업 추가
-
-평가가 도출 못 한 작업도 본인 판단으로 카드 추가 가능. **두 가지 자연스러운 방법**:
-
-**방법 1 — Claude Code 채팅에 자연어로 요청**
-
-```
-"work-plan에 카드 하나 추가해줘:
- ch3 Section 4의 EF 보편성 논증을 Kroupin 2025·Liu 2024 인용으로 강화하고 싶어"
-```
-
-→ AI가 정식 WRITE 카드로 변환해서 work-plan.md 🟡 Active에 추가 (registry 등록 + ID 발급 + dedup 검사 자동).
-
-복잡한 카드 메타(대상 챕터·수정 내용·원인 등)는 AI가 사용자 의도를 읽고 채워줌.
-
-**방법 2 — work-plan.md를 에디터로 직접 편집**
-
-자유 메모 형식:
-```markdown
-### [TODO] Section 4 EF 보편성 논증 강화
-
-Kroupin 2025와 Liu 2024 인용 추가하면 boldness가 강해질 것 같음.
-나중에 시간 되면 수정.
-```
-
-→ 다음 세션에 `"work-plan 정리해줘"` / `"TODO 카드로 만들어줘"`라고 하면 AI가 메모 읽고 정식 카드로 변환.
-
-또는 정식 카드 스키마(WORK-PLAN-FORMAT §2)대로 직접 작성해도 OK — 다음 분석 명령 시 시스템이 work-plan을 스캔해 registry에 자동 등록(bootstrap). 단 임시 ID(예: `WRITE-?`)로 적으면 AI가 정식 ID로 갱신 권장.
-
-### AI에 카드 작업 시키기
-
-카드의 `**담당 명령**` 필드를 그대로 입력:
-
-```
-"output ch3.md 수정해줘: WRITE-008"
-"리서치 진행해줘"           (RESEARCH 카드 일괄)
-"논문 재분석해줘"           (RESEARCH reanalyze 카드)
-```
-
-또는 카드 ID만으로:
-```
-"WRITE-008 처리해줘"
-```
-
-→ AI가 work-plan에서 카드 lookup → 담당 명령 필드 보고 적절한 에이전트(output-editor·paper-analyst·…) dispatch → 처리 → 완료 로그 + registry 갱신.
-
-**핵심**: 사용자는 **파일 편집 또는 자연어 채팅** 두 가지로만 시스템과 상호작용. CLI 호출은 AI 내부 도구라 사용자가 직접 칠 일 없음.
-
-### 정체된 느낌일 때
-```
-"현재 상태"           ← 진행도·블로커 확인
-"작업 추천해줘"       ← 다음 명령 추천
-"버전 체크"           ← stale 파일 있는지 확인
-```
+- 의존 파생 파일은 stale 표시 → 분석 명령 시 자동 선행 갱신 안내
+- `"버전 체크"`로 모든 파일 sync 상태 확인
 
 ---
 
