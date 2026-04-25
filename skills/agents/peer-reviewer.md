@@ -254,3 +254,31 @@ NEW_ID=$(python3 scripts/card_registry.py issue {project} write modify \
 ```
 
 CLI가 동일 dedup_key 기존 WRITE 카드를 발견하면 그 ID를 반환 + stderr `⏭ skip` 또는 `↻ reactivated`. 신규 ID (`✅ issued`)일 때만 work-plan 🟡 Active에 카드 append. citation-auditor와 같은 수정 요구를 두 번 발급하는 race를 `output/.registry.json`이 차단함.
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: 화면 출력 + WRITE 카드 발급 (CLI)
+
+**의존 (based_on)**: output/*.md 본문
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v},  # 의존 파일 version
+    updated_by="peer-reviewer",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동 increment (변경 없으면 유지)
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+- bump 시 이전 버전 자동 history 백업
+

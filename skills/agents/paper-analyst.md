@@ -414,3 +414,31 @@ Tier 1은 이미 Mode C를 내장. **Tier 2·3 논문을 나중에 critical 격�
 - **Mode B에서 v1 내용 절대 수정/삭제 금지** — 이력 보존
 - **Tier 3에서 full 분석을 하지 않는다** — 간소판을 지킬 것 (나중 재분석으로 승격 가능)
 - **임계 tier 논문**: Pass 1에서 임계에 있으면 높은 쪽으로. false positive가 false negative보다 안전
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: papers/analyzed/{filename}-analysis.md (v1, v2 append)
+
+**의존 (based_on)**: (자기 자신 — analyzed 본문이 PDF에서 도출, content_hash 자동 관리)
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v},  # 의존 파일 version
+    updated_by="paper-analyst",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동 increment (변경 없으면 유지)
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+- bump 시 이전 버전 자동 history 백업
+

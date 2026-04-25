@@ -812,6 +812,96 @@ output/*.md → final/complete-draft.md + .docx 재생성.
 
 ---
 
+## 🔢 Version · Mode · Action 시스템
+
+### 버전·싱크 (`scripts/version_manager.py`)
+
+각 산출물 상단에 YAML frontmatter:
+
+```yaml
+---
+version: 3
+content_hash: a3f8b9c
+based_on:
+  flow: 3
+  claim-extraction: 2
+updated_at: 2026-04-25T10:30:00
+updated_by: claim-extractor
+---
+```
+
+**자동 동작**:
+- `content_hash` = frontmatter 제외 본문의 SHA-256(8자) — 변경 감지 기준
+- 본문 hash 변경 시 `version` 자동 increment (idempotent — 변경 없으면 그대로)
+- 사용자 본문(`flow.md`, `output/*.md`)은 aggregator 진입 시 자동 hash 비교 → bump
+- 파생 파일(claim-extraction, axis*, evaluation, critical)은 aggregator의 `_apply_frontmatter_to_derivatives`가 후처리로 frontmatter 부여 (LLM 의존 제거)
+- **이전 버전 자동 백업**: bump 직전 `history/{stage}/{type}/{NNN}-{date}-v{이전}-pre-bump/` 자동 보존
+
+**싱크 검증**:
+- 각 파생 파일의 `based_on.{X}` ↔ 의존 파일의 현재 `version` 비교
+- 불일치 시 stale 표시 → aggregator가 분석 명령 진입 시 안내
+
+**사용자 명령**:
+- `"버전 체크"` — 모든 파일 sync 상태 표
+- `"현재 상태"` — 버전/싱크 통합 표시
+
+### 모드 (`scripts/mode_manager.py`)
+
+`projects/{P}/.current-mode` 파일에 현재 모드 한 줄 저장. 기본값 `flow`.
+
+**동작**:
+- `"flow 모드"` / `"output 모드"` 명령으로 전환
+- prefix 생략 명령(예: `"레퍼런스 분석해줘"`) → 현재 모드의 stage 적용
+- prefix 명시(예: `"output 레퍼런스 분석해줘"`) → 모드 무시 (override)
+
+### Action 분기 (aggregator 내부)
+
+`evaluation_aggregator.py aggregate(action, stage)` 3종 분기:
+
+| action | 사용자 명령 | 동작 |
+|--------|-----------|------|
+| `reference` | `"{stage} 레퍼런스 분석해줘"` | claim-extractor + axis1 + RESEARCH 카드 발급 |
+| `content` | `"{stage} 내용 분석해줘"` | axis2~6 + WRITE 카드 발급 |
+| `status` | `"현재 상태"` | 분석 없이 폴더·진행도·모드·버전 출력 |
+
+**stale 자동 감지**: action 진입 직후 의존성 검사 → "📝 claim-extractor Agent 재호출" 등 명시적 dispatch instruction 출력. LLM이 따라 행동.
+
+### 자동 발급 매트릭스
+
+| 카드 mode | 발급 트리거 | 위치 |
+|-----------|-----------|------|
+| RESEARCH search | claim-extraction `search[]` 배열 | `aggregator.process_research_proposals` |
+| RESEARCH reanalyze (claim-extraction) | claim-extraction `reanalyze[]` 배열 | `aggregator.process_reanalyze_proposals` |
+| RESEARCH reanalyze (delta) | flow.md bump 감지 + paper_reanalysis_delta | `aggregator._issue_reanalyze_from_delta` |
+| WRITE create / modify | axis2~6의 `## 🛠 WRITE 후보` 섹션 | `aggregator.process_write_proposals` |
+
+전부 `card_registry`로 dedup 후 발급 — race·중복 차단.
+
+### History 통합 폴더
+
+stage 폴더는 **최신만**, 모든 과거 버전은 `history/`로 통합:
+
+```
+history/
+├── flow/
+│   ├── body/                       flow.md 변경
+│   ├── evaluations/                평가 스냅샷
+│   ├── claim-extraction/           레퍼런스 분석 스냅샷
+│   └── critical/                   critical 답변 변경
+├── output/
+│   ├── body/{file_id}/             output 파일별 sub-folder
+│   ├── evaluations/
+│   ├── claim-extraction/
+│   └── critical/
+└── work-plan/                      work-plan.md 스냅샷
+```
+
+**자동 백업 (version_manager) + 명시 snapshot (sync_state) 두 메커니즘 공존**:
+- 자동: 모든 v++ 직전 — 일반 변경 커버
+- 명시: pre-refine, pre-redraft, pre-respin 같은 의미 마일스톤만 LLM이 호출
+
+---
+
 ## 🎭 Critical Mode (비판적 시각 지원)
 
 ### 활성화 방법
@@ -1138,7 +1228,9 @@ claude --dangerously-skip-permissions
 | `{stage}/evaluations/latest/evaluation.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" (aggregator 집계) | 🩺 종합 판정(Reject/Major/R&R/Accept) + 축별 카테고리(🟢🟡🟠🔴⚫) + Critical Issues + (접힌) 점수 추세 |
 | `work-plan.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | active RESEARCH/WRITE 카드의 live view — completed RESEARCH(search)는 삭제됨 (registry 보존) |
 | `papers/.registry.json` | 첫 평가 또는 bootstrap 시 | **RESEARCH 발급 SSOT** — 모든 RESEARCH 카드의 ID·covers·lifecycle status(ready/in_progress/blocked/deferred/completed) 영속 보존 + reactivation 이력 |
-| `flow/claim-extraction-flow.md (flow stage) 또는 output/claim-extraction-output.md (draft stage)` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" (prose flow) | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
+| `output/.registry.json` | 첫 분석 또는 bootstrap 시 | **WRITE 발급 SSOT** — WRITE 카드 ID·dedup_key·lifecycle 영속 |
+| `.current-mode` | 사용자가 `"flow 모드"` / `"output 모드"` 호출 시 | 현재 모드 (flow/output) 한 줄 텍스트 — prefix 생략 명령에 적용 |
+| `flow/claim-extraction-flow.md` (flow 모드) 또는 `output/claim-extraction-output.md` (output 모드) | `"{stage} 레퍼런스 분석해줘"` | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `{stage}/evaluations/latest/axis1-reference.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
 | `{stage}/evaluations/latest/axis2-logic.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |
 | `{stage}/evaluations/latest/axis3-defense.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | 축 3: Steelman·Falsifiability·Limitations·Reviewer attack |

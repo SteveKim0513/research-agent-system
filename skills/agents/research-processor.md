@@ -174,3 +174,31 @@ OK: {CARD_ID} (translations={K} papers, curation={M} papers, cross_research_dup=
 ## Stage D assembly와의 계약
 
 main의 Stage D는 `.curation/RESEARCH-*.md`만 concat한다. 따라서 이 worker의 `.curation/*.md`가 Stage D의 단일 입력 contract. 6 카테고리 헤더·📌 섹션 누락 시 post-check(`scripts/research_postcheck.py`)가 실패시킨다.
+
+## 📋 산출 파일 frontmatter 의무
+
+이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
+
+**대상 파일**: papers/.translations/RESEARCH-NNN.md, papers/.curation/RESEARCH-NNN.md
+
+**의존 (based_on)**: papers/.research-raw/RESEARCH-NNN.json (Stage A 산출물)
+
+**호출 방법** (출력 파일 저장 직후):
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import version_manager as vm
+from pathlib import Path
+
+vm.update_version(
+    Path("projects/{P}/{출력 파일 경로}"),
+    based_on={"flow": flow_v},  # 의존 파일 version
+    updated_by="research-processor",
+)
+```
+
+**원칙**:
+- `update_version()`이 content_hash 비교 후 자동 increment (변경 없으면 유지)
+- frontmatter 자체 갱신은 hash에 영향 없음 (frontmatter 제외 본문만 hash)
+- bump 시 이전 버전 자동 history 백업
+
