@@ -400,7 +400,18 @@ ID 발급은 **모두 registry 모듈을 거친다**. 에이전트가 work-plan.
 |----------|-------|------|
 | 평가 완료 시 batch 발급 (RESEARCH / WRITE) | `evaluation_aggregator.py` | 모듈 직접 import (`card_registry`) |
 | 평가 외 시점 단발 발급 (citation-auditor / peer-reviewer 등) | 해당 에이전트 | `python3 scripts/card_registry.py issue` CLI |
-| 사용자 수동 추가 | 사람 | `card_registry.py issue` CLI 권장 |
+| **사용자 수동 추가** | 사람 | `card_registry.py issue` CLI (사용 예시는 GUIDE.md §"사용자가 work-plan에 직접 작업 추가" 참조) |
+
+**사용자 수동 추가 예시**:
+```bash
+python3 scripts/card_registry.py issue {project} write modify \
+  --dedup-key "output/ch3.md" "Section 4 강화" \
+  --field "무엇=..." --field "대상 챕터=..." \
+  --field "수정 내용=..." --field "원인=user manual"
+# → stdout: WRITE-008 (이 ID로 work-plan에 카드 블록 작성)
+```
+
+또는 work-plan에 자유 형식 메모(`### [TODO] ...`)로 적어두고 AI에게 "이 메모 카드로 만들어줘" 요청 → AI가 CLI 호출해 정식 카드 변환.
 
 ### 6.2 발급 알고리즘
 

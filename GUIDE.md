@@ -281,6 +281,67 @@ flow.md 편집 (에디터로 직접) → 시스템이 다음 명령 시 자동 v
 "레퍼런스 분석해줘"   ← stale 자동 선행, 새 R/RESEARCH 카드 발급
 ```
 
+### 사용자가 work-plan에 직접 작업 추가
+
+평가가 도출 못 한 작업도 사용자가 **본인의 판단으로 카드 추가** 가능. 두 경로:
+
+**경로 A — CLI로 안전 추가** (ID 발급·dedup 보장 — 권장):
+
+```bash
+# WRITE modify 카드 추가 예시
+python3 scripts/card_registry.py issue my-essay write modify \
+  --dedup-key "output/ch3.md" "Section 4 EF 보편성 논증 강화" \
+  --field "무엇=Section 4 EF 보편성 논증 강화 (사용자 자율 발견)" \
+  --field "대상 챕터=output/ch3.md" \
+  --field "수정 내용=Kroupin 2025·Liu 2024 인용 + 단정문 약화" \
+  --field "원인=user manual"
+# stdout: WRITE-008
+# stderr: ✅ issued (mode=modify, status=ready)
+```
+
+→ 받은 ID로 `work-plan.md` 🟡 Active 섹션에 카드 추가 (WORK-PLAN-FORMAT.md §2 스키마 따름):
+
+```markdown
+### [WRITE-008] 🟡 active · P1 · axis3 · Stage 2
+
+**무엇**: Section 4 EF 보편성 논증 강화 (사용자 자율 발견)
+**mode**: modify
+**담당 명령**: `"output ch3.md 수정해줘: WRITE-008"`
+**대상 챕터**: output/ch3.md
+**수정 내용**: Kroupin 2025·Liu 2024 인용 + 단정문 약화
+**원인**: user manual
+
+**진행 로그**:
+- {date} · created by user (manual)
+```
+
+**경로 B — work-plan에 자유 형식 메모** (ID 발급 없이 자연어):
+
+```markdown
+### [TODO] Section 4 EF 보편성 논증 강화
+
+Kroupin 2025와 Liu 2024 인용 추가하면 boldness가 강해질 것 같음.
+나중에 시간 되면 수정.
+```
+
+→ AI에게 `"이 TODO 처리해줘"` / `"work-plan에 메모해둔 거 카드로 만들어줘"`라고 요청하면 AI가 메모를 정식 카드로 변환 (CLI 호출).
+
+**차이점**:
+- A는 즉시 시스템 카드 → registry 등록 + dedup 보장 + 카드 lifecycle 추적
+- B는 메모 → AI가 카드로 변환할 때 정식 등록
+
+### AI에 카드 작업 시키기
+
+카드의 `**담당 명령**` 필드를 그대로 입력:
+
+```
+"output ch3.md 수정해줘: WRITE-008"
+"리서치 진행해줘"           (RESEARCH 카드 일괄)
+"논문 재분석해줘"           (RESEARCH reanalyze 카드)
+```
+
+AI가 work-plan에서 카드 ID lookup → 담당 에이전트(output-editor·paper-analyst·…) dispatch → 처리 → 완료 로그 + registry 갱신.
+
 ### 정체된 느낌일 때
 ```
 "현재 상태"           ← 진행도·블로커 확인
