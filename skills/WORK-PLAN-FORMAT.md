@@ -400,18 +400,21 @@ ID 발급은 **모두 registry 모듈을 거친다**. 에이전트가 work-plan.
 |----------|-------|------|
 | 평가 완료 시 batch 발급 (RESEARCH / WRITE) | `evaluation_aggregator.py` | 모듈 직접 import (`card_registry`) |
 | 평가 외 시점 단발 발급 (citation-auditor / peer-reviewer 등) | 해당 에이전트 | `python3 scripts/card_registry.py issue` CLI |
-| **사용자 수동 추가** | 사람 | `card_registry.py issue` CLI (사용 예시는 GUIDE.md §"사용자가 work-plan에 직접 작업 추가" 참조) |
+| **사용자 자율 추가** | 사람 ↔ AI | 사용자는 자연어 채팅 또는 work-plan.md 직접 편집. AI가 받아 CLI로 정식 카드 변환 (사용자는 CLI 직접 호출 안 함) |
 
-**사용자 수동 추가 예시**:
-```bash
-python3 scripts/card_registry.py issue {project} write modify \
-  --dedup-key "output/ch3.md" "Section 4 강화" \
-  --field "무엇=..." --field "대상 챕터=..." \
-  --field "수정 내용=..." --field "원인=user manual"
-# → stdout: WRITE-008 (이 ID로 work-plan에 카드 블록 작성)
-```
+**사용자 자율 추가 흐름** — 사용자 인터페이스는 두 가지뿐:
 
-또는 work-plan에 자유 형식 메모(`### [TODO] ...`)로 적어두고 AI에게 "이 메모 카드로 만들어줘" 요청 → AI가 CLI 호출해 정식 카드 변환.
+1. **Claude Code 채팅 자연어 요청**:
+   ```
+   "ch3 Section 4 EF 보편성 강화 카드 추가해줘"
+   ```
+   → AI가 의도 해석 → 내부적으로 `card_registry.py issue` 호출 → work-plan에 카드 블록 추가.
+
+2. **work-plan.md 에디터 직접 편집**:
+   - 자유 메모 (`### [TODO] ...`) — AI가 다음 호출 시 정식 카드로 변환
+   - 정식 카드 스키마 직접 작성 — 다음 분석 시 `bootstrap_from_work_plan`이 registry 등록
+
+**사용자가 CLI를 직접 칠 일 없음** — `card_registry.py issue`는 AI/에이전트의 내부 도구.
 
 ### 6.2 발급 알고리즘
 

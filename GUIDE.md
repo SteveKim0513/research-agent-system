@@ -283,40 +283,22 @@ flow.md 편집 (에디터로 직접) → 시스템이 다음 명령 시 자동 v
 
 ### 사용자가 work-plan에 직접 작업 추가
 
-평가가 도출 못 한 작업도 사용자가 **본인의 판단으로 카드 추가** 가능. 두 경로:
+평가가 도출 못 한 작업도 본인 판단으로 카드 추가 가능. **두 가지 자연스러운 방법**:
 
-**경로 A — CLI로 안전 추가** (ID 발급·dedup 보장 — 권장):
+**방법 1 — Claude Code 채팅에 자연어로 요청**
 
-```bash
-# WRITE modify 카드 추가 예시
-python3 scripts/card_registry.py issue my-essay write modify \
-  --dedup-key "output/ch3.md" "Section 4 EF 보편성 논증 강화" \
-  --field "무엇=Section 4 EF 보편성 논증 강화 (사용자 자율 발견)" \
-  --field "대상 챕터=output/ch3.md" \
-  --field "수정 내용=Kroupin 2025·Liu 2024 인용 + 단정문 약화" \
-  --field "원인=user manual"
-# stdout: WRITE-008
-# stderr: ✅ issued (mode=modify, status=ready)
+```
+"work-plan에 카드 하나 추가해줘:
+ ch3 Section 4의 EF 보편성 논증을 Kroupin 2025·Liu 2024 인용으로 강화하고 싶어"
 ```
 
-→ 받은 ID로 `work-plan.md` 🟡 Active 섹션에 카드 추가 (WORK-PLAN-FORMAT.md §2 스키마 따름):
+→ AI가 정식 WRITE 카드로 변환해서 work-plan.md 🟡 Active에 추가 (registry 등록 + ID 발급 + dedup 검사 자동).
 
-```markdown
-### [WRITE-008] 🟡 active · P1 · axis3 · Stage 2
+복잡한 카드 메타(대상 챕터·수정 내용·원인 등)는 AI가 사용자 의도를 읽고 채워줌.
 
-**무엇**: Section 4 EF 보편성 논증 강화 (사용자 자율 발견)
-**mode**: modify
-**담당 명령**: `"output ch3.md 수정해줘: WRITE-008"`
-**대상 챕터**: output/ch3.md
-**수정 내용**: Kroupin 2025·Liu 2024 인용 + 단정문 약화
-**원인**: user manual
+**방법 2 — work-plan.md를 에디터로 직접 편집**
 
-**진행 로그**:
-- {date} · created by user (manual)
-```
-
-**경로 B — work-plan에 자유 형식 메모** (ID 발급 없이 자연어):
-
+자유 메모 형식:
 ```markdown
 ### [TODO] Section 4 EF 보편성 논증 강화
 
@@ -324,11 +306,9 @@ Kroupin 2025와 Liu 2024 인용 추가하면 boldness가 강해질 것 같음.
 나중에 시간 되면 수정.
 ```
 
-→ AI에게 `"이 TODO 처리해줘"` / `"work-plan에 메모해둔 거 카드로 만들어줘"`라고 요청하면 AI가 메모를 정식 카드로 변환 (CLI 호출).
+→ 다음 세션에 `"work-plan 정리해줘"` / `"TODO 카드로 만들어줘"`라고 하면 AI가 메모 읽고 정식 카드로 변환.
 
-**차이점**:
-- A는 즉시 시스템 카드 → registry 등록 + dedup 보장 + 카드 lifecycle 추적
-- B는 메모 → AI가 카드로 변환할 때 정식 등록
+또는 정식 카드 스키마(WORK-PLAN-FORMAT §2)대로 직접 작성해도 OK — 다음 분석 명령 시 시스템이 work-plan을 스캔해 registry에 자동 등록(bootstrap). 단 임시 ID(예: `WRITE-?`)로 적으면 AI가 정식 ID로 갱신 권장.
 
 ### AI에 카드 작업 시키기
 
@@ -340,7 +320,14 @@ Kroupin 2025와 Liu 2024 인용 추가하면 boldness가 강해질 것 같음.
 "논문 재분석해줘"           (RESEARCH reanalyze 카드)
 ```
 
-AI가 work-plan에서 카드 ID lookup → 담당 에이전트(output-editor·paper-analyst·…) dispatch → 처리 → 완료 로그 + registry 갱신.
+또는 카드 ID만으로:
+```
+"WRITE-008 처리해줘"
+```
+
+→ AI가 work-plan에서 카드 lookup → 담당 명령 필드 보고 적절한 에이전트(output-editor·paper-analyst·…) dispatch → 처리 → 완료 로그 + registry 갱신.
+
+**핵심**: 사용자는 **파일 편집 또는 자연어 채팅** 두 가지로만 시스템과 상호작용. CLI 호출은 AI 내부 도구라 사용자가 직접 칠 일 없음.
 
 ### 정체된 느낌일 때
 ```
