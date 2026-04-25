@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import card_registry
 import version_manager
 import mode_manager
+import paper_reanalysis_delta
 
 
 AXIS_FILES = {
@@ -724,6 +725,121 @@ def extract_search_proposals_from_claim_extraction(ce_paths: list) -> list:
                 })
             break  # 첫 매치만 사용
     return collected
+
+
+def extract_reanalyze_proposals_from_claim_extraction(ce_paths: list) -> list:
+    """claim-extraction-*.md의 ```json 요약 블록에서 reanalyze[] 배열 파싱.
+
+    Returns: list of {"id": "RESEARCH-XXX", "target_pdf": "...", "angle": "...", "topic": "..."} dicts.
+    순서 보존.
+    """
+    collected = []
+    seen_ids = set()
+    for p in ce_paths:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for m in JSON_BLOCK_RE.finditer(text):
+            try:
+                data = json.loads(m.group(1))
+            except Exception:
+                continue
+            items = data.get("reanalyze")
+            if not items:
+                continue
+            for r in items:
+                rid = r.get("id")
+                if not rid or rid in seen_ids:
+                    continue
+                seen_ids.add(rid)
+                collected.append({
+                    "id": rid,
+                    "target_pdf": r.get("target_pdf") or "",
+                    "angle": r.get("angle") or "",
+                    "topic": r.get("topic") or "",
+                    "current_version": r.get("current_version") or "",
+                    "source_file": p.name,
+                })
+            break
+    return collected
+
+
+def process_reanalyze_proposals(project: str, work_plan_text: str):
+    """claim-extraction의 reanalyze[] → RESEARCH mode=reanalyze 카드 1:1 발급.
+
+    dedup_key = (mode=reanalyze, pdf_filename, angle).
+    동일 dedup_key가 이미 활성이면 skip, completed면 reactivation.
+
+    Returns: (new_cards, replacement_map, reactivated_ids)
+    """
+    ce_paths = claim_extraction_paths(project)
+    if not ce_paths:
+        return [], {}, []
+
+    proposed = extract_reanalyze_proposals_from_claim_extraction(ce_paths)
+    if not proposed:
+        return [], {}, []
+
+    root = project_root(project)
+    registry = card_registry.load(root, "research")
+    # bootstrap은 process_research_proposals에서 이미 처리됨
+
+    replacement_map = {}
+    new_cards = []
+    reactivated_cards = []
+    reactivated_ids = []
+    skipped_active = []
+
+    for r in proposed:
+        dedup_raw = [r["target_pdf"], r["angle"]]
+        existing_cid = card_registry.find_by_dedup_key(registry, "reanalyze", dedup_raw)
+        if existing_cid:
+            status = registry["cards"][existing_cid]["status"]
+            replacement_map[r["id"]] = existing_cid
+            if status == "completed":
+                card_registry.reactivate(registry, existing_cid,
+                                          reason=f"동일 (pdf, angle) 재제안 (from {r['id']})")
+                meta = registry["cards"][existing_cid]
+                card_meta = {
+                    "topic": meta.get("metadata", {}).get("무엇") or r["topic"],
+                    "대상 PDF": r["target_pdf"],
+                    "재분석 각도": r["angle"],
+                    "source_file": r["source_file"],
+                }
+                reactivated_cards.append(build_research_card(existing_cid, "reanalyze", card_meta, note="reactivated"))
+                reactivated_ids.append(existing_cid)
+            else:
+                skipped_active.append((r["id"], existing_cid, status))
+            continue
+
+        new_id = card_registry.next_id(registry)
+        replacement_map[r["id"]] = new_id
+        new_cards.append(build_research_card(new_id, "reanalyze", {
+            "topic": r["topic"],
+            "대상 PDF": r["target_pdf"],
+            "재분석 각도": r["angle"],
+            "source_file": r["source_file"],
+        }))
+        card_registry.add_new(registry, new_id, "reanalyze", dedup_raw, {
+            "무엇": r["topic"],
+            "대상 PDF": r["target_pdf"],
+            "재분석 각도": r["angle"],
+            "source_file": r["source_file"],
+        })
+
+    card_registry.save(root, registry)
+
+    if skipped_active:
+        print(f"   ↪︎ 이미 활성 RESEARCH(reanalyze) 스킵 ({len(skipped_active)}건)")
+    if reactivated_ids:
+        print(f"   🔄 reanalyze reactivation: {len(reactivated_ids)}건")
+    if new_cards:
+        n_new = len(new_cards) - len(reactivated_ids)
+        if n_new > 0:
+            print(f"   🆕 신규 RESEARCH(reanalyze) 발급: {n_new}건")
+
+    return new_cards + reactivated_cards, replacement_map, reactivated_ids
 
 
 def process_research_proposals(project: str, work_plan_text: str):
@@ -1494,25 +1610,152 @@ def rebalance_completed(recent: str, older: str):
 # Main
 # ──────────────────────────────────────────────────────────
 
-def aggregate(project: str, mode: str = "full", stage: str | None = None) -> int:
+VALID_ACTIONS = ("reference", "content", "status")
+
+
+def _issue_reanalyze_from_delta(project: str, affected: list) -> tuple:
+    """paper_reanalysis_delta 결과 → RESEARCH(reanalyze) 카드 발급.
+
+    affected: [{"paper": "Zelazo_2012", "primary_section": "hot/cool EF", "changed_section": "..."}]
+    Returns: (new_cards: list[str], reactivated_ids: list[str])
+    """
+    root = project_root(project)
+    registry = card_registry.load(root, "research")
+
+    new_cards = []
+    reactivated_ids = []
+    skipped = 0
+
+    for entry in affected:
+        paper = entry["paper"]
+        # 추정: papers/collected/{paper}.pdf
+        target_pdf = f"papers/collected/{paper}.pdf"
+        angle = f"flow 변경 섹션 '{entry['changed_section']}' 반영 — {entry['primary_section']} 재스캔"
+        topic = f"{paper} delta 재분석 ({entry['primary_section']})"
+
+        dedup_raw = [target_pdf, angle]
+        existing_cid = card_registry.find_by_dedup_key(registry, "reanalyze", dedup_raw)
+        if existing_cid:
+            status = registry["cards"][existing_cid]["status"]
+            if status == "completed":
+                card_registry.reactivate(registry, existing_cid,
+                                          reason=f"flow delta 재제안 (paper={paper})")
+                meta = registry["cards"][existing_cid]
+                card_meta = {
+                    "topic": meta.get("metadata", {}).get("무엇") or topic,
+                    "대상 PDF": target_pdf,
+                    "재분석 각도": angle,
+                    "source_file": "paper_reanalysis_delta",
+                }
+                new_cards.append(build_research_card(existing_cid, "reanalyze", card_meta, note="reactivated"))
+                reactivated_ids.append(existing_cid)
+            else:
+                skipped += 1
+            continue
+
+        new_id = card_registry.next_id(registry)
+        new_cards.append(build_research_card(new_id, "reanalyze", {
+            "topic": topic,
+            "대상 PDF": target_pdf,
+            "재분석 각도": angle,
+            "source_file": "paper_reanalysis_delta",
+        }))
+        card_registry.add_new(registry, new_id, "reanalyze", dedup_raw, {
+            "무엇": topic,
+            "대상 PDF": target_pdf,
+            "재분석 각도": angle,
+            "source_file": "paper_reanalysis_delta",
+        })
+
+    card_registry.save(root, registry)
+
+    if skipped:
+        print(f"   ↪︎ delta 재제안 중 이미 활성 {skipped}건 skip")
+    n_new = len(new_cards) - len(reactivated_ids)
+    if n_new > 0:
+        print(f"   🆕 delta RESEARCH(reanalyze) 발급: {n_new}건")
+    if reactivated_ids:
+        print(f"   🔄 delta reanalyze reactivation: {len(reactivated_ids)}건")
+
+    return new_cards, reactivated_ids
+
+
+def _apply_frontmatter_to_derivatives(project: str, stage: str) -> None:
+    """파생 파일들에 frontmatter 자동 부여.
+
+    aggregator가 호출되는 시점은 곧 분석 흐름이 막 끝난 직후. 작성자(LLM)가
+    frontmatter 부여를 빠뜨려도 여기서 보장. content_hash 기반이라 변경 없으면
+    no-op (idempotent).
+
+    대상:
+    - {stage}/claim-extraction-{stage}.md (based_on=flow 또는 output)
+    - {stage}/evaluations/axis*.md (based_on=stage 본문 + claim-extraction)
+    - {stage}/critical/{questions,commitments}.md (based_on=stage 본문)
+    """
+    root = project_root(project)
+    flow_md = root / "flow" / "flow.md"
+    flow_v = version_manager.get_version_info(flow_md).get("version", 0)
+
+    # output multi-body — 가장 큰 version
+    output_v = 0
+    out_dir = root / "output"
+    if out_dir.exists():
+        for p in out_dir.glob("*.md"):
+            if p.name.startswith("claim-extraction"):
+                continue
+            v = version_manager.get_version_info(p).get("version", 0)
+            if v > output_v:
+                output_v = v
+
+    body_v = output_v if stage == "output" else flow_v
+
+    # 1. claim-extraction-{stage}.md
+    ce_path = root / stage / f"claim-extraction-{stage}.md"
+    if ce_path.exists():
+        based_on = {stage: body_v} if body_v else {}
+        version_manager.update_version(ce_path, based_on=based_on, updated_by="claim-extractor")
+
+    ce_v = version_manager.get_version_info(ce_path).get("version", 0) if ce_path.exists() else 0
+
+    # 2. axis*.md
+    eval_dir = latest_dir(project, stage)
+    if eval_dir.exists():
+        for axis_path in eval_dir.glob("axis*.md"):
+            based_on = {stage: body_v} if body_v else {}
+            # axis1만 claim-extraction 의존 (레퍼런스 매칭이라)
+            if axis_path.name.startswith("axis1") and ce_v:
+                based_on["claim-extraction"] = ce_v
+            version_manager.update_version(axis_path, based_on=based_on, updated_by=axis_path.stem)
+
+    # 3. critical/{questions,commitments}.md
+    crit_dir = root / stage / "critical"
+    if crit_dir.exists():
+        for crit_path in crit_dir.glob("*.md"):
+            based_on = {stage: body_v} if body_v else {}
+            version_manager.update_version(crit_path, based_on=based_on, updated_by="critical-companion")
+
+
+def aggregate(project: str, action: str = "reference", stage: str | None = None) -> int:
     """
     aggregator entry point.
 
-    mode:
-      - "reference"  : 레퍼런스 분석 — claim-extractor + axis1만 + RESEARCH 카드 발급
-      - "content"    : 내용 분석 — axis2~6만 + WRITE 카드 발급
-      - "full"       : reference + content 모두 (구 "평가해줘" 동작, 내부 호환)
-      - "status"     : 분석/평가 없이 현재 상태만 출력 (status renderer)
+    action:
+      - "reference"  : 레퍼런스 분석 — axis1 통합 + RESEARCH 카드 발급
+      - "content"    : 내용 분석 — axis2~6 통합 + WRITE 카드 발급
+      - "status"     : 분석 없이 현재 상태만 출력 (status renderer)
 
-    stage: "flow" | "output" — 미지정 시 detect_stage 결과
+    stage: "flow" | "output" — 미지정 시 detect_stage 결과 (mode_manager 우선)
     """
+    if action not in VALID_ACTIONS:
+        print(f"❌ action은 {VALID_ACTIONS} 중 하나여야 함, got {action!r}", file=sys.stderr)
+        return 1
     if stage is None:
         stage = detect_stage(project)
     if stage not in STAGES:
         print(f"❌ stage는 {STAGES} 중 하나여야 함, got {stage!r}", file=sys.stderr)
         return 1
 
-    if mode == "status":
+    if action == "status":
         return render_status(project, stage)
 
     # 사용자 본문 파일 자동 version bump (사용자가 편집한 것 자동 감지)
@@ -1522,12 +1765,15 @@ def aggregate(project: str, mode: str = "full", stage: str | None = None) -> int
     if out_dir.exists():
         user_files += [p for p in out_dir.glob("*.md") if not p.name.startswith("claim-extraction")]
     bumped = []
+    flow_was_bumped = False
     for fp in user_files:
         if fp.exists():
             res = version_manager.bump_if_changed(fp, updated_by="user")
             if res.get("incremented"):
                 snap = res.get("snapshot_path")
                 bumped.append((fp.relative_to(root), res["version"], snap))
+                if fp.name == "flow.md":
+                    flow_was_bumped = True
     if bumped:
         for f, v, snap in bumped:
             line = f"🔄 사용자 편집 감지: {f} → v{v}"
@@ -1539,10 +1785,23 @@ def aggregate(project: str, mode: str = "full", stage: str | None = None) -> int
                     pass
             print(line)
 
+    # flow가 bump됐고 action=reference면 paper_reanalysis_delta 자동 호출 → reanalyze 카드 발급
+    delta_reanalyze_cards = []
+    delta_reanalyze_reactivated = []
+    if flow_was_bumped and action == "reference":
+        affected = paper_reanalysis_delta.get_affected_papers(project)
+        if affected:
+            print(f"   📊 flow 변경 delta — 영향 논문 {len(affected)}건 → RESEARCH(reanalyze) 발급 검토")
+            delta_reanalyze_cards, delta_reanalyze_reactivated = _issue_reanalyze_from_delta(project, affected)
+
     lat = latest_dir(project, stage)
     if not lat.exists():
         print(f"⚠️  {lat} 없음 — axis scorer 결과 없음", file=sys.stderr)
         return 1
+
+    # 0.7 파생 파일 frontmatter 자동 부여 (sync 보장)
+    # claim-extraction-{stage}.md, axis*.md 변경 감지되면 version_manager로 갱신.
+    _apply_frontmatter_to_derivatives(project, stage)
 
     # 1. axis 파싱 + evaluation.md 생성
     axis_data, missing, ambition, critical_mode = parse_axis_scores(project)
@@ -1586,17 +1845,46 @@ def aggregate(project: str, mode: str = "full", stage: str | None = None) -> int
                                   "_(브리핑은 아래에서 재계산)_",
                                   trigger="initial")
 
-    # 3. RESEARCH mode=search 발급 (claim-extraction의 search[] → work-plan RESEARCH 카드 1:1)
-    # papers/.registry.json이 SSOT. 중복 dedup_key 차단 + reactivation 처리.
-    new_cards, updated_ce_texts, reactivated_ids = process_research_proposals(project, existing)
-    for p, text in updated_ce_texts.items():
-        p.write_text(text, encoding="utf-8")
-        print(f"   {p.relative_to(project_root(project))} 업데이트")
+    # 3. action별 카드 발급
+    # - reference: claim-extraction의 search[] → RESEARCH 카드만
+    # - content  : axis*.md의 🛠 WRITE 후보 → WRITE 카드만
+    new_cards = []
+    updated_ce_texts = {}
+    reactivated_ids = []
 
-    # 3.2 WRITE 카드 발급 (axis*.md의 "🛠 WRITE 후보" 섹션 → output/.registry.json)
-    new_write_cards, reactivated_write_ids = process_write_proposals(project, existing, stage)
-    new_cards = new_cards + new_write_cards
-    reactivated_ids = reactivated_ids + reactivated_write_ids
+    if action == "reference":
+        # mode=search 발급
+        new_cards, updated_ce_texts, reactivated_ids = process_research_proposals(project, existing)
+        # mode=reanalyze 발급 (claim-extraction의 reanalyze[] 기반)
+        ra_cards, ra_replacement, ra_reactivated = process_reanalyze_proposals(project, existing)
+        new_cards = new_cards + ra_cards
+        reactivated_ids = reactivated_ids + ra_reactivated
+        # delta 기반 reanalyze 카드 (위에서 flow_was_bumped 시 산출됨)
+        new_cards = new_cards + delta_reanalyze_cards
+        reactivated_ids = reactivated_ids + delta_reanalyze_reactivated
+        # claim-extraction 파일에 reanalyze 임시 ID도 치환 (XXX/YYY → RESEARCH-NNN)
+        if ra_replacement:
+            for p in claim_extraction_paths(project):
+                try:
+                    text = updated_ce_texts.get(p) or p.read_text(encoding="utf-8")
+                except Exception:
+                    continue
+                changed = text
+                for old, new in ra_replacement.items():
+                    if old == new:
+                        continue
+                    changed = re.sub(rf"\[{old}\]", f"[{new}]", changed)
+                    changed = changed.replace(f'"{old}"', f'"{new}"')
+                if changed != text:
+                    updated_ce_texts[p] = changed
+        for p, text in updated_ce_texts.items():
+            p.write_text(text, encoding="utf-8")
+            print(f"   {p.relative_to(project_root(project))} 업데이트")
+
+    if action == "content":
+        new_write_cards, reactivated_write_ids = process_write_proposals(project, existing, stage)
+        new_cards = new_cards + new_write_cards
+        reactivated_ids = reactivated_ids + reactivated_write_ids
 
     # 3.5 research registry sync: work-plan completed 섹션의 RESEARCH를 mark_completed.
     # mode=search 카드는 완료 시 work-plan에서 제거 (4-stage 산출물이 별도 파일에 남음).
@@ -1783,15 +2071,15 @@ def render_status(project: str, stage: str) -> int:
 
 def main(argv: list) -> int:
     if len(argv) < 2:
-        print("Usage: python3 evaluation_aggregator.py <project> [<mode>] [<stage>]")
-        print("  mode  : reference | content | full | status   (기본: full)")
-        print("  stage : flow | output                          (기본: 자동 감지)")
+        print("Usage: python3 evaluation_aggregator.py <project> [<action>] [<stage>]")
+        print("  action : reference | content | status   (기본: reference)")
+        print("  stage  : flow | output                  (기본: 자동 감지 — mode_manager 우선)")
         return 1
     project = argv[1]
-    mode = argv[2] if len(argv) >= 3 else "full"
+    action = argv[2] if len(argv) >= 3 else "reference"
     stage = argv[3] if len(argv) >= 4 else None
     try:
-        return aggregate(project, mode=mode, stage=stage)
+        return aggregate(project, action=action, stage=stage)
     except Exception as e:
         import traceback
         print(f"❌ aggregator 오류: {e}", file=sys.stderr)

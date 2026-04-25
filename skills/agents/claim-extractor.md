@@ -335,6 +335,13 @@ Stage에 따라 다른 경로:
     {"id": "RESEARCH-001", "covers": ["R-01", "R-04"], "query": "executive function task impurity ...", "topic": "EF 측정 혼입 + impurity"},
     {"id": "RESEARCH-002", "covers": ["R-02"], "query": "Kochanska conscience internalization ...", "topic": "Kochanska conscience"}
   ],
+  "reanalyze": [
+    {"id": "RESEARCH-XXX", "target_pdf": "papers/collected/Zelazo_2012_hot_cool_EF.pdf",
+     "angle": "Section 4 hot EF 보편성 논증 — 감정 조절 요구가 문화 간 보편적이라는 증거 구체화",
+     "topic": "S023 hot EF 보편성", "current_version": "v1"},
+    {"id": "RESEARCH-YYY", "target_pdf": "papers/collected/Doebel_2020.pdf",
+     "angle": "Section 2 situated EF의 신경 메커니즘", "topic": "Doebel 2020 신경 기반"}
+  ],
   "over_claim_flags": A,
   "under_claim_flags": B,
   "ambiguous_classifications": C
@@ -342,7 +349,8 @@ Stage에 따라 다른 경로:
 ```
 
 **`research_targets`**: UNMATCHED-EXTERNAL 문장/클러스터 총 개수 (R-NN 개수와 동일).
-**`search`**: R들을 병합해 만든 execution unit 배열. aggregator가 이걸 1:1로 work-plan.md의 **RESEARCH mode=search 카드**로 발급 (dedup_key = covers 정규화). work-plan의 RESEARCH(search) 카드 수 = 이 배열 길이. (배열 이름 `search` — mode=search 후보를 담는다.)
+**`search`**: R들을 병합해 만든 execution unit 배열. aggregator가 이걸 1:1로 work-plan.md의 **RESEARCH mode=search 카드**로 발급 (dedup_key = covers 정규화).
+**`reanalyze`**: UNMATCHED-INTERNAL에서 도출된 보유 PDF 재분석 후보. aggregator가 1:1로 **RESEARCH mode=reanalyze 카드** 발급 (dedup_key = (pdf_filename, angle)). 임시 ID `XXX/YYY`는 본 출력 내부 참조용 — aggregator가 실제 ID 발급.
 ```
 
 ## work-plan.md 연동 프로토콜

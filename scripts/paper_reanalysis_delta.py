@@ -196,6 +196,53 @@ def cmd_delta(project: str, full: bool = False) -> int:
     return 0
 
 
+def get_affected_papers(project: str) -> list[dict]:
+    """모듈 함수 — flow 변경 delta 결과를 dict 리스트로 반환.
+
+    각 dict: {"paper": "Zelazo_2012", "primary_section": "hot/cool EF"}.
+    flow 변경 없으면 빈 리스트.
+    호출자 (aggregator)가 RESEARCH(reanalyze) 카드 발급에 사용.
+    """
+    root = project_root(project)
+    cur_flow = root / "flow" / "flow.md"
+    if not cur_flow.exists():
+        return []
+    prev_flow = find_latest_history_flow(root)
+    if not prev_flow:
+        return []
+
+    cur_sections = parse_sections(cur_flow.read_text(encoding="utf-8"))
+    prev_sections = parse_sections(prev_flow.read_text(encoding="utf-8"))
+
+    changed = []
+    for title, h in cur_sections.items():
+        if prev_sections.get(title) != h:
+            changed.append(title)
+    for title in prev_sections:
+        if title not in cur_sections:
+            changed.append(f"(deleted) {title}")
+
+    if not changed:
+        return []
+
+    analyzed_dir = root / "papers" / "analyzed"
+    if not analyzed_dir.exists():
+        return []
+
+    affected = []
+    for f in sorted(analyzed_dir.glob("*-analysis.md")):
+        primary = load_primary_section(f)
+        if not primary:
+            continue
+        for ch in changed:
+            if primary.lower() in ch.lower() or ch.lower() in primary.lower():
+                affected.append({"paper": f.name.replace("-analysis.md", ""),
+                                  "primary_section": primary,
+                                  "changed_section": ch})
+                break
+    return affected
+
+
 def main(argv: list) -> int:
     if len(argv) < 2:
         print(__doc__)

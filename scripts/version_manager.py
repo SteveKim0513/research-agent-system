@@ -335,8 +335,12 @@ def project_files(project_root: Path) -> list[dict]:
                       "expects": [("flow", flow_md)]})
     if flow_eval.exists():
         for p in sorted(flow_eval.glob("*.md")):
-            files.append({"filepath": p, "role": f"flow:eval:{p.stem}",
-                          "expects": [("flow", flow_md), ("claim-extraction", flow_ce)]})
+            # axis1·evaluation은 claim-extraction 의존, axis2~6은 본문만
+            if p.stem.startswith("axis1") or p.stem == "evaluation":
+                expects = [("flow", flow_md), ("claim-extraction", flow_ce)]
+            else:
+                expects = [("flow", flow_md)]
+            files.append({"filepath": p, "role": f"flow:eval:{p.stem}", "expects": expects})
     flow_critical = project_root / "flow" / "critical"
     if flow_critical.exists():
         for p in sorted(flow_critical.glob("*.md")):
@@ -353,8 +357,11 @@ def project_files(project_root: Path) -> list[dict]:
                           "expects": [("output", None)]})  # output 본문은 다중 — 별도 처리
         if output_eval.exists():
             for p in sorted(output_eval.glob("*.md")):
-                files.append({"filepath": p, "role": f"output:eval:{p.stem}",
-                              "expects": [("output", None), ("claim-extraction", output_ce)]})
+                if p.stem.startswith("axis1") or p.stem == "evaluation":
+                    expects = [("output", None), ("claim-extraction", output_ce)]
+                else:
+                    expects = [("output", None)]
+                files.append({"filepath": p, "role": f"output:eval:{p.stem}", "expects": expects})
         output_critical = output_dir / "critical"
         if output_critical.exists():
             for p in sorted(output_critical.glob("*.md")):
