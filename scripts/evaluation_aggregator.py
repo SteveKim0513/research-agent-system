@@ -1810,6 +1810,13 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
         print(f"❌ stage는 {STAGES} 중 하나여야 함, got {stage!r}", file=sys.stderr)
         return 1
 
+    # prefix 명시는 mode 자동 전환까지 책임 (사용자 실수 방지 — 이후 명령은 새 모드 그대로)
+    proj_root = project_root(project)
+    current_mode = mode_manager.get_mode(proj_root)
+    if stage != current_mode and stage in mode_manager.VALID_MODES:
+        mode_manager.set_mode(proj_root, stage)
+        print(f"🔁 모드 자동 전환: {current_mode} → {stage}")
+
     if action == "status":
         return render_status(project, stage)
 

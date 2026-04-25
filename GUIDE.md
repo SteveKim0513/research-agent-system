@@ -124,8 +124,10 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 |---|---|
 | `"레퍼런스 분석해줘"` | 현재 모드 적용 — claim-extractor + axis1 + RESEARCH 카드 |
 | `"내용 분석해줘"` | 현재 모드 적용 — axis2~6 + WRITE 카드 |
-| `"flow 레퍼런스 분석해줘"` | 모드 무시, flow 강제 |
-| `"output 내용 평가해줘"` | 모드 무시, output 강제 |
+| `"flow 레퍼런스 분석해줘"` | **모드를 flow로 자동 전환** + flow 분석 실행 |
+| `"output 내용 평가해줘"` | **모드를 output으로 자동 전환** + output 분석 실행 |
+
+> 💡 **prefix 명시는 단발 override가 아니라 모드 변경 시그널**입니다. 사용자가 실수로 다음 명령도 잘못된 stage에서 치는 것을 방지하기 위해, prefix를 보면 시스템이 모드를 그쪽으로 옮기고 그 모드에서 실행합니다.
 
 ### 실행 (work-plan 카드 처리)
 
