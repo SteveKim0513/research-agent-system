@@ -46,8 +46,8 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 ### 19개 에이전트
 
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
-**논문 처리 오케스트레이션 (1)**: paper-processing-orchestrator (2-pass + Tier)
-**생성·수정 (5)**: paper-analyst (Pass 1 triage haiku / Pass 2 Tier 1 opus+Critical / Tier 2·3 sonnet / Mode B 재분석 sonnet / Mode C 비판 opus), writing-architect, output-editor, flow-refiner, citation-auditor
+**논문 처리 통합 (1)**: paper-analyst (단순화 v3 — 정규화·markdown 캐시 → anchor 선언 → 분기 분석)
+**생성·수정 (5)**: paper-analyst (anchor opus / non-anchor sonnet / Mode B 재분석 / Mode C critique_target), writing-architect, output-editor, flow-refiner, citation-checker
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
 **보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 **유틸리티 (1)**: abstract-translator (haiku — RESEARCH·PDF abstract 한글 번역)
@@ -144,15 +144,14 @@ research-agent/
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
 │   └── agents/               (19개 에이전트)
 │       ├── evaluation-orchestrator.md
-│       ├── paper-processing-orchestrator.md  (2-pass + Tier)
 │       ├── claim-extractor.md
 │       ├── axis1-reference-scorer.md ~ axis6-critical-scorer.md
 │       ├── critical-companion.md         (Critical Mode — Socratic 질문)
-│       ├── paper-analyst.md              (Tier 1/2/3 + B 재분석 + C 비판)
+│       ├── paper-analyst.md              (단순화 v3 — anchor/non-anchor 이진)
 │       ├── writing-architect.md
 │       ├── output-editor.md
 │       ├── flow-refiner.md
-│       ├── citation-auditor.md
+│       ├── citation-checker.md
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md
 │       └── peer-reviewer.md              (+ Iconoclast persona)
@@ -160,11 +159,10 @@ research-agent/
 │   ├── sync_state.py          (아티팩트 sync 상태·스냅샷)
 │   ├── evaluation_delta.py    (stage-aware 축별 stale 감지)
 │   ├── evaluation_aggregator.py (axis 리포트 → evaluation.md + work-plan 대시보드)
-│   ├── paper_triage.py        (Pass 1 결과 집계·tier 승격)
 │   ├── paper_reanalysis_delta.py (flow 변경 기반 영향 논문 필터)
 │   ├── activity_log.py + activity_log_async.sh (활동 로그·hook)
 │   ├── research_postcheck.py      (RESEARCH 4-stage 파이프라인 검증)
-│   ├── extract_metadata.py, normalize_filename.py
+│   ├── normalize_filename.py
 │   └── archive/               (일회성 migration: migrate_v2, backfill_axis_tags, rename_to_full_title)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/

@@ -249,7 +249,7 @@ python3 scripts/sync_state.py snapshot-critical-questions {PROJECT_NAME} {trigge
 - `output-editor`: 수정이 commitment를 깎지 않는지 검증
 - `flow-refiner`: UNFULFILLED를 flow.md 보강 제안으로 승격
 - `axis6-critical-scorer`: 커버리지를 축 6 점수에 반영
-- `citation-auditor`: commitment가 요구한 인용 실제 사용 검증
+- `citation-checker`: commitment가 요구한 인용 실제 사용 검증
 - `peer-reviewer Iconoclast`: UNFULFILLED를 "자기 배신" 공격으로 사용
 ```
 

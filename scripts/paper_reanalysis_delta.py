@@ -2,7 +2,7 @@
 """
 paper_reanalysis_delta.py — flow.md 변경 기반 영향 논문 필터.
 
-`논문 재분석해줘` 호출 시 paper-processing-orchestrator가 이 스크립트를 실행해
+`논문 재분석해줘` 호출 시 paper-analyst가 이 스크립트를 실행해
 flow.md의 어떤 섹션이 바뀌었고, 그 섹션을 primary_section으로 가진 논문만
 재분석 대상으로 반환한다.
 

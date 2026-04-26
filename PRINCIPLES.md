@@ -108,7 +108,7 @@
 **구현**:
 - `paper-analyst`가 각 논문의 "조건·한계" 필드를 명시
 - `writing-architect`가 이 필드를 준수
-- `citation-auditor`가 **PDF 원문과 대조**하여 over-claim·misattribution 탐지
+- `citation-checker`가 **PDF 원문과 대조**하여 over-claim·misattribution 탐지
 - 평가 단계별 자동 체이닝: v1(30% 샘플) / revised(전량) / final(전량 + new-error diff)
 
 #### 1-3. Authority & Recency — 세미널 + 최신 논문 균형
@@ -356,7 +356,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 
 | # | 실수 | 왜 일어나는가 | 시스템이 막는 방식 |
 |---|------|-------------|----------------|
-| 1 | **Over-claim** (correlation → causation) | paper 요약만 보고 원문 조건 무시 | paper-analyst의 "조건·한계" 필드 + citation-auditor PDF 대조 |
+| 1 | **Over-claim** (correlation → causation) | paper 요약만 보고 원문 조건 무시 | paper-analyst의 "조건·한계" 필드 + citation-checker PDF 대조 |
 | 2 | **Strawman 반론** | 약한 반론을 공격해서 논증 강화한 것처럼 보이려 함 | peer-reviewer Mode A의 Reviewer 2 steelman 요구 |
 | 3 | **Reference inflation** | 저널 심사 통과 목적으로 관련 없는 인용 남발 | claim-extractor가 문장별 인용 매핑 — 각 인용이 실제로 어떤 주장 뒷받침하는지 추적 |
 | 4 | **Circular argument** | A 때문에 B, B 때문에 A (같은 주장 반복) | axis2-logic-scorer 축 2-1 argument chain 검사 |
@@ -441,7 +441,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `output-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-processing-orchestrator(2-pass 디스패처) + paper-analyst(Tier별 실제 분석)** 로 분해되어 있다. 이유:
+19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `output-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-analyst** 단일 agent (단순화 v3 — anchor/non-anchor 이진, orchestration 흡수). 이유:
 
 - 호출 토큰 효율 (Chapter 수정 15회 × 경량 output-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
@@ -456,8 +456,8 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, paper-processing-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, flow-refiner, peer-reviewer, **paper-analyst Pass 2 Tier 1 (+ Mode C 비판적 읽기)** |
-| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst Pass 2 Tier 2·3 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-auditor, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
+| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst non-anchor 분석 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-checker, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
 | **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
 **판단 기준**:
@@ -508,7 +508,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 | **writing-architect** | Topic Sentence First, Synthesis, Hedging, Evidence→Analysis | #4 Circular, #10 Logic jump |
 | **output-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
 | **flow-refiner** | 4-2 Novelty Positioning, 3-1 Steelman 보강 | Novelty 드리프트 |
-| **citation-auditor** | 1-2 Accuracy (PDF 원문 대조) | #1 Over-claim (실시간 탐지), misattribution |
+| **citation-checker** | 1-2 Accuracy (PDF 원문 대조) | #1 Over-claim (실시간 탐지), misattribution |
 | **gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
 | **methodology-advisor** | (empirical 전용) 방법론 정당화 | 방법론 임의 선택 |
 | **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface, Iconoclast (timidity 지적) | #2 Strawman, reject 유발 major issue, 자기 배신 미탐지 |

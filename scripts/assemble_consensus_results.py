@@ -21,7 +21,10 @@ def main():
     cur_dir = base / ".curation"
     out_path = base / "consensus-results.md"
 
-    files = sorted(cur_dir.glob("RESEARCH-*.md"))
+    # RESEARCH-* (consensus 검색 카드) + MANUAL-* (사용자 직접 추가 paper)
+    research_files = sorted(cur_dir.glob("RESEARCH-*.md"))
+    manual_files = sorted(cur_dir.glob("MANUAL-*.md"))
+    files = research_files + manual_files
     if not files:
         print(f"no curation files in {cur_dir}", file=sys.stderr)
         sys.exit(1)
@@ -79,34 +82,32 @@ def main():
         rewritten = entry_re.sub(repl, text)
         dedup_count_per_card[card_id] = dup_count
 
-        # Demote file's top heading `# RESEARCH-NNN Curation — topic` to
-        # `## [RESEARCH-NNN] topic` so that (a) the master file's `#` stays
-        # at the top level and (b) postcheck's `## [RESEARCH-NNN]` regex
-        # matches.
+        # Demote top heading. RESEARCH/MANUAL 둘 다 지원.
         lines = rewritten.splitlines(keepends=True)
-        head_re = re.compile(r"^# (RESEARCH-\d+)\s+Curation\s+—\s+(.+?)\s*$")
+        head_re = re.compile(r"^# ((?:RESEARCH|MANUAL)-\d+)\s+(?:Curation|Manual addition)\s+—\s+(.+?)\s*$")
         if lines:
             m = head_re.match(lines[0].rstrip("\n"))
             if m:
                 lines[0] = f"## [{m.group(1)}] {m.group(2)}\n"
             elif lines[0].startswith("# "):
-                # Fallback: any `# RESEARCH-NNN ...` form.
                 lines[0] = "## [" + lines[0][2:].replace(" ", "] ", 1)
         blocks.append("".join(lines))
 
     # Master header.
     ts = datetime.datetime.now().isoformat(timespec="seconds")
+    n_research = len(research_files)
+    n_manual = len(manual_files)
     n_cards = len(files)
     n_unique_urls = len(first_seen)
     total_dups = sum(dedup_count_per_card.values())
 
     header = f"""# {project} — Consensus 검색 통합 결과
 
-> 📅 생성: {ts}  ·  RESEARCH cards: {n_cards}  ·  유니크 논문 URL: {n_unique_urls}  ·  cross-RESEARCH 중복 치환: {total_dups}
-> 파이프라인: Stage A (MCP serial) → pipelined Stage B+C (research-processor background) → Stage D (mechanical concat + URL dedup + thin summary)
+> 📅 생성: {ts}  ·  RESEARCH cards: {n_research}  ·  MANUAL additions: {n_manual}  ·  유니크 논문 URL: {n_unique_urls}  ·  cross-card 중복 치환: {total_dups}
+> 파이프라인: Stage A (MCP serial) + MANUAL (사용자 직접 추가) → Stage B+C (research-processor / paper-analyst) → Stage D (mechanical concat + URL dedup)
 > 생성 도구: scripts/assemble_consensus_results.py
 
-이 파일은 `.curation/RESEARCH-*.md` 15개를 순서대로 concat하고, 동일 URL이 복수 카드에 등장할 때 첫 등장 외에는 one-liner로 치환한 결과입니다. 뒤쪽 누적 요약 섹션은 별도 단계에서 append됩니다.
+이 파일은 `.curation/RESEARCH-*.md` + `.curation/MANUAL-*.md` 를 concat하고, 동일 URL이 복수 카드에 등장할 때 첫 등장 외에는 one-liner로 치환한 결과입니다.
 
 ---
 
@@ -122,6 +123,8 @@ def main():
     # Report.
     print(json.dumps({
         "project": project,
+        "n_research": n_research,
+        "n_manual": n_manual,
         "n_cards": n_cards,
         "n_unique_urls": n_unique_urls,
         "cross_card_dedup_total": total_dups,

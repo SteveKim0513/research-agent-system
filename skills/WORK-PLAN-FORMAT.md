@@ -1,6 +1,6 @@
 # WORK-PLAN-FORMAT.md — work-plan.md 포맷 규율
 
-> 이 문서는 `projects/{P}/work-plan.md`의 **엄격한 포맷 스펙**입니다. 모든 에이전트(evaluation-orchestrator, claim-extractor, writing-architect, chapter-editor, flow-refiner, paper-processing-orchestrator, evaluation_aggregator)가 work-plan을 읽고 쓸 때 이 파일의 규칙을 준수해야 합니다.
+> 이 문서는 `projects/{P}/work-plan.md`의 **엄격한 포맷 스펙**입니다. 모든 에이전트(evaluation-orchestrator, claim-extractor, writing-architect, chapter-editor, flow-refiner, evaluation_aggregator)가 work-plan을 읽고 쓸 때 이 파일의 규칙을 준수해야 합니다.
 >
 > **이 포맷을 지키는 이유**: 에이전트들이 각자 포맷을 해석하면 섹션이 깨지거나 번호가 엇갈립니다. 단일 source of truth + grep/regex로 파싱 가능한 구조가 자동화의 전제.
 
@@ -123,6 +123,11 @@
 - `**의존성**: {TASK-ID 목록}` 또는 `없음`
 - `**차단하는 것**: {TASK-ID 목록}` 또는 `없음`
 - `**메모**: {자유 텍스트 — 에이전트가 남긴 주의사항}`
+- `**requires_adversarial_review**: true` (WRITE 카드, 글 끝 단계 — adversarial-reviewer 의무 통과)
+- `**requires_citation_diet**: true` (WRITE 카드 — 인용 분포 점검 의무)
+- `**requires_bibliography**: true` (WRITE 카드 — 참고문헌 자동 생성)
+- `**critique_target**: true` (RESEARCH mode=reanalyze — 해당 paper에 Mode C 적용)
+- `**anchor_review**: true` (RESEARCH 카드 — anchor 재선언 / 강등 결정)
 
 ### 2.4 진행 로그 포맷
 
@@ -151,7 +156,7 @@
 | **RESEARCH · search** | `"{stage} 레퍼런스 분석해줘"` (UNMATCHED-EXTERNAL → claim-extraction의 `search[]`) | `"리서치 진행해줘"` | Consensus MCP (4-stage 파이프라인) |
 | **RESEARCH · reanalyze** | `"{stage} 레퍼런스 분석해줘"` (UNMATCHED-INTERNAL), `paper_reanalysis_delta.py` (flow 변경) | `"리서치 진행해줘"` | paper-analyst Mode B |
 | **WRITE · create** | `"{stage} 내용 분석해줘"` (axis2~6의 `## 🛠 WRITE 후보` 섹션) + writing-architect | `"초안 작성해줘"` | writing-architect |
-| **WRITE · modify** | `"{stage} 내용 분석해줘"` (axis2~6의 `## 🛠 WRITE 후보` 섹션) + citation-auditor/peer-reviewer (사후 체이닝) | `"output {파일명} 수정해줘: WRITE-NNN"` | output-editor |
+| **WRITE · modify** | `"{stage} 내용 분석해줘"` (axis2~6의 `## 🛠 WRITE 후보` 섹션) + citation-checker/peer-reviewer (사후 체이닝) | `"output {파일명} 수정해줘: WRITE-NNN"` | output-editor |
 
 **WRITE 카드 자동 발급 흐름**:
 1. `"{stage} 내용 분석해줘"` 명령 → axis2~6 scorer 병렬 실행
@@ -169,7 +174,7 @@
 **통합 원칙** (복잡도 최소화):
 - gap-finder 결과 → RESEARCH(search) 또는 WRITE(modify)로 귀결 (gap 자체를 별 type으로 두지 않음)
 - methodology-advisor 결과 → WRITE(create|modify)에 녹여 기재
-- peer-reviewer / citation-auditor 결과 → WRITE(modify) 생성
+- peer-reviewer / citation-checker 결과 → WRITE(modify) 생성
 
 ---
 
@@ -262,12 +267,12 @@ python3 scripts/card_registry.py stats     CDEA research   # RESEARCH 카드 상
 python3 scripts/card_registry.py list      CDEA write      # WRITE 카드 전체 리스트
 python3 scripts/card_registry.py bootstrap CDEA research   # work-plan → registry 역복원
 
-# 에이전트 발급 (citation-auditor / peer-reviewer 등 평가 외 시점)
+# 에이전트 발급 (citation-checker / peer-reviewer 등 평가 외 시점)
 python3 scripts/card_registry.py issue CDEA write modify \
   --dedup-key "output/ch3.md" "EF universal claim" \
   --field "무엇=ch3 EF 보편성 over-claim" \
   --field "대상 챕터=output/ch3.md" \
-  --field "원인=citation-auditor #003"
+  --field "원인=citation-checker #003"
 # stdout = 발급된 ID 한 줄. stderr = ✅ issued / ⏭ skip / ↻ reactivated 안내.
 ```
 
@@ -399,7 +404,7 @@ ID 발급은 **모두 registry 모듈을 거친다**. 에이전트가 work-plan.
 | 발급 시점 | 발급자 | 경유 |
 |----------|-------|------|
 | 평가 완료 시 batch 발급 (RESEARCH / WRITE) | `evaluation_aggregator.py` | 모듈 직접 import (`card_registry`) |
-| 평가 외 시점 단발 발급 (citation-auditor / peer-reviewer 등) | 해당 에이전트 | `python3 scripts/card_registry.py issue` CLI |
+| 평가 외 시점 단발 발급 (citation-checker / peer-reviewer 등) | 해당 에이전트 | `python3 scripts/card_registry.py issue` CLI |
 | **사용자 자율 추가** | 사람 ↔ AI | 사용자는 자연어 채팅 또는 work-plan.md 직접 편집. AI가 받아 CLI로 정식 카드 변환 (사용자는 CLI 직접 호출 안 함) |
 
 **사용자 자율 추가 흐름** — 사용자 인터페이스는 두 가지뿐:
@@ -650,11 +655,10 @@ _(없음 — 총 completed 15개 이하)_
 | **evaluation-orchestrator** | — | (aggregator 경유) | — | — | — |
 | **evaluation_aggregator.py** | 대시보드 재계산용 | ✅ RESEARCH · WRITE | — | — | — |
 | **claim-extractor** | 기존 RESEARCH 번호 확인 | (PROPOSAL만) | — | — | — |
-| **paper-processing-orchestrator** | 🟡 RESEARCH(search) 매칭 | — | ✅ | ✅ (MATCHED 발생 시) | — |
 | **writing-architect** | 🟡 WRITE(create) 전체 | — | ✅ | ✅ | — |
 | **chapter-editor** | 🟡 WRITE(modify) 해당 챕터 | — | ✅ | ✅ | — |
 | **flow-refiner** | — (in-session helper, 카드 없음) | — | — | — | — |
-| **citation-auditor** | — | ✅ WRITE(modify) — over-claim 시 `card_registry issue` | — | — | — |
+| **citation-checker** | — | ✅ WRITE(modify) — over-claim 시 `card_registry issue` | — | — | — |
 | **peer-reviewer** | — | ✅ WRITE(modify) — reviewer Major 이슈 | — | — | — |
 | **gap-finder** | — | ✅ RESEARCH(search) 또는 WRITE(modify) | — | — | — |
 | **methodology-advisor** | — | ✅ WRITE(create 또는 modify)에 녹임 | — | — | — |

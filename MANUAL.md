@@ -70,22 +70,22 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 |------|------|-------------|-------------------------|--------|
 | 1. 프로젝트 생성 | `"[이름] 프로젝트 만들어줘"` | — | sync_state.py init | 폴더 구조 + 빈 flow.md |
 | 2. flow.md 작성 | (사용자 직접) | — | — | flow.md (prose) |
-| 3. 1차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 감지·병렬 디스패치) | claim-extractor (axis1 선행, prose 시) + axis1~axis6 scorers 병렬 + evaluation_aggregator.py + (ambition ≥ critical: critical-companion stage 마일스톤) + (v1/revised/final: citation-auditor 샘플링) | axis1-reference.md ~ axis6-critical.md, evaluation.md(aggregator 생성), work-plan.md, claim-extraction.md, (+{stage}/critical/questions.md v+1) |
+| 3. 1차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 감지·병렬 디스패치) | claim-extractor (axis1 선행, prose 시) + axis1~axis6 scorers 병렬 + evaluation_aggregator.py + (ambition ≥ critical: critical-companion stage 마일스톤) + (v1/revised/final: citation-checker 샘플링) | axis1-reference.md ~ axis6-critical.md, evaluation.md(aggregator 생성), work-plan.md, claim-extraction.md, (+{stage}/critical/questions.md v+1) |
 | 4a. 리서치 실행 | `리서치 진행해줘` | — (MCP 직접 호출) | **paper-analyst Mode B** (mode=reanalyze), Consensus MCP (mode=search) | consensus-results.md 누적, analyzed/*.md v2+ append |
 | 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 (axis_tags 포함) |
 | 5a. 경량 점검 | `레퍼런스 점검해줘` | **evaluation-orchestrator** (axis1만) | **axis1-reference-scorer**, archive 스냅샷 생략 | axis1-reference.md + evaluation.md 축 1 블록만 갱신 |
 | 5b. flow 보강 | `flow 업데이트해줘` | **flow-refiner** | — | flow.md 업데이트 제안 → 승인 시 flow.md 갱신 |
 | 6. 1차 초안 | `초안 작성해줘` | **writing-architect** (Phase 1 → 사용자 승인 → Phase 2) | (ambition ≥ critical: commitment 추출 prehook 자동) + on-demand PDF 접근 | output/*.md, final/complete-draft.md, .docx, {stage}/critical/commitments.md 갱신 |
-| 7. 2차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 모드, flow.md 변경 축만) | stale axis scorers + **citation-auditor 30% 샘플** | archive/NNN + 갱신된 {stage}/evaluations/latest/ |
-| 8. 챕터 수정 | `output {파일명} 수정해줘: ...` | **output-editor** | (ambition ≥ critical: commitment prehook) + **citation-auditor** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 + {stage}/critical/commitments.md 상태 갱신 |
-| 9. 3차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-auditor 전량** | archive/NNN |
+| 7. 2차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 모드, flow.md 변경 축만) | stale axis scorers + **citation-checker 30% 샘플** | archive/NNN + 갱신된 {stage}/evaluations/latest/ |
+| 8. 챕터 수정 | `output {파일명} 수정해줘: ...` | **output-editor** | (ambition ≥ critical: commitment prehook) + **citation-checker** 자동 체이닝 | 수정된 chapter 파일 + 감사 리포트 + {stage}/critical/commitments.md 상태 갱신 |
+| 9. 3차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-checker 전량** | archive/NNN |
 | 10a. 최종 통합 | `최종 통합해줘` | — | — | final/complete-draft.md + .docx 재생성 |
 | 10b. 심사 시뮬 | `리뷰 체크해줘` | **peer-reviewer** (Mode A) | — | 리뷰어 3명 시뮬 리포트 |
-| 10c. 최종 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-auditor 전량 + 이전 archive 대비 new error** | archive/NNN |
+| 10c. 최종 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-checker 전량 + 이전 archive 대비 new error** | archive/NNN |
 | 언제든 (보조) | `gap 분석해줘` | **gap-finder** | — | gaps-analysis.md |
 | 언제든 (empirical만) | `방법론 추천/검증해줘` | **methodology-advisor** | — | 화면 보고 |
 | 언제든 | `sync 확인해줘` | sync_state.py | — | stale 리스트 + 해결 가이드 |
-| 언제든 | `논문 제거해줘: {파일}` | sync_state.py + (자동) citation-auditor | — | archived/ 이동 + dangling 경고 |
+| 언제든 | `논문 제거해줘: {파일}` | sync_state.py + (자동) citation-checker | — | archived/ 이동 + dangling 경고 |
 | 언제든 | `논문 재분석해줘` | **paper-analyst** (Mode B) | — | analyzed/*.md v2+ append |
 | 단독 축 재평가 | `평가해줘 axis4` 또는 `평가해줘 axis3,4` | **evaluation-orchestrator** | 명시 축만 dispatch | 해당 axis{N}-*.md 갱신 |
 | 전체 강제 재평가 | `평가해줘 --full` | **evaluation-orchestrator** | `evaluation_delta.py reset` → 6축 전부 stale → 병렬 실행 | archive 스냅샷 + evaluations/latest 전량 갱신 |
@@ -257,7 +257,7 @@ projects/my-essay/
 ```
 
 자동으로:
-- `scripts/extract_metadata.py`로 각 PDF의 메타데이터 추출
+- v3에서는 `scripts/process_papers.py`가 정규화·메타·markdown 캐시 단일 패스 처리
 - `.paper-metadata.json` 업데이트
 - PDF를 `collected/`로 이동
 - **paper-analyst 에이전트 병렬 호출** — 각 논문에 대해:
@@ -364,7 +364,7 @@ writing-architect가 2단계로 동작:
 자동으로:
 1. 해당 챕터 파일 읽기 → 수정 적용 → 저장
 2. 자동 일관성 체크 (flow 목표 달성 / 챕터 간 연결 / 중복)
-3. **citation-auditor 에이전트 자동 호출**:
+3. **citation-checker 에이전트 자동 호출**:
    - 수정된 챕터의 모든 인용을 `papers/collected/`의 원문 PDF와 대조
    - Accuracy: over-claim, misattribution, fabrication 탐지
    - APA 형식 체크
@@ -421,7 +421,7 @@ peer-reviewer Mode B:
 | 1-3 Authority | 세미널 논문 + 최신 반론 모두 커버? | "이 분야 세미널 Miller (2000) 누락" −10 |
 | 1-4 Balance | disconfirming evidence를 배제하지 않았는가? | "반대 증거 논문 0편" −10 |
 
-**담당 에이전트**: citation-auditor (감사), paper-analyst (분석), Consensus MCP (검색)
+**담당 에이전트**: citation-checker (감사), paper-analyst (분석), Consensus MCP (검색)
 
 ### 축 2. 논리 전개 완성도
 
@@ -513,12 +513,12 @@ peer-reviewer Mode B:
 
 | 에이전트 | 단일 책임 | 읽는 것 | 쓰는 것 | 호출 시점 |
 |---------|----------|--------|---------|----------|
-| **paper-processing-orchestrator** 📄 | 2-pass 논문 처리 — triage(haiku) → Tier 분배 → 병렬 dispatch | candidates/*.pdf, flow 요약 | analyzed/*-triage.json + analyzed/*-analysis.md | `새 논문 처리해줘` 자동 (진입점) |
-| **paper-analyst** | Tier 1 (opus, full + Critical Reading) / Tier 2 (sonnet, full) / Tier 3 (sonnet, 간소판) / Mode B 재분석 (sonnet) / Mode C 비판적 읽기 (opus) | papers/{collected or candidates}/*.pdf, flow.md | analyzed/*-analysis.md (v1/v2/v3/[critical] append) | orchestrator dispatch (자동) / `논문 재분석해줘` (B, delta 기본) / `비판적으로 분석해줘` (C, ambition ≥ critical 자동) |
-| **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, analyzed/*.md (모든 버전), on-demand PDF | output/0N-*.md, final/complete-draft.md(.docx) | `초안 작성해줘` |
-| **output-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, analyzed/*.md, on-demand PDF | 수정된 chapter 파일 | `output {파일명} 수정해줘: ...` (자동) |
-| **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
-| **citation-auditor** | PDF 원문 대조 accuracy 감사 (over-claim·misattribution·APA 형식·분포) | chapter, papers/collected/*.pdf, analyzed/*.md | 감사 리포트 + 신규 WRITE(modify) 카드 | `output {파일명} 수정해줘` 후 자동 체이닝 + `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` draft stage (v1/revised/final) 자동 체이닝 |
+| **paper-analyst** | 단순화 v3: anchor (opus, 깊은 분석 ~300줄) / non-anchor (sonnet, 가벼운 ~30-50줄) / Mode B 재분석 / Mode C critical. orchestration 흡수 (이전 paper-processing-orchestrator 폐기) | papers/markdown/{name}.md (PDF 캐시), flow.md, 다른 anchor analyzed/*.md (cross-ref) | papers/analyzed/{name}.md (단일 SSOT, frontmatter + 본문) | `논문 처리해줘` (진입점) / `논문 재분석해줘` (B) / `비판적으로 분석해줘` (C) |
+| **writing-architect** | **신규 챕터 창작** (Phase 1 구조 설계 → 사용자 승인 → Phase 2 초안) | flow.md, papers/analyzed/*.md, on-demand papers/markdown/*.md 또는 PDF | output/*.md, final/*.md(.docx) | `초안 작성해줘` |
+| **output-editor** ✏️ | **기존 챕터 국소 수정** (구조 유지, 지정 부분만) — writing-architect와 구분 | 대상 chapter, 수정 지시, papers/analyzed/*.md | 수정된 chapter 파일 | `output {파일명} 수정해줘: ...` (자동) |
+| **flow-refiner** 📝 | **flow.md 보강 제안만** (직접 수정 금지, diff 승인 후 반영) | flow.md, 새 papers/analyzed/*.md, evaluation.md 감점 사유 | diff 제안 (승인 시 flow.md 반영) | `flow 업데이트해줘` |
+| **citation-checker** | output ↔ analyzed/*.md 정합성 검증 (인용 매칭·페이지 정확성·anchor 미사용·over-claim 위험). citation-checker 단순화 v3 | output/*.md, papers/analyzed/*.md | output/.citation-check-report.md | `인용 확인해줘` / `output {파일} 수정해줘` 후 자동 체이닝 |
+| **adversarial-reviewer** | 학파별 단락·문장 단위 반박 시뮬 | output/*.md, flow/adversarial-schools.yaml, papers/analyzed/{anchor}.md | adversarial-review.md | `적대적 리뷰 해줘` |
 
 #### 보조 (3개, 수동 호출)
 
@@ -559,7 +559,7 @@ peer-reviewer Mode B:
 | **구조 설계** | ✅ Phase 1 필수 | ❌ (기존 구조 유지) | ❌ (제안만) |
 | **사용자 승인 시점** | Phase 1 후 (구조 확인) | 즉시 수정 (지시 명확) | 제안 후 (반영 승인) |
 | **직접 파일 수정** | ✅ output/* 생성 | ✅ output/* 수정 | ⚠️ 승인 후에만 |
-| **후속 에이전트** | — | citation-auditor 자동 체이닝 | — |
+| **후속 에이전트** | — | citation-checker 자동 체이닝 | — |
 | **호출 빈도** | 1회 (초안) | 반복 (5챕터 × 2-3회) | 0-1회 (선택) |
 
 ---
@@ -727,6 +727,109 @@ python3 scripts/archive/migrate_v2.py {project} [--dry-run]
 python3 scripts/archive/migrate_v2.py --all [--dry-run]
 ```
 
+## 📚 Paper Analysis System (v3.1 — 1단계 통합 분류)
+
+이전 v2 (manifest + 18-event + 10-layer + 5 artifact 파일) 폐기. **One Paper, One File** + **1단계 분류 통합** (process_papers.py가 consensus 매핑 + 파일명 prefix 즉시 부여).
+
+### 폴더 구조 (4개 평탄)
+
+```
+papers/
+   candidates/{original}.pdf        ← ① 사용자 PDF 투입 (대기)
+   collected/{Author_Year}.pdf      ← ② 정규화·dedup 완료
+   markdown/{Author_Year}.md        ← ③ PDF 본문 캐시 (시스템)
+   analyzed/{Author_Year}.md        ← ④ 분석 SSOT (사람·LLM 공용)
+   consensus-results.md             ← 4-stage 리서치 결과
+   .quarantine/{empty,corrupt}/     ← 격리
+```
+
+같은 stem `{Author}_{Year}_{kw}`이 4 폴더에 동일하게.
+
+### analyzed/{name}.md — paper SSOT (frontmatter + 본문)
+
+```yaml
+---
+status: analyzed              # collected | analyzed | rejected | scope_out
+anchor: true|false
+critique_target: false
+last_analyzed: 2026-04-25T...
+based_on:
+  flow_md_hash: <hash>
+  markdown_hash: sha256:...
+artifacts:
+  pdf: papers/collected/{name}.pdf
+  markdown: papers/markdown/{name}.md
+axis_tags: [steelman, delta]
+consensus_category: "🔴 Steelman"
+prior_score: 92
+cross_research_count: 4
+citation_state:
+  use_count_in_output: 0
+  direct_quotes_used: []
+  paraphrase_count: 0
+user_overrides: null          # 사용자 dict (Mode B에도 보존)
+rejection_reason: null
+---
+
+(분석 본문 — 아래 분기별 섹션)
+```
+
+### 분석 분기 — anchor / non-anchor 이진
+
+| 분기 | 모델 | 분량 | 섹션 |
+|------|------|------|------|
+| **anchor** (사용자 선언) | opus | ~300줄 | 한 줄 요약 / nuanced / 인용 가능 / 본 글에서 활용 / 다른 anchor 대비 / 보강 후보 / 사용자 메모 / (critique_target=true 시) 비판적 읽기 |
+| **non-anchor** | sonnet | ~30-50줄 | 한 줄 요약 / 인용 가능 (1-2) / 본 글에서 활용 (1줄) |
+
+### Mode B — 재분석 (flow.md 변경 후)
+
+기존 analyzed/{name}.md 본문 그대로 + 끝에 `## [v2 — date]` 섹션 append.
+v1 절대 수정 X. user_overrides·사용자 메모 영역 절대 건드리지 않음.
+
+### 명령 흐름 (사용자 관점)
+
+```
+1. consensus-results.md 검토 → PDF candidates/에 투입
+2. "논문 처리해줘"
+   → process_papers.py (multiprocessing, 정규화·dedup·markdown)
+   → paper-analyst dispatch (병렬, anchor 깊은 + non-anchor 가벼운)
+3. "초안 써줘" → output.md (analyzed/*.md 활용)
+4. "인용 확인해줘" / "참고문헌 만들어줘" / "적대적 리뷰 해줘"
+```
+
+### 신규/축소 시스템
+
+**활성 scripts (4)**:
+- `process_papers.py` — multiprocessing PDF 단일 패스
+- `citation_check.py` — output ↔ analyzed 정합성
+- `bibliography.py` — APA/MLA/Chicago/BibTeX
+
+**활성 agents (4 paper 관련)**:
+- `paper-analyst.md` — 단일 출력 analyzed/{name}.md (orchestration 흡수)
+- `writing-architect.md` — analyzed/*.md 직접 참조
+- `citation-checker.md` — 단순화 v2
+- `adversarial-reviewer.md` — 학파별 반박 시뮬
+
+**폐기됨 (이미 삭제됨 — git history에서 복원 가능)**:
+- paper_registry.py, collect_papers.py, paper_prior_score.py, anchor_candidates.py, distribution_sanity.py, paper_triage.py, extract_metadata.py, render_*.py (5개), citation_lint.py
+- paper-processing-orchestrator.md, cross-paper-discourse-mapper.md, citation-auditor.md (→ citation-checker로 대체)
+
+### CLI 빠른 참조
+
+```bash
+python3 scripts/process_papers.py {project} [--workers=8] [--dry-run] [--limit=N]
+python3 scripts/citation_check.py {project} [--json]
+python3 scripts/bibliography.py {project} [--format=apa|mla|chicago|bibtex] [--include-anchor-unused]
+```
+
+### 사용자 직접 편집 자유
+
+- **paper.md (analyzed/*.md)는 사람·LLM 공용 SSOT**: 사용자가 메모·수정 자유. LLM이 다음 분석에서 그 변경 존중.
+- **frontmatter `user_overrides`**: 사용자가 LLM 판단 위에 영구 override (Mode B에도 보존).
+- **`## 사용자 메모` 섹션**: anchor만, LLM 절대 수정 X.
+
+---
+
 ### 에이전트별 sync 호출 의무 (누락 시 아티팩트 어긋남)
 
 각 에이전트가 작업 완료 시점에 호출해야 하는 sync·snapshot 명령 매트릭스:
@@ -744,7 +847,7 @@ python3 scripts/archive/migrate_v2.py --all [--dry-run]
 | output-editor | Phase 8 수정 후 | `update-chapter {P} {chapter}` |
 | **flow-refiner** | Phase 7 반영 직전 | `snapshot-flow {P} pre-refine` |
 | flow-refiner | 반영 후 | `update-flow {P}` |
-| **paper-processing-orchestrator** | 각 논문 분석 완료 후 | `update-paper {P} {file}` |
+| **paper-analyst** (단순화 v3) | 각 논문 분석 완료 후 | manifest 폐기 — analyzed/{name}.md frontmatter 갱신만 (sync_state 호출 불필요) |
 | **critical-companion** | questions 신규 버전 직전 | `snapshot-critical-questions {P} pre-update` |
 | critical-companion | commitments 갱신 직전 | `snapshot-critical-commitments {P} pre-update` |
 | **aggregator** | work-plan 쓰기 전 | 내용 비교 → 실질 변경 없으면 skip (snapshot 불필요) |
@@ -850,7 +953,7 @@ updated_by: claim-extractor
 `projects/{P}/.current-mode` 파일에 현재 모드 한 줄 저장. 기본값 `flow`.
 
 **동작**:
-- `"flow 모드"` / `"output 모드"` 명령으로 전환
+- v3.1 단방향: `"output으로 진행"` 또는 `"초안 작성해줘"`가 자동으로 flow → output 전진 (되돌리기 X)
 - prefix 생략 명령(예: `"레퍼런스 분석해줘"`) → 현재 모드의 stage 적용
 - prefix 명시(예: `"output 레퍼런스 분석해줘"`) → 모드 무시 (override)
 
@@ -1167,7 +1270,7 @@ Claude Code의 반복적 "yes" 확인 prompt를 줄이기 위해 이 프로젝�
 
 ### ✅ 사전 승인 범위 (prompt 없음)
 
-- **프로젝트 스크립트**: `python3 scripts/sync_state.py`, `activity_log.py`, `extract_metadata.py`
+- **프로젝트 스크립트**: `python3 scripts/sync_state.py`, `activity_log.py`
 - **Git 기본**: add / commit / push / status / diff / log / show / branch / remote
 - **파일 읽기·탐색**: ls / cat / head / tail / grep / sed -n / awk / sort
 - **파일 조작**: mkdir / touch / cp / mv / chmod
@@ -1229,7 +1332,7 @@ claude --dangerously-skip-permissions
 | `work-plan.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | active RESEARCH/WRITE 카드의 live view — completed RESEARCH(search)는 삭제됨 (registry 보존) |
 | `papers/.registry.json` | 첫 평가 또는 bootstrap 시 | **RESEARCH 발급 SSOT** — 모든 RESEARCH 카드의 ID·covers·lifecycle status(ready/in_progress/blocked/deferred/completed) 영속 보존 + reactivation 이력 |
 | `output/.registry.json` | 첫 분석 또는 bootstrap 시 | **WRITE 발급 SSOT** — WRITE 카드 ID·dedup_key·lifecycle 영속 |
-| `.current-mode` | 사용자가 `"flow 모드"` / `"output 모드"` 호출 시 | 현재 모드 (flow/output) 한 줄 텍스트 — prefix 생략 명령에 적용 |
+| `.current-mode` | `"초안 작성해줘"` 또는 `"output으로 진행"` 시 자동 advance | 현재 단계 (flow/output) 한 줄 — 단방향 진행 |
 | `flow/claim-extraction-flow.md` (flow 모드) 또는 `output/claim-extraction-output.md` (output 모드) | `"{stage} 레퍼런스 분석해줘"` | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `{stage}/evaluations/latest/axis1-reference.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
 | `{stage}/evaluations/latest/axis2-logic.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |
@@ -1278,13 +1381,12 @@ claude --dangerously-skip-permissions
 | 명령 | 동작 |
 |------|------|
 | `"리서치 진행해줘"` | work-plan.md의 🔄 RESEARCH(reanalyze) 먼저 → 🔍 RESEARCH(search)를 Consensus에 순차 투입 |
-| `"새 논문 처리해줘"` | candidates/의 PDF를 2-pass 분석 (triage haiku → Tier 1 opus·full+Critical / Tier 2 sonnet·full / Tier 3 sonnet·간소) |
-| `"새 논문 처리해줘 --priority {파일 목록}"` | 지정 파일만 Tier 1로 처리, 나머지는 triage만 |
-| `"새 논문 처리해줘 --tier=1"` | 모든 논문 Tier 1 강제 (triage 생략) |
-| `"가볍게 처리해줘"` | 전부 Tier 3 강제 (간소판) |
+| `"논문 처리해줘"` | candidates/ PDF → 정규화·markdown 캐시 → anchor 선언 (대화형) → 분석 (anchor opus / non-anchor sonnet) |
+| `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) |
+| `"비판적으로 분석해줘 X"` | critique_target=true → analyzed/{X}.md에 비판 섹션 추가 (Mode C) |
 | `"논문 재분석해줘"` | **delta 기본** — flow.md 변경 섹션 영향 논문만 Mode B |
 | `"논문 재분석해줘 --full"` | 전량 Mode B 재실행 |
-| `"{파일명} 논문 재분석해줘 --tier=1"` | 해당 논문 Tier 1 승격 후 재분석 + Critical Reading 추가 |
+| `"{파일명} 논문 재분석해줘"` | 해당 paper anchor 승격 + Mode B 재분석 |
 | 🔄 `"논문 재분석해줘"` | 기존 PDF를 새 flow 각도로 재스캔 (paper-analyst Mode B, v2 append) |
 | 🗑 `"논문 제거해줘: {파일}"` | archived/로 안전 이동 + dangling citation 자동 탐지 |
 | 📝 `"flow 업데이트해줘"` | 새 논문 반영한 flow.md 보강 제안 (축 3·4 강화) |
@@ -1294,7 +1396,7 @@ claude --dangerously-skip-permissions
 | 명령 | 동작 |
 |------|------|
 | `"초안 작성해줘"` | writing-architect 구조 설계(승인 필요) → 초안 생성 |
-| `"output {파일명} 수정해줘: [수정 내용]"` | 해당 챕터 수정 + 일관성 체크 + citation-auditor 자동 감사 |
+| `"output {파일명} 수정해줘: [수정 내용]"` | 해당 챕터 수정 + 일관성 체크 + citation-checker 자동 감사 |
 
 ### 최종 완성 (Stage 4)
 
@@ -1349,7 +1451,7 @@ claude --dangerously-skip-permissions
 
   → 🎯 평가해줘 (2차) → archive/002-{date}-v1/
 
-  → [Stage 3] output {파일명} 수정해줘 (반복, citation-auditor PDF 감사)
+  → [Stage 3] output {파일명} 수정해줘 (반복, citation-checker PDF 감사)
   → 🎯 평가해줘 (3차) → archive/003-{date}-revised/
 
   → [Stage 4]
@@ -1460,7 +1562,7 @@ axis 스코어러들은 Top-tier 저널 엄격도로 설정되어 있습니다. 
 **"RESEARCH 과제가 너무 많다"**
 첫 평가 시 UNMATCHED가 수십 건 나오는 것은 정상입니다. `"리서치 진행해줘"` 한 번으로 전량 일괄 처리 가능합니다.
 
-**"citation-auditor가 over-claim을 지적했다"**
+**"citation-checker가 over-claim을 지적했다"**
 원문 PDF를 직접 확인하고, 주장 강도를 약화시키거나(predict → suggest) 더 강한 근거 논문으로 교체하세요.
 
 ### 파일 관련

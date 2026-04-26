@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
 """
-PDF 파일명을 연구자 스타일로 정규화: {FirstAuthor}_{Year}_{short_title}.pdf
+normalize_filename.py — 순수 함수 모듈. 정규화된 PDF 파일명 산출.
 
-파일명 패턴 파싱 우선순위:
-1. "Author et al. - YYYY - Title" / "Author and Author - YYYY - Title"
-2. "Journal - YYYY - Author - Title"
-3. PDF 메타데이터 (title, author)
-4. 원 파일명을 기반으로 한 heuristic + 알려진 논문 매핑
+본 모듈은 **PDF를 열지 않습니다**. PDF 본문 추출은 `collect_papers.py`가 책임.
+본 모듈은 metadata (author, year, title) → canonical filename 변환에 집중.
 
-사용: python3 normalize_filename.py <input.pdf> → 정규화된 basename 출력
+우선순위:
+1. KNOWN_MAPPING (파일명 stem 정확/prefix 매칭)
+2. 파일명 패턴 파싱 ("Author - YYYY - Title")
+3. 명시적 전달 metadata (extracted_title/author/year — collect_papers가 PDF에서 추출)
+4. fallback ("Unknown_nodate_...")
+
+API:
+    compute_canonical_name(author, year, keywords) → str   # pure
+    normalize_filename(filename, title="", author="", year="") → dict
+        반환: {new_name, author, year, title, source}
+
+CLI:
+    python3 normalize_filename.py <filename>
+        — KNOWN_MAPPING + 파일명 패턴만 사용
+    python3 normalize_filename.py <filename> --title=T --author=A --year=Y
+        — 명시 metadata 전달 (collect_papers.py 흐름과 동일)
 """
-import sys
+from __future__ import annotations
+
 import re
+import sys
 import unicodedata
 from pathlib import Path
 
@@ -100,20 +114,22 @@ def parse_from_filename(fname: str) -> dict | None:
     return None
 
 
-def extract_pdf_metadata(pdf_path: Path) -> dict:
-    """PyPDF2 메타로 보강."""
-    try:
-        import PyPDF2
-        with open(pdf_path, "rb") as f:
-            pdf = PyPDF2.PdfReader(f)
-            info = pdf.metadata or {}
-            return {
-                "title": (info.get("/Title") or "").strip(),
-                "author": (info.get("/Author") or "").strip(),
-                "pages": len(pdf.pages),
-            }
-    except Exception:
-        return {"title": "", "author": "", "pages": 0}
+def compute_canonical_name(
+    author: str,
+    year: str,
+    keywords: list[str],
+    max_keywords: int = 5,
+) -> str:
+    """순수 함수: (author, year, keywords) → canonical name (확장자 제외).
+
+    예: ("Loffler", "2024", ["common", "factor", "speed"])
+        → "Loffler_2024_common_factor_speed"
+    """
+    a = parse_author_first(author) if author else "Unknown"
+    y = str(year).strip() if year else "nodate"
+    kw = [k for k in keywords[:max_keywords] if k]
+    short = "_".join(kw) if kw else "untitled"
+    return f"{a}_{y}_{short}"
 
 
 # 알려진 논문(파일명 → 정규명) 매핑. 필요 시 확장.
@@ -385,69 +401,133 @@ def _candidate_keys(stem: str) -> list[str]:
     return [k for k in (k1, k2, k3) if k]
 
 
-def normalize_filename(pdf_path: Path) -> dict:
-    """반환: {'new_name': 'Author_Year_keyword1_keyword2.pdf', 'author':..., 'year':..., 'title':..., 'pages':...}"""
-    fname = pdf_path.name
-    stem = pdf_path.stem
+def normalize_filename(
+    filename: str,
+    title: str = "",
+    author: str = "",
+    year: str = "",
+) -> dict:
+    """파일명 + 명시 metadata → 정규화 결과.
 
-    # 1순위: KNOWN_MAPPING (정확 매칭 + 보수적 prefix 매칭)
-    cands = _candidate_keys(stem)
-    # (a) 정확 매칭
-    for cand in cands:
-        if cand in KNOWN_MAPPING:
-            author, year, kw = KNOWN_MAPPING[cand]
-            short = "_".join(kw[:5])
-            return {"new_name": f"{author}_{year}_{short}.pdf", "author": author,
-                    "year": year, "title": stem, "source": "known_mapping"}
-    # (b) prefix 매칭 — 최소 45자 공통 전제 (너무 짧으면 오매칭)
+    Args:
+        filename: 원본 PDF 파일명 (stem 또는 full name 모두 OK).
+        title, author, year: collect_papers가 PDF 본문에서 추출한 metadata (선택).
+                              KNOWN_MAPPING·파일명 패턴이 모두 실패할 때 사용.
+
+    Returns:
+        {
+            'new_name':  'Author_Year_kw1_kw2.pdf',
+            'canonical': 'Author_Year_kw1_kw2',           # 확장자 없음
+            'author':    'Loffler',
+            'year':      '2024',
+            'title':     '...',                           # 제목 (있으면)
+            'source':    'known_mapping' | 'filename_pattern' | 'extracted_meta' | 'fallback',
+        }
+    """
+    stem = Path(filename).stem if filename.endswith(".pdf") else filename
+
+    # 1순위: KNOWN_MAPPING — 파일명 stem + 추출 title 모두 시도 (정확 + prefix)
+    sources_to_try = [stem]
+    if title:
+        sources_to_try.append(title)
+
     MIN_PREFIX = 45
-    for cand in cands:
-        if len(cand) < MIN_PREFIX:
-            continue
-        for mkey, (author, year, kw) in KNOWN_MAPPING.items():
-            if len(mkey) < MIN_PREFIX:
+    for src in sources_to_try:
+        cands = _candidate_keys(src)
+        # 정확 매칭
+        for cand in cands:
+            if cand in KNOWN_MAPPING:
+                a, y, kw = KNOWN_MAPPING[cand]
+                canonical = compute_canonical_name(a, y, kw)
+                return {
+                    "new_name": f"{canonical}.pdf",
+                    "canonical": canonical,
+                    "author": a, "year": y, "title": title or stem,
+                    "source": "known_mapping",
+                }
+        # prefix 매칭
+        for cand in cands:
+            if len(cand) < MIN_PREFIX:
                 continue
-            common_len = min(len(cand), len(mkey))
-            if common_len >= MIN_PREFIX and cand[:common_len] == mkey[:common_len]:
-                short = "_".join(kw[:5])
-                return {"new_name": f"{author}_{year}_{short}.pdf", "author": author,
-                        "year": year, "title": stem, "source": "known_mapping"}
+            for mkey, (a, y, kw) in KNOWN_MAPPING.items():
+                if len(mkey) < MIN_PREFIX:
+                    continue
+                common_len = min(len(cand), len(mkey))
+                if common_len >= MIN_PREFIX and cand[:common_len] == mkey[:common_len]:
+                    canonical = compute_canonical_name(a, y, kw)
+                    return {
+                        "new_name": f"{canonical}.pdf",
+                        "canonical": canonical,
+                        "author": a, "year": y, "title": title or stem,
+                        "source": "known_mapping",
+                    }
 
-    # 2순위: 파일명 패턴 파싱
-    parsed = parse_from_filename(fname)
+    # 2순위: 파일명 패턴
+    parsed = parse_from_filename(filename)
     if parsed:
-        author = parsed["author"] or "Unknown"
-        year = parsed["year"]
+        a = parsed["author"] or "Unknown"
+        y = parsed["year"]
         kw = title_keywords(parsed["title"], max_words=5)
-        short = "_".join(kw) if kw else "untitled"
-        new_name = f"{author}_{year}_{short}.pdf"
-        return {"new_name": new_name, "author": author, "year": year,
-                "title": parsed["title"], "source": "filename_pattern"}
+        canonical = compute_canonical_name(a, y, kw)
+        return {
+            "new_name": f"{canonical}.pdf",
+            "canonical": canonical,
+            "author": a, "year": y, "title": parsed["title"],
+            "source": "filename_pattern",
+        }
 
-    # 3순위: PDF 메타데이터
-    meta = extract_pdf_metadata(pdf_path)
-    if meta["title"] and meta["author"]:
-        author = parse_author_first(meta["author"])
-        year_match = re.search(r"(19|20)\d{2}", fname + " " + meta.get("title", ""))
-        year = year_match.group(0) if year_match else "nodate"
-        kw = title_keywords(meta["title"], max_words=5)
-        short = "_".join(kw) if kw else "untitled"
-        new_name = f"{author}_{year}_{short}.pdf"
-        return {"new_name": new_name, "author": author, "year": year,
-                "title": meta["title"], "pages": meta.get("pages", 0), "source": "pdf_metadata"}
+    # 3순위: 명시 전달 metadata (collect_papers가 PDF 본문에서 추출)
+    if title and (author or year):
+        a = parse_author_first(author) if author else "Unknown"
+        y = str(year).strip() if year else "nodate"
+        if not y or y == "nodate":
+            ym = re.search(r"(19|20)\d{2}", filename + " " + title)
+            if ym:
+                y = ym.group(0)
+        kw = title_keywords(title, max_words=5)
+        canonical = compute_canonical_name(a, y, kw)
+        return {
+            "new_name": f"{canonical}.pdf",
+            "canonical": canonical,
+            "author": a, "year": y, "title": title,
+            "source": "extracted_meta",
+        }
 
-    # fallback: 제목에서 추정
+    # fallback: 원본 stem에서 추정
     kw = title_keywords(stem, max_words=6)
-    short = "_".join(kw) if kw else re.sub(r"[^a-zA-Z0-9]+", "_", stem)[:50]
-    return {"new_name": f"Unknown_nodate_{short}.pdf", "author": "Unknown",
-            "year": "nodate", "title": stem, "source": "fallback"}
+    if kw:
+        canonical = compute_canonical_name("Unknown", "nodate", kw)
+    else:
+        safe = re.sub(r"[^a-zA-Z0-9]+", "_", stem)[:50] or "untitled"
+        canonical = f"Unknown_nodate_{safe}"
+    return {
+        "new_name": f"{canonical}.pdf",
+        "canonical": canonical,
+        "author": "Unknown", "year": "nodate", "title": stem,
+        "source": "fallback",
+    }
+
+
+def _cli():
+    import json
+    if len(sys.argv) < 2:
+        print("Usage: python3 normalize_filename.py <filename> "
+              "[--title=T] [--author=A] [--year=Y]")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    title = author = year = ""
+    for a in sys.argv[2:]:
+        if a.startswith("--title="):
+            title = a.split("=", 1)[1]
+        elif a.startswith("--author="):
+            author = a.split("=", 1)[1]
+        elif a.startswith("--year="):
+            year = a.split("=", 1)[1]
+
+    result = normalize_filename(filename, title=title, author=author, year=year)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 normalize_filename.py <pdf_path>")
-        sys.exit(1)
-    p = Path(sys.argv[1])
-    result = normalize_filename(p)
-    import json
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    _cli()

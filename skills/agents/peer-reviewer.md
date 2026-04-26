@@ -253,7 +253,7 @@ NEW_ID=$(python3 scripts/card_registry.py issue {project} write modify \
    --field "원인=peer-reviewer Mode A · Reviewer {N}")
 ```
 
-CLI가 동일 dedup_key 기존 WRITE 카드를 발견하면 그 ID를 반환 + stderr `⏭ skip` 또는 `↻ reactivated`. 신규 ID (`✅ issued`)일 때만 work-plan 🟡 Active에 카드 append. citation-auditor와 같은 수정 요구를 두 번 발급하는 race를 `output/.registry.json`이 차단함.
+CLI가 동일 dedup_key 기존 WRITE 카드를 발견하면 그 ID를 반환 + stderr `⏭ skip` 또는 `↻ reactivated`. 신규 ID (`✅ issued`)일 때만 work-plan 🟡 Active에 카드 append. citation-checker와 같은 수정 요구를 두 번 발급하는 race를 `output/.registry.json`이 차단함.
 
 ## 📋 산출 파일 frontmatter 의무
 

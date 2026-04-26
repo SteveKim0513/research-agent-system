@@ -84,27 +84,28 @@ model: opus
 - 각 commitment의 "완료 조건"을 충족하는 방식으로 작성
 - commitment별로 **반영 위치를 기록** (내부 추적용)
 
-### 우선 참조 1순위: analyzed/*.md의 섹션별 인용 다발
+### 우선 참조 1순위: analyzed/*.md (단순화 v2 형식)
 
-paper-analyst가 준비한 analyzed/*.md의 `## 📚 섹션별 인용 후보 다발` 블록에서:
-- 각 주장을 뒷받침하는 **직접 인용 후보**
-- **구체적 수치/데이터**
-- **간접 인용 재료**
-- **조건·한계** (over-claim 방지)
+paper-analyst가 준비한 `papers/analyzed/{canonical}.md`에서 다음 섹션 활용:
 
-이 재료로 충분히 정확한 문장을 작성할 수 있다면 PDF를 다시 열 필요가 없다.
+- **`## 인용 가능`** — 직접 인용문 + 페이지 + stance + use 라벨 (권장 인용 동사·금기 포함)
+- **`## 본 글에서 활용`** — 어느 §에 어떤 역할로 (setup phrase·권장 인용 동사 명시)
+- **`## 다른 anchor 대비`** (anchor만) — 비교·대조 단락 자료
+- **`## 저자가 실제로 한 말 (nuanced)`** — common knowledge 단순화 회피용
 
-### On-demand PDF 접근 (필요 시)
+frontmatter (`status`·`anchor`·`axis_tags`·`citation_state`)는 메타로 참조.
+이 재료로 충분히 정확한 문장 작성 가능하면 PDF 다시 열 필요 없음.
 
-초안 작성 중 다음 상황이면 `papers/collected/{파일명}.pdf`를 Read 도구로 직접 읽어 확인:
+### On-demand 입력 (필요 시)
 
-1. **analyzed/*.md의 섹션별 인용 다발에 해당 주장·수치가 없음**
-2. **인용문의 정확한 원문 확인이 필요**
-3. **맥락·조건 확인이 필요** (저자가 어떤 조건 하에서 이 주장을 했는가)
-4. **paraphrase의 정확성 의심**
+초안 작성 중 다음이면 추가 자료 접근:
 
-PDF를 읽은 뒤에는:
-- 해당 발견을 analyzed/*.md에 **보충 제안 메모** 덧붙일 수 있음 (`<!-- paper-analyst 재분석 권장 -->`)
+1. **analyzed/{}.md "인용 가능"에 해당 주장·수치가 없음** → `papers/markdown/{canonical}.md` (PDF 본문 캐시) 읽기
+2. **인용문의 정확한 원문 확인** → markdown.md 또는 PDF 직접
+3. **맥락·조건 확인** (저자가 어떤 조건 하에서) → markdown.md
+4. **paraphrase 정확성 의심** → markdown.md
+
+발견된 새 인용 후보는 analyzed/{}.md에 *추가 제안 메모*로 기록 (`<!-- paper-analyst 재분석 권장 -->`).
 
 ### 공통 글쓰기 원칙
 
@@ -113,7 +114,7 @@ PDF를 읽은 뒤에는:
 3. **Synthesis over Summary**: 여러 논문을 주제별로 엮어서 서술
 4. **Transition Sentences**: 문단 간 논리적 연결 문장
 5. **Hedging 적절히**: "demonstrates" vs "suggests" vs "indicates" — 근거 강도에 맞게
-6. **조건 보존**: analyzed/*.md의 "조건·한계" 필드를 무시하지 말 것
+6. **조건 보존**: analyzed/*.md "인용 가능"의 stance=self_limit / use=over-claim 차단 항목을 무시하지 말 것 (저자 자기 한계 인용은 hedge·caveat 자료)
 
 ### 인용 패턴
 

@@ -174,7 +174,7 @@ orchestrator(aggregator 경유) 처리:
    - completed에서 같은 covers 재제안 → reactivation (work-plan 재삽입)
    - 신규 → registry.next_id 발급 + work-plan 🟡 Active에 RESEARCH 카드 append
 2. **RESEARCH mode=reanalyze 발급**: claim-extractor의 UNMATCHED-INTERNAL 섹션 또는 `paper_reanalysis_delta.py` 결과 → 동일 패턴으로 발급 (dedup_key = (pdf, angle))
-3. **WRITE 발급 (mode=create|modify)**: axis2~6 scorer · citation-auditor · peer-reviewer 산출물에서 도출되면 `card_registry`(domain=write)로 발급. dedup_key = (target_chapter, passage_or_location)
+3. **WRITE 발급 (mode=create|modify)**: axis2~6 scorer · citation-checker · peer-reviewer 산출물에서 도출되면 `card_registry`(domain=write)로 발급. dedup_key = (target_chapter, passage_or_location)
 4. claim-extraction-flow.md (또는 -draft.md)의 `search[]` 내부 ID를 발급된 RESEARCH-NNN으로 치환
 5. 모든 도메인에 대해 `sync_from_work_plan` 실행 → 카드 위치(섹션) 기준으로 registry status 갱신 + completed 동기화 (RESEARCH mode=search만 work-plan에서 카드 제거, 나머지는 보존)
 
@@ -190,7 +190,7 @@ R은 claim-extraction 내부 ID로 유지 (work-plan.md에 카드로 올라가�
 python3 scripts/evaluation_delta.py mark-done {PROJECT} axis2,axis3 --stage={stage}
 ```
 
-### 7. citation-auditor 체이닝 (옵션)
+### 7. citation-checker 체이닝 (옵션)
 
 Axis 1이 실행되었고 `intellectual_ambition >= baseline`이면 3편 spot-check 실행.
 
@@ -215,7 +215,7 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 
 - aggregator가 각 scorer의 감점 사유를 분석해 RESEARCH / WRITE 카드 생성 → 모든 발급은 **`card_registry` 경유** → 신규 ID만 🟡 Active에 append
 - claim-extractor의 `search[]` 배열 → 다음 RESEARCH-NNN 번호로 1:1 발급 (mode=search, `covers: R-XX` dedup) → claim-extraction-*.md의 ID 치환
-- 평가 외 시점(citation-auditor 후속 등)의 단발 발급은 해당 에이전트가 `card_registry.py issue` CLI 호출. **self-grep `[TYPE-NNN]` max+1 금지** (race condition + dedup 우회).
+- 평가 외 시점(citation-checker 후속 등)의 단발 발급은 해당 에이전트가 `card_registry.py issue` CLI 호출. **self-grep `[TYPE-NNN]` max+1 금지** (race condition + dedup 우회).
 - flow-refiner는 **카드 발급하지 않음** — in-session interactive helper (사용자가 `flow.md` 수정 여부 직접 결정).
 - 대시보드 재계산 (Stage 진척도·상태 카운트·축별 잔여·다음 권장 명령)
 - 포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수. 카드 스키마·필드 순서·이모지 5종·섹션 구조 어김 금지.
@@ -224,10 +224,10 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 
 1. **비동기 금지** — 축 워커 모두 결과 도착 후 aggregator 호출. 부분 완료로 aggregator 실행 금지.
 2. **claim-extractor는 반드시 선행** — axis1이 stale이면서 claim-extraction이 부재/구식이면 claim-extractor부터 실행. axis1 scorer가 직접 재생성하지 않음.
-3. **registry가 단일 ID 발급처** — claim-extractor·axis scorer·citation-auditor·peer-reviewer는 모두 제안만. 번호는 `card_registry`(domain=research|write)가 발급. claim-extraction 파일은 번호 back-reference만. flow-refiner는 카드를 발급하지 않음 (interactive only).
+3. **registry가 단일 ID 발급처** — claim-extractor·axis scorer·citation-checker·peer-reviewer는 모두 제안만. 번호는 `card_registry`(domain=research|write)가 발급. claim-extraction 파일은 번호 back-reference만. flow-refiner는 카드를 발급하지 않음 (interactive only).
 4. **Critical Mode** — ambition ≥ critical이면 축 6 강제 실행.
 5. **에러 처리** — 한 축 실패 시 해당 축만 이전 결과 유지 + 경고 표기. 다른 축 계속.
-6. **호환성** — `evaluation.md`는 다운스트림 진입점. output-editor/citation-auditor는 evaluation.md만 읽어도 되도록 aggregator가 요약 보존.
+6. **호환성** — `evaluation.md`는 다운스트림 진입점. output-editor/citation-checker는 evaluation.md만 읽어도 되도록 aggregator가 요약 보존.
 
 ## 출력
 

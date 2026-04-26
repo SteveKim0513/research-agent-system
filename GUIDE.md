@@ -28,13 +28,16 @@ claude
 | **flow** | `projects/{P}/flow/` | flow.md 완성 (연구 방향·논증 줄거리) |
 | **output** | `projects/{P}/output/` | output/*.md 완성 (실제 원고) |
 
-**순서**: flow 모드에서 작업 → flow 완성 → **output 모드로 전환** → 초안 작성 → output 완성.
+**순서 (단방향)**: flow 모드 작업 → flow 완성 → **`"초안 작성해줘"` 시 output 모드로 자동 전진** → output 완성.
+
+⚠ output 진입 후 flow로 되돌아가지 않습니다 (flow.md는 보존되지만 직접 수정 단계는 끝).
 
 각 모드는 **self-contained** — 본문·분석 결과·평가·critical을 자기 폴더에 보관 (과거 버전은 `history/`에 자동 백업).
 
-**모드 전환**:
-- 명시 명령: `"flow 모드"` / `"output 모드"`
-- 자동 전환: 명령 prefix(`"output 레퍼런스 분석해줘"`)를 쓰면 시스템이 모드까지 변경
+**모드 진행**:
+- 자동 전진: `"초안 작성해줘"` 호출 시 시스템이 자동으로 output 단계로 진입
+- 명시 명령: `"output으로 진행"` (flow → output 단방향)
+- (예외) 강제 reset: `mode_manager.py set <project> flow --force` (CLI, 사용자 명시)
 
 ### 2.2 각 모드에서 두 가지 작업 방식
 
@@ -123,27 +126,55 @@ claude
 📥 사용자: consensus-results.md 검토 → 필요한 PDF만 `papers/candidates/`에 투입 (직접 작업).
 
 ```
-"논문 처리해줘"          ← candidates/ PDF triage + Tier 분석
-                          → papers/analyzed/*-analysis.md 생성 + collected/로 이동
+"논문 처리해줘"          ← 단순화 시스템 (수집 → anchor 선언 → 분석)
 ```
+
+자동 흐름 (2 단계):
+
+1. **수집·정규화·분류** (`scripts/process_papers.py`, multiprocessing 병렬, ~3분/200편)
+   - candidates/*.pdf → 정규화·dedup·격리
+   - collected/{Author_Year}.pdf 이동
+   - markdown/{Author_Year}.md 생성 (PDF 본문 캐시 + 페이지 마커)
+   - **consensus-results.md 매핑 → 분류 결정**:
+     · 🎯 최우선 OR 🔴 Steelman → analyzed/[A].{name}.md (anchor)
+     · 그 외 → analyzed/[N].{name}.md (non-anchor)
+     · 매칭 없음 → analyzed/[?].{name}.md (MANUAL curation 대기)
+   - frontmatter 자동 채움 (consensus_category·citations·anchor 등)
+
+2. **분석** (paper-analyst, 병렬 dispatch — 파일명 prefix로 즉시 분기)
+   - **[?] paper 우선 처리**: LLM이 정밀 metadata + (a)(b)(c) 주석·카테고리 생성 → `.curation/MANUAL-NNN.md` 추가 → consensus-results.md 재조립 → [A] 또는 [N]으로 rename
+   - **[A]**: opus, 깊은 분석 → ~300줄 (한 줄 요약·nuanced·인용·활용·다른 anchor 대비·비판 등)
+   - **[N]**: sonnet, 가벼운 분석 → ~30-50줄 (인용 1-2개·활용 1줄)
+
+→ 산출:
+- `papers/analyzed/{Author_Year}.md` (paper별 SSOT 단일 파일)
+- 사용자가 직접 편집 가능 — LLM이 다음 분석 시 그대로 존중
 
 → 필요시 ③④를 반복. **flow 완성**되면 다음 단계.
 
+**관련 명령**:
+```
+"논문 재분석해줘"          ← flow.md 변경 후 영향 paper에 v2 append
+"비판적으로 분석해줘 X"    ← critique_target=true → analyzed에 비판 섹션 추가
+"인용 확인해줘"           ← output ↔ analyzed 정합성 (citation_check)
+"참고문헌 만들어줘"        ← analyzed/*.md frontmatter → bibliography.md
+"적대적 리뷰 해줘"         ← 학파별 반박 시뮬
+```
+
 ### ━━━ Stage 2 · output 모드 ━━━
 
-#### ⑤ 초안 작성 (flow → output, 모드 전환)
+#### ⑤ 초안 작성 (flow → output 자동 전진)
 
 ```
 "초안 작성해줘"
 ```
 → writing-architect가 구조 설계 (사용자 승인 필요) → `output/*.md` 생성.
-→ 권장: `"output 모드"` 명시 (또는 다음 prefix 명령으로 자동 전환).
+→ 자동으로 output 단계로 전진됨 (mode_manager.advance_to_output 호출).
 
 #### ⑥ output 분석 → 수정 반복 (work-plan 카드 처리)
 
 ```
-"output 모드"
-"레퍼런스 분석해줘"      ← 이제 output 대상
+"레퍼런스 분석해줘"      ← 자동으로 output 대상 (현재 모드 = output)
 "내용 분석해줘"
 ```
 
@@ -152,13 +183,19 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 ```
 "output ch3.md 수정해줘: WRITE-007"
 ```
-→ output-editor가 카드대로 수정 + citation-auditor 자동 검증.
+→ output-editor가 카드대로 수정 + citation-checker 자동 검증.
 
 **반복**: 수정 → 재분석 → 새 카드 → 수정.
 
 #### ⑦ 최종 통합 + 리뷰 (output 완성)
 
 ```
+"적대적 리뷰 해줘"        ← 학파별 반박 시뮬 (학파 정의 미리)
+                            → output/.adversarial-review.md
+"인용 검증해줘"           ← output 인용 ↔ manifest 정합성
+                            → output/.citation-lint-report.md
+"참고문헌 만들어줘"       ← APA/MLA/Chicago/BibTeX
+                            → output/bibliography.md (또는 .bib)
 "최종 통합해줘"          ← output → final/*.md + .docx
 "리뷰 체크해줘"          ← peer-reviewer 시뮬레이션
 "리뷰 답변 도와줘: [리뷰 텍스트]"  ← 실제 리뷰 받았을 때
@@ -168,12 +205,13 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 
 ## 4. 📜 명령어 한눈
 
-### 모드 전환
+### 모드 (단방향)
 
 | 명령어 | 동작 |
 |---|---|
-| `"flow 모드"` / `"output 모드"` | 현재 모드 전환 |
 | `"현재 모드"` | 현재 모드 출력 |
+| `"output으로 진행"` | flow → output 단방향 전진 (또는 `"초안 작성해줘"`가 자동 호출) |
+
 
 ### 분석 (분석해줘 ≡ 평가해줘 혼용)
 
@@ -184,7 +222,7 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 | `"flow 레퍼런스 분석해줘"` | **모드를 flow로 자동 전환** + flow 분석 |
 | `"output 내용 평가해줘"` | **모드를 output으로 자동 전환** + output 분석 |
 
-> 💡 prefix는 단발 override가 아니라 **모드 변경 시그널**입니다.
+> 💡 v3.1: 단방향 진행. flow 단계에서 `"output ..."` prefix는 *자동 전진* 시그널 (output 진입 + 분석). 단, output 단계에서 `"flow ..."` prefix는 거부됨 (flow.md 직접 수정 단계는 끝).
 
 ### 실행 (work-plan 카드 처리)
 
@@ -244,15 +282,14 @@ work-plan에 `WRITE-NNN` (mode=modify) 카드 발급되면:
 
 ### B. output 단계 진입
 ```
-"output 모드"
-"레퍼런스 분석해줘"   ← 이제 output 대상
+"초안 작성해줘"            ← 자동으로 output 단계로 전진
+"레퍼런스 분석해줘"        ← output 대상 (현재 모드 = output)
 "내용 분석해줘"
 "output ch1.md 수정해줘: WRITE-001"
 ```
 
-### C. flow 다시 손볼 때 (직접 수정 → sync)
+### C. flow 단계에서 추가 보강 (output 진입 *전*)
 ```
-"flow 모드"
 flow.md 에디터로 직접 편집 → 저장
 "레퍼런스 분석해줘"   ← 시스템이 hash 변경 감지 → flow 자동 v++
                        이전 버전은 history/flow/body/...-pre-bump/에 자동 백업
@@ -304,12 +341,22 @@ projects/{P}/
 │   ├── critical/
 │   └── .registry.json               WRITE 카드 SSOT
 │
-├── papers/                          자료 (3단계 수집)
+├── papers/                          자료 (4 폴더 평탄)
 │   ├── candidates/                  ① 사용자 투입 PDF (대기)
-│   ├── collected/                   ② 처리 완료
-│   ├── analyzed/                    ③ *-analysis.md
-│   ├── consensus-results.md         리서치 결과 누적
-│   └── .registry.json               RESEARCH 카드 SSOT
+│   │   └── *.pdf                    원본 (처리 후 collected 이동)
+│   ├── collected/                   ② 정규화·dedup 통과한 PDF
+│   │   └── {Author_Year}.pdf
+│   ├── markdown/                    ③ PDF 본문 추출 캐시 (시스템 내부)
+│   │   └── {Author_Year}.md         frontmatter + 페이지 마커
+│   ├── analyzed/                    ④ paper별 분석 SSOT
+│   │   └── {Author_Year}.md         frontmatter + 분석 본문 (사용자도 편집 가능)
+│   ├── consensus-results.md         리서치 결과 누적 (4-stage 파이프라인)
+│   ├── .quarantine/                 빈/손상 PDF 격리
+│   │   ├── empty/
+│   │   └── corrupt/
+│   ├── .research-raw/               4-stage 리서치 원본 (기존 파이프라인)
+│   ├── .translations/
+│   └── .curation/
 │
 ├── history/                         모든 과거 버전 통합 (자동 백업)
 │   ├── flow/{body, evaluations, claim-extraction, critical}/
@@ -329,7 +376,7 @@ projects/{P}/
 |---|---|---|
 | **무엇** | 근거 논문 확보 | 글 작성·수정 |
 | **mode** | search · reanalyze | create · modify |
-| **발급 시점** | 레퍼런스 분석 시 자동 + 사용자 자율 추가 | 내용 분석 시 자동 + citation-auditor 사후 + 사용자 자율 추가 |
+| **발급 시점** | 레퍼런스 분석 시 자동 + 사용자 자율 추가 | 내용 분석 시 자동 + citation-checker 사후 + 사용자 자율 추가 |
 | **Registry** | `papers/.registry.json` | `output/.registry.json` |
 | **실행 명령** | `"리서치 진행해줘"` / `"논문 재분석해줘"` | `"초안 작성해줘"` / `"output X 수정해줘: WRITE-NNN"` |
 

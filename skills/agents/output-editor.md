@@ -86,21 +86,21 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit 0{X}-{na
 2. **claim-extractor(stage=output) 자동 호출** — 통합 draft 분석 갱신. 해당 챕터의 문장만 재분류하고 나머지 챕터 분류는 보존
 3. 결과를 `output/claim-extraction-output.md`로 덮어쓰기 (Phase 5 snapshot이 이미 이전 버전 보존)
 
-### Phase 7: citation-auditor 자동 체이닝 (필수)
+### Phase 7: citation-checker 자동 체이닝 (필수)
 
-**output-editor가 Phase 6 완료 후 즉시 citation-auditor Agent를 dispatch한다.** 이는 선택이 아닌 **자동 체이닝 의무** — 사용자가 따로 명령하지 않아도 호출.
+**output-editor가 Phase 6 완료 후 즉시 citation-checker Agent를 dispatch한다.** 이는 선택이 아닌 **자동 체이닝 의무** — 사용자가 따로 명령하지 않아도 호출.
 
 **호출 방식**:
 ```
-Agent dispatch: citation-auditor
+Agent dispatch: citation-checker
   대상: 방금 수정된 output/{파일명}.md
   목표: 수정 부분 spot-check (전량 아닌 변경 hunk만)
   결과: 인용 감사 리포트
 ```
 
-**citation-auditor 결과 처리**:
+**citation-checker 결과 처리**:
 - ✅ 정확한 인용만 → output-editor가 Phase 8(sync 갱신)로 진행
-- ⚠️ 부정확한 인용 발견 → citation-auditor가 직접 `card_registry.py issue ... write modify ...` CLI로 **신규 WRITE 카드 발급** (dedup_key 자동 검사)
+- ⚠️ 부정확한 인용 발견 → citation-checker가 직접 `card_registry.py issue ... write modify ...` CLI로 **신규 WRITE 카드 발급** (dedup_key 자동 검사)
 - ❌ 검증 불가 인용 → 리포트에만 기록 (카드 발급 안 함)
 
 **왜 자동 체이닝?** chapter 수정과 인용 정확성은 한 묶음 작업. 사용자가 별도 호출하면 빠뜨리거나 시간차로 stale될 가능성 → **수정 직후 같은 세션 내 검증**이 정합성 보장.
@@ -120,10 +120,10 @@ python3 scripts/sync_state.py update-output {PROJECT_NAME} 0{X}-{name}.md
 2. 명령에 `WRITE-NNN` 명시되었으면 그 카드만, 없으면 사용자 자연어 지시 + 해당 챕터 active WRITE modify 전체
 3. 대상 카드를 🟡 → 🔵 in-progress로 전환 + `in-progress: output-editor` append
 
-**Phase 7 (citation-auditor) 후 + Phase 8 (sync 갱신) 전**:
+**Phase 7 (citation-checker) 후 + Phase 8 (sync 갱신) 전**:
 - 반영 완료된 WRITE 카드 → 🟢 Recent completed, 진행 로그 `✅ completed: {변경 요약}` append
 - 부분 반영된 카드 → 🟡 active로 되돌리고 메모. 사용자 재지시 필요
-- **citation-auditor가 새 over-claim 발견 시**: citation-auditor가 `card_registry.py issue ... write modify ...` CLI로 신규 WRITE 카드 발급 → 🟡 Active에 append (담당 명령: `"Chapter {X} 수정해줘: WRITE-{NNN}"`)
+- **citation-checker가 새 over-claim 발견 시**: citation-checker가 `card_registry.py issue ... write modify ...` CLI로 신규 WRITE 카드 발급 → 🟡 Active에 append (담당 명령: `"Chapter {X} 수정해줘: WRITE-{NNN}"`)
 - 대시보드 재계산
 
 ## 공통 글쓰기 원칙 (output-editor에서도 준수)
@@ -141,7 +141,7 @@ python3 scripts/sync_state.py update-output {PROJECT_NAME} 0{X}-{name}.md
 1. 수정된 `output/0N-*.md` 파일 저장
 2. 변경 요약 보고 (어느 문단, 어떤 변경, 근거 논문)
 3. 일관성 체크 결과
-4. (후속) citation-auditor가 생성하는 인용 감사 리포트
+4. (후속) citation-checker가 생성하는 인용 감사 리포트
 5. **Commitment 영향 보고** — critical-commitments.md가 있을 때:
    ```
    📌 이번 수정의 Commitment 영향:
@@ -155,7 +155,7 @@ python3 scripts/sync_state.py update-output {PROJECT_NAME} 0{X}-{name}.md
 - **구조 설계(Phase 1 of writing-architect)를 하지 않는다** — 기존 구조 존중
 - **전면 재작성을 하지 않는다** — 지정 범위를 넘어서는 수정은 사용자에게 재확인 요청
 - **analyzed/*.md의 최신 버전을 우선 참조** (v1·v2 중 더 새로운 것). 구버전만 있으면 재분석 권장 메시지 선행 출력
-- **citation-auditor가 지적한 over-claim은 반드시 반영** — 수정된 새 인용문도 동일 기준 적용
+- **citation-checker가 지적한 over-claim은 반드시 반영** — 수정된 새 인용문도 동일 기준 적용
 
 ## 📋 산출 파일 frontmatter 의무
 

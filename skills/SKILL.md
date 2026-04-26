@@ -63,7 +63,7 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 - `리서치 진행해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
 - `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
 - `초안 작성해줘` — writing-architect Phase 1/2 → chapter-editor × N → claim-extract → 평가 (≥4 단계)
-- `Chapter X 수정해줘` — snapshot → chapter-editor → citation-auditor → claim-extract (≥4 단계)
+- `Chapter X 수정해줘` — snapshot → chapter-editor → citation-checker → claim-extract (≥4 단계)
 - `flow 업데이트해줘` — snapshot → flow-refiner → 사용자 승인 → 반영 → 평가 (≥4 단계)
 
 **왜 필요한가 (2026-04-24 실패 사례)**: 다단계 파이프라인에서 중간 단계(예: abstract 번역)가 조용히 누락된 채 "완료" 보고가 올라오는 사고가 발생. 태스크 리스트가 있었다면 열린 in_progress 항목이 사용자 보고 전 불일치를 가시화. 태스크 누락 자체가 품질 signal.
@@ -115,7 +115,7 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 
 측정 데이터 부재 시 (예: MATCHED 0편, steelman tag 논문 0편) sub-criteria 카테고리는 **⚫ 측정 불가**로 명시. **잠정 만점·N/A 보류·임의 평균값 부여 금지**.
 
-**병렬 delta 오케스트레이션**: `evaluation-orchestrator`가 변경된 축만 병렬 디스패치. stale 판정은 `scripts/evaluation_delta.py`의 입력 해시 비교. 축 6은 Critical Mode 활성 시에만 포함. 감사(citation-auditor) · 구조 설계(writing-architect) · 심사 시뮬레이션(peer-reviewer)은 별개 명령으로 호출되며 채점 주체가 아님.
+**병렬 delta 오케스트레이션**: `evaluation-orchestrator`가 변경된 축만 병렬 디스패치. stale 판정은 `scripts/evaluation_delta.py`의 입력 해시 비교. 축 6은 Critical Mode 활성 시에만 포함. 감사(citation-checker) · 구조 설계(writing-architect) · 심사 시뮬레이션(peer-reviewer)은 별개 명령으로 호출되며 채점 주체가 아님.
 
 **Dispatch 규율**: orchestrator는 axis-scorer prompt에 사양 + 선로드 context만 주입. 평가 가이드·점수 힌트·사전 작성된 체크리스트 주입 금지 (채점자 독립성 보호).
 
@@ -174,11 +174,16 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | **분석** | `"output 레퍼런스 분석해줘"` ≡ `"output 레퍼런스 평가해줘"` | output/*.md 문장 분석 + axis1 → output/evaluations/latest/axis1 | RESEARCH |
 | **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
 | **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
-| **실행** | `"논문 처리해줘"` | candidates/*.pdf → triage → Tier 1/2/3 분석 | — |
+| **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
+| **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) | — |
+| **실행** | `"비판적으로 분석해줘 X"` | critique_target=true → analyzed/{X}.md에 비판 섹션 추가 (Mode C) | — |
 | **실행** | `"초안 작성해줘"` | flow → output 신규 작성 (WRITE create 카드 처리) | — |
 | **실행** | `"output {파일명} 수정해줘: WRITE-NNN"` | WRITE modify 카드 처리 | — |
-| **모드** | `"flow 모드"` / `"output 모드"` | 현재 모드 전환 (`.current-mode` 파일에 저장) | — |
-| **모드** | `"현재 모드"` | 현재 모드 출력 | — |
+| **실행** | `"적대적 리뷰 해줘"` | adversarial-reviewer 학파별 반박 시뮬 → adversarial-review.md | — |
+| **실행** | `"인용 확인해줘"` | citation_check output ↔ analyzed/*.md 정합성 → output/.citation-check-report.md | — |
+| **실행** | `"참고문헌 만들어줘"` | analyzed/*.md frontmatter → bibliography.md (APA/MLA/Chicago/BibTeX) | — |
+| **모드** | `"output으로 진행"` 또는 자동 (`"초안 작성해줘"` 호출 시) | flow → output 단방향 전진 | — |
+| **모드** | `"현재 모드"` | 현재 단계 (flow|output) 출력 | — |
 | **메타** | `"현재 상태"` | 폴더 상태·진행도·모드·버전/싱크 한눈 출력 | — |
 | **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 | — |
 | **Critical** | `"flow 크리티컬 모드 켜줘"` / `"output 크리티컬 모드 켜줘"` | 해당 stage의 critical/ 폴더 생성 + critical-companion 호출 | — |
@@ -198,7 +203,7 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
    - 내용 분석: 논리·반박·독창성·구성개념·비판. axis2~6만. **WRITE 카드 발급**.
    - 두 작업이 독립이라 사용자가 필요한 것만 선택 호출.
 
-5. **카드는 분석의 산출물** — `card_registry` 경유 자동 발급. 평가 외 시점 단발 발급은 citation-auditor/peer-reviewer가 CLI 호출.
+5. **카드는 분석의 산출물** — `card_registry` 경유 자동 발급. 평가 외 시점 단발 발급은 citation-checker/peer-reviewer가 CLI 호출.
 
 ### 공통 실행 사이클
 
@@ -250,12 +255,11 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
-| **paper-processing-orchestrator** 📄 | `skills/agents/paper-processing-orchestrator.md` | "새 논문 처리해줘" — triage → tier 분배 → 병렬 dispatch (opus, 오케스트레이션만) | 자동 (논문 처리 진입점) |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | Pass 1 (triage, **haiku**) / Pass 2 (Tier 1 **opus**+Critical, Tier 2·3 **sonnet**) / Mode B 재분석 (**sonnet**) / Mode C 비판적 읽기 (**opus**) | 자동 (paper-processing-orchestrator dispatch) |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | 단순화 v3 — anchor (opus, 깊은) / non-anchor (sonnet, 가벼운) / Mode B 재분석 / Mode C critique_target. orchestration 흡수 | `논문 처리해줘` 진입점 |
 | **writing-architect** | `skills/agents/writing-architect.md` | "초안 작성" (신규 챕터 창작 전용) | 자동 |
 | **chapter-editor** ✏️ | `skills/agents/chapter-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
-| **citation-auditor** | `skills/agents/citation-auditor.md` | chapter 수정 후 자동 + 평가(v1/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
+| **citation-checker** | `skills/agents/citation-checker.md` | chapter 수정 후 자동 + 평가(v1/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
 | **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
@@ -582,9 +586,9 @@ python3 scripts/evaluation_aggregator.py {PROJECT_NAME}
 
 이것이 `axis{1..6}-*.md` 점수 섹션을 파싱하여 `evaluation.md`(요약 + delta 표 + 심사 판정)를 자동 생성.
 
-### 단계 8: citation-auditor 체이닝 (조건부)
+### 단계 8: citation-checker 체이닝 (조건부)
 
-stage가 `v1/revised/final`이고 axis1이 stale이었다면 `citation-auditor`를 호출:
+stage가 `v1/revised/final`이고 axis1이 stale이었다면 `citation-checker`를 호출:
 - v1: chapters 무작위 30% 샘플
 - revised: chapters 전량
 - final: 전량 + archive 대비 new-error diff
@@ -687,7 +691,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-auditor}" "ambition={ambition}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-checker}" "ambition={ambition}" "commits={fulfilled}/{total}"
 ```
 
 (점수 기반 `result={score}/500` 폐기 — verdict + 카테고리 카운트로 대체)
@@ -696,15 +700,15 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={fl
 
 ## 논문 처리 (2-pass + Tier)
 
-사용자가 "새 논문 처리해줘", "논문 분석해줘", "candidates 처리해줘", "가볍게 처리해줘" 등을 말하면 **`paper-processing-orchestrator`** 에이전트가 진입점이 된다. 본 섹션은 그 흐름의 메인 세션 담당 부분을 기술한다.
+사용자가 "논문 처리해줘"를 말하면 **`paper-analyst`** 에이전트가 진입점이 된다 (단순화 v3 — orchestration 흡수). 본 섹션은 그 흐름의 메인 세션 담당 부분을 기술한다.
 
 **명령 플래그**:
 - `새 논문 처리해줘` → 2-pass 기본 (triage → tier1/2/3 분배 분석)
 - `새 논문 처리해줘 --batch=N` → 배치 크기 오버라이드
-- `새 논문 처리해줘 --skip-triage` → triage 생략, 전부 Tier 2 취급 (경고: tier·axis_tags 미부여)
-- `새 논문 처리해줘 --tier=1` → 모두 Tier 1 강제
-- `새 논문 처리해줘 --priority Loffler_2024 Doebel_2020` → 지정 파일만 Tier 1, 나머지 triage만
-- `가볍게 처리해줘` → 전부 Tier 3 강제 (`--tier=3` alias)
+- `"논문 처리해줘"` (단순화 v3.1) → consensus-results.md 매핑 기반 자동 분류 (anchor/non-anchor 이진)
+   · 🎯 최우선 OR 🔴 Steelman → analyzed/[A].{name}.md (anchor)
+   · 그 외 매칭 → analyzed/[N].{name}.md (non-anchor)
+   · 매칭 없음 → analyzed/[?].{name}.md (paper-analyst가 MANUAL curation)
 
 ### 단계 1: 현재 프로젝트 + candidates 확인
 
@@ -718,12 +722,11 @@ ls projects/{PROJECT_NAME}/papers/candidates/*.pdf
 
 ```bash
 python3 scripts/normalize_filename.py {PROJECT_NAME}
-python3 scripts/extract_metadata.py {PROJECT_NAME}
 ```
 
-### 단계 3: 🤖 paper-processing-orchestrator 호출
+### 단계 3: 🤖 paper-analyst 호출
 
-1. `skills/agents/paper-processing-orchestrator.md` 파일을 읽는다
+1. `skills/agents/paper-analyst.md` 파일을 읽는다
 2. Agent 도구로 실행 (model: opus, 가볍게 오케스트레이션만):
    - 전달: candidates 파일 목록 + flow 요약 (flow/flow.md의 thesis + 섹션 제목 + 핵심 구성개념 리스트 300-500 단어) + 플래그
    - 수행: 단계 3-7 (Pass 1 triage → tier 분배 → Pass 2 dispatch → sync)
@@ -735,7 +738,6 @@ orchestrator가 관리. `paper-analyst`를 `Mode A-triage`로 각 PDF에 대해 
 ### 단계 3.2: Tier 분배 + 사용자 보고
 
 ```bash
-python3 scripts/paper_triage.py summarize {PROJECT_NAME}
 ```
 
 Tier 분포를 사용자에게 먼저 보고. 사용자 개입 없이 진행 (단 `--priority` 등이 지정되었으면 그에 맞춰 재분배).
@@ -748,7 +750,7 @@ Tier 분포를 사용자에게 먼저 보고. 사용자 개입 없이 진행 (�
 | 2 | sonnet | 10 | A-tier2 (full, Critical 제외) |
 | 3 | sonnet | 20 | A-tier3 (간소판) |
 
-Tier 1·2·3을 **병렬로** 시작. 각 워커는 `paper-analyst.md` + flow.md + triage JSON + tier별 Mode 지시를 prompt로 받음.
+Anchor·non-anchor 병렬 dispatch. 각 워커는 `paper-analyst.md` + flow.md + analyzed/[A|N|?].{name}.md (frontmatter prior) + markdown/{name}.md 를 prompt로 받음.
 
 결과: `papers/analyzed/{파일명}-analysis.md`
 
@@ -1336,12 +1338,12 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit 0{X}-{na
    - 수행: Phase 1 지시 해석 → Phase 2 재료 수집 → Phase 3 수정 적용 → Phase 4 일관성 자동 체크
 3. 에이전트가 수정된 챕터 파일을 저장
 
-### 단계 2: citation-auditor 자동 체이닝 + Sync 갱신
+### 단계 2: citation-checker 자동 체이닝 + Sync 갱신
 
-chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에서 `sync_state.py update-chapter`를 실행. SKILL.md에서는 이를 중복 기술하지 않고 chapter-editor에 위임.
+chapter-editor Phase 5에서 citation-checker를 자동 호출하며, Phase 6에서 `sync_state.py update-chapter`를 실행. SKILL.md에서는 이를 중복 기술하지 않고 chapter-editor에 위임.
 
 추가로 SKILL.md가 보장할 것:
-- chapter-editor 완료 후 반환된 결과가 citation-auditor 감사 리포트를 포함하는지 확인
+- chapter-editor 완료 후 반환된 결과가 citation-checker 감사 리포트를 포함하는지 확인
 - sync 갱신 완료 로그 확인
 
 ### 단계 3: 통합 결과 보고
@@ -1361,7 +1363,7 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 ✅ 중복 내용: 없음
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤖 인용 감사 결과 (citation-auditor):
+🤖 인용 감사 결과 (citation-checker):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📊 인용 요약: 총 {N}개
@@ -1383,7 +1385,7 @@ chapter-editor Phase 5에서 citation-auditor를 자동 호출하며, Phase 6에
 ### 단계 4: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=revised" "target=Ch{X}" "result={변경 요약}" "ref=ref:ch-{NNN}" "agents=chapter-editor,citation-auditor"
+python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=revised" "target=Ch{X}" "result={변경 요약}" "ref=ref:ch-{NNN}" "agents=chapter-editor,citation-checker"
 ```
 
 ---
@@ -1636,7 +1638,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "sync 점검" "result=stal
   - papers/analyzed/Zelazo_2022-analysis.md를 archived/analyzed/로 이동
   - .paper-metadata.json 엔트리 제거
   - 해당 stage의 claim-extraction에서 관련 MATCHED 3건이 UNMATCHED-EXTERNAL로 전환
-  - Chapter 2, Chapter 4에 dangling citation 가능성 (사후 citation-auditor로 확인 권장)
+  - Chapter 2, Chapter 4에 dangling citation 가능성 (사후 citation-checker로 확인 권장)
 
 진행할까요? [예 / 아니오]
 ```
@@ -1753,7 +1755,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "최종 통합" "stage=fin
 - `논문 재분석해줘` → **delta 기본** (flow 변경 섹션에 영향받는 논문만)
 - `논문 재분석해줘 --full` → 모든 논문 Mode B 재실행
 - `논문 재분석해줘 {파일명}` → 지정 논문만 (delta 무시)
-- `{파일명} 논문 재분석해줘 --tier=1` → 해당 논문을 Tier 1으로 승격 후 재분석
+- `"{파일명} 비판적으로 분석해줘"` → critique_target=true 설정 + Mode C critical reading 추가
 
 ### 단계 1: Delta 대상 선정
 
@@ -1776,7 +1778,7 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 
 ### 단계 2: paper-analyst Mode B 호출
 
-각 대상 PDF마다 `paper-processing-orchestrator`를 통해 병렬 호출:
+각 대상 PDF마다 `paper-analyst`를 통해 병렬 호출:
 
 1. `skills/agents/paper-analyst.md` 읽기
 2. Agent 도구로 paper-analyst를 **Mode B**로 호출 (model: sonnet, 재분석은 opus 불필요):
@@ -1787,7 +1789,7 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 ### 단계 2b: Tier 승격 (선택)
 
 `--tier=1` 플래그가 있으면:
-1. triage.json의 tier를 1로 승격 (`paper_triage.py promote {P} {파일명} --to=1`)
+1. triage.json의 tier를 1로 승격 (v3에서는 paper-analyst Mode B 직접 호출)
 2. Mode A-tier1 Critical Reading 섹션을 **추가로** 호출하여 append (opus)
 
 ### 단계 3: claim-extraction 반영
