@@ -149,19 +149,32 @@ else
 fi
 echo ""
 
-# 2. Python 패키지 확인
+# 2. Python 패키지 확인 (pdfplumber + pyyaml)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "2️⃣  Python 패키지 확인"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-if python3 -c "import PyPDF2" 2>/dev/null; then
-    PYPDF_VERSION=$(python3 -c "import PyPDF2; print(PyPDF2.__version__)" 2>/dev/null || echo "unknown")
-    echo "✅ PyPDF2 이미 설치됨: $PYPDF_VERSION"
-    echo "   ⏭️  설치 건너뜀"
+# pdfplumber (PDF → markdown 추출, scripts/process_papers.py)
+if python3 -c "import pdfplumber" 2>/dev/null; then
+    PDFPLUMBER_VERSION=$(python3 -c "import pdfplumber; print(pdfplumber.__version__)" 2>/dev/null || echo "unknown")
+    echo "✅ pdfplumber 이미 설치됨: $PDFPLUMBER_VERSION"
 else
-    echo "❌ PyPDF2 없음"
+    echo "❌ pdfplumber 없음"
     NEEDS_PYTHON=true
+fi
+
+# pyyaml (analyzed/*.md frontmatter 파싱, scripts/build_index.py)
+if python3 -c "import yaml" 2>/dev/null; then
+    YAML_VERSION=$(python3 -c "import yaml; print(yaml.__version__)" 2>/dev/null || echo "unknown")
+    echo "✅ pyyaml 이미 설치됨: $YAML_VERSION"
+else
+    echo "❌ pyyaml 없음"
+    NEEDS_PYTHON=true
+fi
+
+if [ "$NEEDS_PYTHON" = false ]; then
+    echo "   ⏭️  설치 건너뜀"
 fi
 echo ""
 
@@ -314,13 +327,18 @@ if [ "$NEEDS_CLAUDE" = true ]; then
     echo ""
 fi
 
-# Python 패키지 설치
+# Python 패키지 설치 (pdfplumber + pyyaml)
 if [ "$NEEDS_PYTHON" = true ]; then
-    echo "📦 PyPDF2 설치 중..."
-    if pip3 install pypdf2 --break-system-packages --quiet 2>/dev/null; then
-        echo "✅ PyPDF2 설치 완료"
+    echo "📦 Python 패키지 설치 중 (pdfplumber + pyyaml)..."
+    if pip3 install pdfplumber pyyaml --break-system-packages --quiet 2>/dev/null; then
+        echo "✅ pdfplumber + pyyaml 설치 완료"
     else
-        echo "⚠️  설치 실패 (선택사항)"
+        # --break-system-packages 미지원 환경 (구 pip / 가상환경 권장 시스템) fallback
+        if pip3 install pdfplumber pyyaml --quiet 2>/dev/null; then
+            echo "✅ pdfplumber + pyyaml 설치 완료"
+        else
+            echo "⚠️  설치 실패. 수동 설치하세요: pip3 install pdfplumber pyyaml"
+        fi
     fi
     echo ""
 fi
