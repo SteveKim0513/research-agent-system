@@ -87,6 +87,10 @@ def consensus_path(project_root: Path) -> Path:
     return papers_root(project_root) / "consensus-results.md"
 
 
+def translations_dir(project_root: Path) -> Path:
+    return papers_root(project_root) / ".translations"
+
+
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -106,13 +110,56 @@ _CONSENSUS_PAPER_RE = re.compile(
 
 _ANCHOR_CATEGORIES = ("🎯 최우선", "🔴 Steelman")
 
+_TITLE_STOPWORDS = {
+    "a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or",
+    "is", "are", "was", "were", "be", "been", "being",
+    "with", "by", "from", "that", "this", "these", "those",
+    "as", "it", "its", "their", "his", "her",
+    "what", "how", "why", "when", "where", "which", "who",
+    "into", "about", "across", "through", "between", "among",
+    "than", "then", "also", "not", "no", "but", "yet", "so",
+    "review", "study", "studies", "research", "article", "paper",
+}
+
 
 def _norm_author_for_consensus(s: str) -> str:
-    s = s.strip()
+    """Strict normalization: 'Adrover-Roig 1' → 'adroverroig'.
+
+    숫자·특수문자·공백 모두 제거. 첫 author surname만 추출.
+    consensus와 PDF 양쪽에 동일 적용해야 매칭됨.
+    """
+    s = nf.strip_diacritics(s) if hasattr(nf, "strip_diacritics") else s
     s = re.sub(r"\bet\s+al\.?", "", s, flags=re.IGNORECASE).strip()
-    s = re.sub(r"\s*&\s*|\s+and\s+", " ", s, flags=re.IGNORECASE)
-    parts = s.split()
-    return parts[0].lower() if parts else ""
+    # 'and'/'&' separators - 첫 author만 추출
+    s = re.split(r"\s*&\s*|\s+and\s+|\s*[,;]\s*", s, flags=re.IGNORECASE)[0]
+    # 공백 split 후 첫 토큰 (firstname surname 패턴이면 first가 firstname일 수 있음)
+    parts = [p for p in s.split() if p]
+    if not parts:
+        return ""
+    # 가장 긴 토큰을 surname으로 가정 (보통 lastname이 가장 긺)
+    candidate = max(parts, key=len) if len(parts) > 1 else parts[0]
+    return re.sub(r"[^A-Za-z]+", "", candidate).lower()
+
+
+def _norm_title_tokens(title: str) -> frozenset:
+    """title → token set (lowercase, ≥4 chars, no stopwords)."""
+    if not title:
+        return frozenset()
+    t = nf.strip_diacritics(title) if hasattr(nf, "strip_diacritics") else title
+    t = re.sub(r"[^a-zA-Z0-9\s]+", " ", t).lower()
+    return frozenset(
+        w for w in t.split()
+        if len(w) >= 4 and w not in _TITLE_STOPWORDS and not w.isdigit()
+    )
+
+
+def _title_jaccard(a: frozenset, b: frozenset) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    if inter == 0:
+        return 0.0
+    return inter / len(a | b)
 
 
 def parse_consensus(consensus_md: Path) -> dict:
@@ -145,7 +192,7 @@ def parse_consensus(consensus_md: Path) -> dict:
             continue
         m = _CONSENSUS_PAPER_RE.match(line)
         if m:
-            _, authors, year, _, _, journal, citations_str = m.groups()
+            _, authors, year, title, _, journal, citations_str = m.groups()
             citations = 0
             if citations_str:
                 try:
@@ -168,8 +215,87 @@ def parse_consensus(consensus_md: Path) -> dict:
                     "category": cur_cat,
                     "research_cards": {cur_card} if cur_card else set(),
                     "cross_research_count": 1,
+                    "title": (title or "").strip(),
+                    "title_tokens": _norm_title_tokens(title or ""),
+                    "authors_raw": authors.strip(),
                 }
     return entries
+
+
+def parse_translations_abstracts(tdir: Path) -> dict:
+    """.translations/RESEARCH-*.md → {(author_norm, year): {'tokens': frozenset, 'title': str}}.
+
+    각 RESEARCH-NNN.md는 paper별 section을 갖고 있으며, 각 section은
+    '## #N {Author} et al. ({Year}) · ...' 헤더 + '**원문 abstract**:\n> ...' 블록.
+    """
+    abstracts: dict[tuple[str, str], dict] = {}
+    if not tdir.exists():
+        return abstracts
+
+    section_re = re.compile(r"\n##\s+#\d+\s+([^\n]+?)\n", re.MULTILINE)
+    abstract_re = re.compile(
+        r"\*\*원문 abstract\*\*:\s*\n>\s*(.+?)(?=\n\n|\n\*\*|\Z)",
+        re.DOTALL,
+    )
+    title_re = re.compile(r"\*\*원문 제목\*\*:\s*([^\n]+)", re.MULTILINE)
+    year_re = re.compile(r"\((\d{4})\)")
+
+    for md in sorted(tdir.glob("RESEARCH-*.md")):
+        text = md.read_text(encoding="utf-8")
+        # 각 paper section은 '## #N ...' 사이로 split
+        sections = re.split(r"\n##\s+#\d+\s+", text)[1:]
+        for section in sections:
+            # 첫 줄: '{Author} et al. ({Year}) · {Journal} · ...'
+            head_line = section.split("\n", 1)[0]
+            ym = year_re.search(head_line)
+            if not ym:
+                continue
+            year = ym.group(1)
+            author_str = head_line[: ym.start()].strip()
+            author_norm = _norm_author_for_consensus(author_str)
+            if not author_norm:
+                continue
+            # abstract 추출
+            am = abstract_re.search(section)
+            if not am:
+                continue
+            abstract = am.group(1).strip()
+            tokens = _norm_title_tokens(abstract)
+            if len(tokens) < 15:  # abstract가 너무 짧으면 매칭 신뢰도 낮음
+                continue
+            tm = title_re.search(section)
+            title = tm.group(1).strip() if tm else ""
+            key = (author_norm, year)
+            # 같은 key가 여러 RESEARCH에 등장하면 (cross-research) 그대로 첫 등장 유지
+            if key not in abstracts:
+                abstracts[key] = {"tokens": tokens, "title": title}
+    return abstracts
+
+
+def _extract_pdf_abstract(page_text: str) -> str:
+    """PDF 첫 2 페이지 raw text → abstract 영역 추출.
+
+    'Abstract' 헤더 이후 다음 헤더 (Keywords, Introduction, 1.) 전까지.
+    헤더 못 찾으면 첫 1500자 반환 (보통 abstract가 첫 페이지에 있음).
+    """
+    if not page_text:
+        return ""
+    # 'Abstract' 또는 'ABSTRACT' 헤더 찾기
+    m = re.search(r"\b(?:abstract|ABSTRACT)\b\s*\n?", page_text)
+    if m:
+        start = m.end()
+        tail = page_text[start : start + 3000]
+        # 다음 헤더에서 종료
+        end_m = re.search(
+            r"\n\s*(?:keywords?|key\s*words|introduction|1\.\s|©|copyright|received)\b",
+            tail,
+            flags=re.IGNORECASE,
+        )
+        if end_m:
+            return tail[: end_m.start()]
+        return tail
+    # 헤더 없으면 처음 1500자
+    return page_text[:1500]
 
 
 def _author_year_from_canonical(canonical: str) -> tuple[str, str]:
@@ -179,20 +305,145 @@ def _author_year_from_canonical(canonical: str) -> tuple[str, str]:
     return parts[0].lower(), parts[1]
 
 
-def classify_paper(canonical: str, consensus_entries: dict) -> tuple[str, dict | None]:
-    """canonical → ('A' | 'N' | '?', consensus_entry | None).
+def _entry_to_letter(entry: dict) -> str:
+    return "A" if entry.get("category") in _ANCHOR_CATEGORIES else "N"
 
-    A = anchor (🎯/🔴), N = non-anchor (그 외 매칭), ? = consensus 매칭 없음
+
+def classify_paper(
+    canonical: str,
+    consensus_entries: dict,
+    *,
+    extracted_title: str = "",
+    page_text: str = "",
+    abstracts: dict | None = None,
+    title_jaccard_threshold: float = 0.5,
+) -> tuple[str, dict | None, str]:
+    """canonical + extracted title → ('A' | 'N' | '?', consensus_entry, match_method).
+
+    매칭 우선순위:
+    1. (author_normalized, year) 정확 매칭
+    2. title token jaccard ≥ threshold (year 같은 entry 우선, year 다르면 hit threshold + 0.15)
+    3. 매칭 없음 → '?'
+
+    return:
+        (tier_letter, entry|None, method)
+        method ∈ {'author_year', 'title_year', 'title_only', 'none'}
     """
     author, year = _author_year_from_canonical(canonical)
-    if not author or not year:
-        return "?", None
-    entry = consensus_entries.get((author, year))
-    if entry is None:
-        return "?", None
-    if entry.get("category") in _ANCHOR_CATEGORIES:
-        return "A", entry
-    return "N", entry
+
+    # 1순위: (author, year) 정확 매칭
+    if author and year:
+        entry = consensus_entries.get((author, year))
+        if entry is not None:
+            return _entry_to_letter(entry), entry, "author_year"
+
+    # 1.5순위: author substring + year 일치
+    # canonical author가 footnote/firstname 합쳐진 경우 (e.g. 'allanwigfield1' ⊃ 'wigfield')
+    if author and year and len(author) >= 4:
+        # 숫자 제거된 버전도 시도 ('allanwigfield1' → 'allanwigfield')
+        author_nodigit = re.sub(r"\d+", "", author)
+        for (e_author, e_year), entry in consensus_entries.items():
+            if e_year != year or len(e_author) < 4:
+                continue
+            # e_author가 candidate author에 포함되면 매칭 (consensus가 더 짧은 surname)
+            if e_author in author or e_author in author_nodigit:
+                return _entry_to_letter(entry), entry, "author_substring"
+            # 또는 candidate가 더 짧을 때 (드물지만)
+            if author in e_author and len(author) >= 5:
+                return _entry_to_letter(entry), entry, "author_substring"
+
+    # 2순위: abstract coverage 매칭 (가장 robust — paper specific 키워드 풍부)
+    # consensus abstract의 토큰이 PDF 본문(첫 8000자) 안에 얼마나 등장하는지를 본다.
+    # False positive 방지: (a) coverage threshold AND (b) consensus author surname이 paper 상단(첫 2500자)에 등장.
+    # references area에 cited author surname 우연 등장은 reject.
+    if abstracts and page_text and len(page_text) > 500:
+        page_head = page_text[:8000]
+        pdf_text_tokens = _norm_title_tokens(page_head)
+        # author 검증은 paper 상단 (title/author/abstract 영역)에 한정
+        page_top_lower = page_text[:2500].lower()
+        if len(pdf_text_tokens) >= 100:
+            best_coverage = 0.0
+            best_entry = None
+            best_year_match = False
+            for (a_author, a_year), abs_data in abstracts.items():
+                a_tokens = abs_data.get("tokens") or frozenset()
+                if len(a_tokens) < 20:
+                    continue
+                hits = len(a_tokens & pdf_text_tokens)
+                coverage = hits / len(a_tokens)
+                # year 같으면 0.65, 다르면 0.85
+                threshold = 0.65 if a_year == year else 0.85
+                if coverage < threshold:
+                    continue
+                # Author 검증: consensus author surname이 PDF 상단(첫 2500자)에 등장하면 신뢰도 ↑
+                # 단 author 못 찾아도 coverage 매우 높으면 인정 (PDF에서 author 추출 자체 실패 케이스 보호)
+                author_in_pdf = bool(a_author and len(a_author) >= 4 and a_author in page_top_lower)
+                # author 못 찾으면 더 strict한 coverage 요구 (year 같음 0.8, 다름 0.95)
+                strict_threshold = 0.8 if a_year == year else 0.95
+                if not author_in_pdf and coverage < strict_threshold:
+                    continue
+                year_match = (a_year == year)
+                if (year_match and not best_year_match) or (year_match == best_year_match and coverage > best_coverage):
+                    best_coverage = coverage
+                    best_year_match = year_match
+                    matched_entry = consensus_entries.get((a_author, a_year))
+                    if matched_entry:
+                        best_entry = matched_entry
+            if best_entry is not None:
+                method = "abstract_year" if best_year_match else "abstract_only"
+                return _entry_to_letter(best_entry), best_entry, method
+
+    # 3순위: title fuzzy match
+    cand_tokens = _norm_title_tokens(extracted_title)
+    if cand_tokens and len(cand_tokens) >= 3:
+        best_score = 0.0
+        best_entry = None
+        best_method = "none"
+        for (e_author, e_year), entry in consensus_entries.items():
+            e_tokens = entry.get("title_tokens") or frozenset()
+            if not e_tokens:
+                continue
+            score = _title_jaccard(cand_tokens, e_tokens)
+            # year 같으면 threshold 낮음, 다르면 더 보수적
+            effective_threshold = title_jaccard_threshold if e_year == year else (title_jaccard_threshold + 0.15)
+            if score >= effective_threshold and score > best_score:
+                best_score = score
+                best_entry = entry
+                best_method = "title_year" if e_year == year else "title_only"
+        if best_entry is not None:
+            return _entry_to_letter(best_entry), best_entry, best_method
+
+    # 3순위: PDF 첫 페이지 raw text에 consensus title token + author surname 등장
+    # title 추출 실패해도 본문 자체로 매칭 가능.
+    # False positive 방지: (a) title token 75%+ 등장 AND (b) consensus author surname이 paper 상단(첫 2500자)에 등장.
+    if page_text and len(page_text) > 200:
+        page_text_head = page_text[:3000]
+        page_tokens = _norm_title_tokens(page_text_head)
+        page_top_lower = page_text[:2500].lower()
+        if len(page_tokens) >= 30:
+            best_coverage = 0.0
+            best_entry = None
+            for (e_author, e_year), entry in consensus_entries.items():
+                e_tokens = entry.get("title_tokens") or frozenset()
+                if len(e_tokens) < 5:
+                    continue
+                hits = len(e_tokens & page_tokens)
+                coverage = hits / len(e_tokens)
+                threshold = 0.75 if e_year == year else 0.85
+                if coverage < threshold:
+                    continue
+                # Author check: 등장하면 OK, 안 등장하면 더 strict한 coverage 요구
+                author_in_pdf = bool(e_author and len(e_author) >= 4 and e_author in page_top_lower)
+                strict_threshold = 0.85 if e_year == year else 0.95
+                if not author_in_pdf and coverage < strict_threshold:
+                    continue
+                if coverage > best_coverage:
+                    best_coverage = coverage
+                    best_entry = entry
+            if best_entry is not None:
+                return _entry_to_letter(best_entry), best_entry, "page_text"
+
+    return "?", None, "none"
 
 
 def build_analyzed_skeleton(
@@ -289,6 +540,27 @@ _FUNCTION_WORDS = {
     "this", "these", "those", "an", "as", "it", "its", "their",
 }
 
+# author line이 아닌 것을 걸러내기 위한 키워드
+_INSTITUTION_KEYWORDS = {
+    "college", "university", "department", "institute", "school",
+    "hospital", "center", "centre", "laboratory", "faculty",
+    "academy", "society", "association", "foundation", "lab",
+    "division", "unit", "group", "graduate",
+}
+
+_HEADER_KEYWORDS = {
+    "article", "history", "manuscript", "received", "accepted",
+    "available", "online", "published", "doi", "issn", "volume",
+    "abstract", "keywords", "introduction", "conclusion",
+    "review", "research", "original", "revised", "submitted",
+    "corresponding", "author", "editor", "publisher", "copyright",
+    "type", "issue", "page", "chapter", "vol", "no", "pp",
+    "openaccess", "creative", "commons", "license",
+}
+
+# 합쳐진 단어 한도 (한 단어가 이 길이 이상이면 author 아님)
+_MAX_WORD_LEN = 25
+
 
 def _is_header_trash(line: str) -> bool:
     low = line.lower()
@@ -320,6 +592,20 @@ def _is_author_like(line: str) -> bool:
     if _ARTICLE_START_RE.match(line):
         return False
     if not re.match(r"^\s*[A-ZÀ-Ý]", line):
+        return False
+
+    # 합쳐진 단어 거부 (PDF 추출 잡음 — '_'·공백 없이 단어 합쳐진 경우)
+    raw_words = line.split()
+    for w in raw_words:
+        alpha_only = re.sub(r"[^A-Za-z]", "", w)
+        if len(alpha_only) >= _MAX_WORD_LEN:
+            return False
+
+    # 기관명/헤더 키워드 거부
+    lowered_words = [w.lower().strip(".,;:()[]") for w in raw_words]
+    if any(w in _INSTITUTION_KEYWORDS for w in lowered_words):
+        return False
+    if any(w in _HEADER_KEYWORDS for w in lowered_words):
         return False
 
     words = [w.strip(".,;:") for w in line.split() if w.strip()]
@@ -438,13 +724,63 @@ def _extract_author(first_page: str, title: str) -> str:
 
 
 def _clean_author_first(author_line: str) -> str:
+    """PDF 첫 페이지 author 라인 → 첫 author surname 추출.
+
+    'Allan Wigfield 1' → 'Wigfield'
+    'Daniel Adrover-Roig' → 'Adrover-Roig'
+    'Brooklyn College' → '' (기관명 reject)
+    'Article history' → '' (헤더 reject)
+    """
     s = author_line.strip()
     s = re.sub(r"\bet\s+al\.?", "", s, flags=re.IGNORECASE).strip()
+
+    # 첫 author까지만 (',' or 'and' or '&'로 분리)
     parts = re.split(r"\s*[,;]\s*|\s+(?:and|&)\s+", s, flags=re.IGNORECASE)
     first = parts[0].strip()
+
+    # footnote/affiliation 마커 모두 제거
     first = re.sub(r"[\*†‡§¶]+", "", first)
-    first = re.sub(r"\s+[a-z]$", "", first)
-    return first.strip()
+    # footnote 숫자 제거: '1Allan Wigfield2' → 'Allan Wigfield'
+    first = re.sub(r"\d+", "", first)
+    first = first.strip()
+    if not first:
+        return ""
+
+    # 단어 분리
+    words = [w for w in first.split() if w]
+    if not words:
+        return ""
+
+    # 합쳐진 단어 거부 (한 단어 18글자 이상이면 firstname+lastname 합쳐진 잡음)
+    for w in words:
+        alpha_only = re.sub(r"[^A-Za-z]", "", w)
+        if len(alpha_only) >= 18:
+            return ""
+
+    # 기관명/헤더 키워드 거부
+    lowered = [w.lower().strip(".,;:()[]") for w in words]
+    if any(w in _INSTITUTION_KEYWORDS for w in lowered):
+        return ""
+    if any(w in _HEADER_KEYWORDS for w in lowered):
+        return ""
+
+    # 마지막 단어가 stopword면 reject (제목 잡음)
+    _STOPWORD_TAIL = {"and", "or", "but", "the", "of", "in", "on", "at", "to",
+                      "for", "by", "with", "from", "as", "is", "are", "was",
+                      "were", "an", "a"}
+    if words[-1].lower().strip(".,;:") in _STOPWORD_TAIL:
+        return ""
+
+    # 한 단어면 그대로 (이미 surname)
+    if len(words) == 1:
+        return words[0]
+
+    # 두 단어 이상: firstname lastname 패턴 — 마지막 단어를 surname으로
+    last = words[-1]
+    if re.match(r"^[A-ZÀ-Ý]", last) and len(re.sub(r"[^A-Za-z]", "", last)) >= 2:
+        return last
+    # 안전 fallback: 첫 단어
+    return words[0]
 
 
 def _extract_year(first_page: str, filename: str) -> str:
@@ -587,6 +923,9 @@ def _process_pdf_worker(args: dict) -> dict:
     result["action"] = "ready"
     result["markdown_body"] = md_body
     result["pdf_hash"] = pdf_hash
+    result["extracted_title"] = body_meta.get("title", "")
+    # 첫 2 페이지 raw text — consensus 매칭 보조용
+    result["page_text"] = "\n".join(pages[:2]) if pages else ""
     return result
 
 
@@ -646,6 +985,8 @@ def collect(
     print(f"📚 consensus-results.md 로드...")
     consensus_entries = parse_consensus(consensus_path(project_root))
     print(f"   {len(consensus_entries)}개 paper entry 매핑됨")
+    abstracts = parse_translations_abstracts(translations_dir(project_root))
+    print(f"   {len(abstracts)}개 abstract 번역 로드됨 (.translations/)")
 
     counters = {
         "registered_anchor": 0,
@@ -657,6 +998,7 @@ def collect(
         "missing": 0,
     }
     by_source: dict[str, int] = {}
+    by_match_method: dict[str, int] = {}
     classification_dist = {"A": 0, "N": 0, "?": 0}
     needs_curation_list: list[str] = []
     failures: list[str] = []
@@ -690,9 +1032,16 @@ def collect(
                     counters["dedup_removed"] += 1
                     continue
 
-                # consensus 분류 + tier prefix 결정
-                tier_letter, entry = classify_paper(canonical, consensus_entries)
+                # consensus 분류 + tier prefix 결정 (author+year + title fuzzy fallback)
+                tier_letter, entry, match_method = classify_paper(
+                    canonical,
+                    consensus_entries,
+                    extracted_title=r.get("extracted_title", ""),
+                    page_text=r.get("page_text", ""),
+                    abstracts=abstracts,
+                )
                 classification_dist[tier_letter] += 1
+                by_match_method[match_method] = by_match_method.get(match_method, 0) + 1
                 if tier_letter == "?":
                     needs_curation_list.append(canonical)
 
@@ -704,9 +1053,14 @@ def collect(
                     md_path = markdown_dir(project_root) / f"{canonical}.md"
                     md_path.write_text(r["markdown_body"], encoding="utf-8")
                     # analyzed: analyzed/[X].{canonical}.md (tier prefix)
-                    analyzed_filename = f"[{tier_letter}].{canonical}.md"
-                    analyzed_path = analyzed_dir(project_root) / analyzed_filename
-                    if not analyzed_path.exists():
+                    # 이미 어떤 형태로든 ([A], [A][D], [N], [N][D], [?]) 존재하면 skeleton 재생성 안 함
+                    # → 이미 분석 완료된 [X][D] 파일을 덮어쓰지 않음
+                    existing_analyzed = list(
+                        analyzed_dir(project_root).glob(f"*.{canonical}.md")
+                    )
+                    if not existing_analyzed:
+                        analyzed_filename = f"[{tier_letter}].{canonical}.md"
+                        analyzed_path = analyzed_dir(project_root) / analyzed_filename
                         skeleton = build_analyzed_skeleton(canonical, tier_letter, entry)
                         analyzed_path.write_text(skeleton, encoding="utf-8")
 
@@ -731,6 +1085,7 @@ def collect(
         "classification": classification_dist,
         "needs_curation": needs_curation_list,
         "by_source": by_source,
+        "by_match_method": by_match_method,
         "failures": failures,
     }
 
@@ -766,6 +1121,11 @@ def print_summary(summary: dict) -> None:
         print("📍 파일명 메타 출처별:")
         for src, n in summary["by_source"].items():
             print(f"     {src:20}: {n}")
+    if summary.get("by_match_method"):
+        print()
+        print("🔗 consensus 매칭 방식별:")
+        for method, n in sorted(summary["by_match_method"].items(), key=lambda x: -x[1]):
+            print(f"     {method:20}: {n}")
     if summary.get("needs_curation"):
         print()
         print(f"⚠ Curation 필요 ({len(summary['needs_curation'])}편) — paper-analyst가 후속 처리:")
@@ -802,6 +1162,16 @@ def main(argv: list[str]) -> int:
     summary = collect(project_root, workers=args.workers,
                       dry_run=args.dry_run, limit=args.limit)
     print_summary(summary)
+
+    # INDEX.md 자동 갱신 (skeleton 생성·dedup 후 상태 반영)
+    if not args.dry_run and summary.get("total", 0) > 0:
+        try:
+            import build_index  # noqa
+            out = build_index.build_index(args.project, repo=repo)
+            print(f"📇 INDEX 갱신: {out.relative_to(repo)}")
+        except Exception as e:
+            print(f"⚠ INDEX 갱신 실패 (무시): {e}", file=sys.stderr)
+
     return 0 if not summary.get("failures") else 1
 
 

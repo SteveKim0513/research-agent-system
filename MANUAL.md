@@ -82,6 +82,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 | 10a. 최종 통합 | `최종 통합해줘` | — | — | final/complete-draft.md + .docx 재생성 |
 | 10b. 심사 시뮬 | `리뷰 체크해줘` | **peer-reviewer** (Mode A) | — | 리뷰어 3명 시뮬 리포트 |
 | 10c. 최종 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** | stale axis scorers + **citation-checker 전량 + 이전 archive 대비 new error** | archive/NNN |
+| 11. 출고 영문화 | `영어로 번역해줘` 또는 `논문 제출용 영문 변환해줘` | **output-en-translator** (chapter별 ≤4 병렬, opus) | 사전 조건 점검 (Phase 2 + adversarial-reviewer + output-editor + citation-checker 통과) | output/en/*.en.md (한글 원본 보존, 영문 별도 파일) |
 | 언제든 (보조) | `gap 분석해줘` | **gap-finder** | — | gaps-analysis.md |
 | 언제든 (empirical만) | `방법론 추천/검증해줘` | **methodology-advisor** | — | 화면 보고 |
 | 언제든 | `sync 확인해줘` | sync_state.py | — | stale 리스트 + 해결 가이드 |
@@ -471,7 +472,7 @@ peer-reviewer Mode B:
 
 ## 🤖 에이전트 시스템
 
-총 **19개** 전문 에이전트 (8 평가 오케스트레이션 + 1 논문 처리 오케스트레이션 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 1 유틸리티). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
+총 **20개** 전문 에이전트 (8 평가 오케스트레이션 + 1 논문 처리 오케스트레이션 + 5 생성·수정 + 1 Critical Mode + 3 보조 + 2 유틸리티 + 1 출고 번역). 각 에이전트는 단일 책임을 가지며, 필요 시 서로 체이닝(자동 호출)된다.
 
 **평가 아키텍처 (2026-04-23 리팩터)**: 단일 `evaluation-orchestrator` 오케스트레이터를 **병렬 delta 아키텍처**로 분해. `evaluation-orchestrator`가 delta 감지 후 6개 axis scorer를 동시 디스패치. 이전 10-12분 → 2-5분. 자세히는 `plan.md` 참고.
 
@@ -479,7 +480,7 @@ peer-reviewer Mode B:
 
 **Critical Mode**는 프로젝트의 `intellectual_ambition`이 `critical` 또는 `paradigm-shifting`일 때 활성화되며, 비판적 시각·새로운 관점·패러다임 도전을 능동적으로 지원한다.
 
-### 📊 에이전트 분류 (5 카테고리)
+### 📊 에이전트 분류 (6 카테고리)
 
 #### 평가 오케스트레이션 (8개) — 병렬 delta 아키텍처
 
@@ -534,6 +535,12 @@ peer-reviewer Mode B:
 |---------|----------|------|----------|------|
 | **research-processor** 🔄 | 단일 카드의 **Phase B(번역) + Phase C(6-카테고리 curation)** 순차 수행 | **sonnet** | `"리서치 진행해줘"` 실행 중 main이 Stage A 완료 즉시 background dispatch (카드당 1 worker, 최대 6 병렬) | Stage A와 병렬 실행 — 전체 wall clock = Stage A total + 1×typical Stage C로 단축 |
 | **abstract-translator** 🌐 | 논문 영어 abstract 원문 → 한글 번역 (요약 금지, 전문 번역) | **haiku** | paper-analyst 후 PDF abstract 번역 / RESEARCH 외 독립 번역 요청 | 비용 최적. **RESEARCH Stage B는 research-processor가 직접 수행**하므로 이 agent는 호출하지 않음 (번역 규칙 스펙만 참조됨) |
+
+#### 출고 번역 (1개, 수동)
+
+| 에이전트 | 단일 책임 | 모델 | 호출 시점 | 노트 |
+|---------|----------|------|----------|------|
+| **output-en-translator** 🇬🇧 | 완성된 한글 chapter/output을 학술 영어로 번역 — (Author, Year) 인용 1:1 보존, hedging·voice·논증 구조 유지, 분야 컨벤션(APA 7 기본) 적용. abstract-translator의 반대 방향 | **opus** | `"영어로 번역해줘"` / `"논문 제출용 영문 변환해줘"` | **사전 조건**: writing-architect Phase 2 + adversarial-reviewer Phase 2.5 + output-editor + citation-checker 통과 후만. direct quote는 영어 원문 fetch (한글 round-trip 금지). chapter별 ≤4 병렬 |
 
 ---
 

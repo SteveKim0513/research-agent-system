@@ -75,21 +75,72 @@ def title_keywords(title: str, max_words: int = 6) -> list[str]:
 
 
 def parse_author_first(authors_str: str) -> str:
-    """'Löffler et al.' → 'Loffler'; 'Buss and Spencer' → 'BussSpencer'; 'Smith' → 'Smith'."""
+    """'Löffler et al.' → 'Loffler'; 'Buss and Spencer' → 'BussSpencer'; 'Smith' → 'Smith'.
+
+    또한:
+    - 'Allan Wigfield' → 'Wigfield' (firstname lastname → lastname)
+    - 'Allan Wigfield 1' → 'Wigfield' (footnote 숫자 제거)
+    - 'Brooklyn College' → '' (기관명 거부 — fallback 유도)
+    """
     s = authors_str.strip()
     # "et al." 제거
     s = re.sub(r"\bet\s+al\.?", "", s, flags=re.IGNORECASE).strip()
+    # footnote 숫자 제거 ('Wigfield 1' → 'Wigfield')
+    s_nodigit = re.sub(r"\d+", "", s).strip()
+
+    # 기관명 키워드 들어 있으면 author 아님 → 빈 문자열 반환
+    INSTITUTION = {"college", "university", "department", "institute", "school",
+                   "hospital", "center", "centre", "laboratory", "faculty",
+                   "academy", "society", "association", "foundation", "lab",
+                   "division", "graduate"}
+    HEADER = {"article", "history", "manuscript", "received", "accepted",
+              "available", "online", "published", "doi", "issn", "volume",
+              "abstract", "keywords", "introduction", "review",
+              "research", "original", "corresponding", "editor", "publisher",
+              "type", "issue", "page", "chapter"}
+    lowered_tokens = [t.lower().strip(".,;:()[]") for t in re.split(r"\s+", s_nodigit) if t]
+    if any(t in INSTITUTION for t in lowered_tokens):
+        return ""
+    if any(t in HEADER for t in lowered_tokens):
+        return ""
+
     # " and " / " & " 로 분리
-    parts = re.split(r"\s+(?:and|&)\s+", s, flags=re.IGNORECASE)
+    parts = re.split(r"\s+(?:and|&)\s+", s_nodigit, flags=re.IGNORECASE)
+
+    STOPWORD_TAIL = {"and", "or", "but", "the", "of", "in", "on", "at", "to",
+                     "for", "by", "with", "from", "as", "is", "are", "was",
+                     "were", "an", "a"}
+
+    def _firstname_lastname_to_surname(name: str) -> str:
+        """'Allan Wigfield' → 'Wigfield'. 'Wigfield' → 'Wigfield'."""
+        words = [w for w in name.strip().split() if w]
+        if not words:
+            return ""
+        # 합쳐진 단어 거부 (한 단어 18+ 글자: firstname+lastname 합쳐진 것 의심)
+        for w in words:
+            alpha = re.sub(r"[^A-Za-z]", "", w)
+            if len(alpha) >= 18:
+                return ""
+        # 마지막 단어가 stopword면 reject (제목 문장 잡음)
+        if words[-1].lower() in STOPWORD_TAIL:
+            return ""
+        if len(words) == 1:
+            return clean_token(words[0], lower=False).capitalize()
+        # 두 단어 이상 → 마지막 단어 (lastname)
+        last = words[-1]
+        if re.match(r"^[A-ZÀ-Ýa-zà-ÿ]", last):
+            return clean_token(last, lower=False).capitalize()
+        return clean_token(words[0], lower=False).capitalize()
+
     if len(parts) == 1:
-        return clean_token(parts[0], lower=False).capitalize()
+        return _firstname_lastname_to_surname(parts[0])
     if len(parts) == 2:
-        # Buss and Spencer → BussSpencer
-        a = clean_token(parts[0], lower=False)
-        b = clean_token(parts[1], lower=False)
-        return (a.capitalize() + b.capitalize()) if a and b else (a or b).capitalize()
+        # 'Buss and Spencer' → 'BussSpencer'
+        a = _firstname_lastname_to_surname(parts[0])
+        b = _firstname_lastname_to_surname(parts[1])
+        return (a + b) if a and b else (a or b)
     # 3명 이상 → 첫 번째만
-    return clean_token(parts[0], lower=False).capitalize()
+    return _firstname_lastname_to_surname(parts[0])
 
 
 def parse_from_filename(fname: str) -> dict | None:

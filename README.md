@@ -43,7 +43,7 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
   → 결과 완료 후 "✅ [C-001] ... Section 2에 추가" 반영 보고
 ```
 
-### 19개 에이전트
+### 20개 에이전트
 
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
 **논문 처리 통합 (1)**: paper-analyst (단순화 v3 — 정규화·markdown 캐시 → anchor 선언 → 분기 분석)
@@ -51,6 +51,7 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
 **보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 **유틸리티 (1)**: abstract-translator (haiku — RESEARCH·PDF abstract 한글 번역)
+**출고 번역 (1)**: output-en-translator (opus — 완성된 한글 chapter를 학술 영어로, 인용·hedging 보존)
 
 **평가·논문 처리 모두 병렬 delta·2-pass 아키텍처** — 평가는 변경된 축만 병렬 재계산, 논문 처리는 triage(haiku) → Tier별(opus/sonnet/sonnet) 분기로 핵심만 깊게, 배경은 간소하게. 각 에이전트는 작업 성격에 맞는 모델로 실행됩니다 (opus = 판단, sonnet = 구조화, haiku = 기계적). 자세히는 [PRINCIPLES.md](./PRINCIPLES.md) 참고.
 
@@ -142,7 +143,7 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (19개 에이전트)
+│   └── agents/               (20개 에이전트)
 │       ├── evaluation-orchestrator.md
 │       ├── claim-extractor.md
 │       ├── axis1-reference-scorer.md ~ axis6-critical-scorer.md
@@ -154,7 +155,9 @@ research-agent/
 │       ├── citation-checker.md
 │       ├── gap-finder.md
 │       ├── methodology-advisor.md
-│       └── peer-reviewer.md              (+ Iconoclast persona)
+│       ├── peer-reviewer.md              (+ Iconoclast persona)
+│       ├── abstract-translator.md        (영→한 abstract, haiku)
+│       └── output-en-translator.md       (한→영 chapter 출고용, opus)
 ├── scripts/                   (시스템 스크립트 — sync·평가 delta/aggregator·논문 triage·마이그레이션·활동 로그)
 │   ├── sync_state.py          (아티팩트 sync 상태·스냅샷)
 │   ├── evaluation_delta.py    (stage-aware 축별 stale 감지)

@@ -21,8 +21,20 @@ model: opus
 
 ## 호출 시점
 
-- 초고 v1 또는 revised 단계 후
-- WRITE 카드의 `requires_adversarial_review: true` 옵션 시 자동 권고
+본 agent는 *3 단계*에서 호출 가능 — outline / chapter / full draft. writing-architect의 Phase 1.5 / 2.5 / 3과 연동.
+
+| 단계 | 호출 시점 | 입력 | 출력 |
+|------|---------|------|------|
+| **Outline review** (Phase 1.5) | writing-architect Phase 1 후, Phase 2 전 | outline + INDEX.md | `output/.internal/outline-critique.md` |
+| **Chapter review** (Phase 2.5) | 각 chapter Phase 2 작성 직후 | output/0N-{name}.md + steelman-dialectic.md (있으면) | `output/.internal/chapter-critique-0N.md` |
+| **Full draft review** | 초고 v1 또는 revised 후 | final/complete-draft.md | `output/.adversarial-review.md` (기존 형식) |
+
+**자동 호출**:
+- writing-architect Phase 1.5 — outline review
+- writing-architect Phase 2.5 — chapter review (chapter별 작성 직후 자동)
+- WRITE 카드의 `requires_adversarial_review: true` 옵션 — full draft review
+
+**수동 호출**:
 - 사용자 명시 명령 `"적대적 리뷰 해줘"` 또는 `"X 학파 입장에서 반박해줘"`
 
 ## 입력
@@ -52,6 +64,129 @@ inputs:
         - "학교화 표본을 보편으로 일반화"
   flow_md_path: flow/flow.md
 ```
+
+## In-Loop 패턴 (writing-architect 통합)
+
+본 agent가 작성 *중* 호출되는 경우 (outline / chapter), 단순 비판이 아니라 *작성에 directly 반영 가능한* critique 산출.
+
+### Outline Review (Phase 1.5)
+
+**입력**: writing-architect Phase 1 산출 outline (구조 + 문단별 paper 매핑)
+**작업**:
+1. outline의 §별 학파 위치 잡기 명확성 critique
+2. layered argumentation depth 평가 (flat 주장 list 아닌가)
+3. counterargument anticipation 충분성 (어느 §이 반박 빠뜨렸는가)
+4. novel synthesis 잠재력 (기존 종합 vs 새 framework 제시 정도)
+
+**출력 형식** (`output/.internal/outline-critique.md`):
+```markdown
+---
+generated_by: adversarial-reviewer
+phase: 1.5-outline
+schools: [...]
+generated_at: {ISO}
+---
+
+# Outline Critique
+
+## §1 Introduction
+**원 outline**: "..."
+
+### 학파 위치 잡기 (Field Positioning)
+- 명확성: low/medium/high
+- 누락된 학파 명시: {학파 X와의 차이가 outline에 안 보임}
+- 권고: §1 첫 문단에 "{Statement} ..." 추가
+
+### Layered Argumentation
+- 위계 깊이: flat / 2-layer / 3-layer
+- 평가: {claim이 모두 같은 layer인지, 위계 명시됐는지}
+- 권고: large claim X → medium claim Y → fine-grained Z 분리
+
+### Counterargument Anticipation
+- 현재 outline의 anticipation: 0 / 1-step / multi-step
+- 누락된 critic: {학파 P, Q에서 예상 반박이 outline에 안 보임}
+- 권고: §1 끝 문단에 "A critic from school P might argue..." 추가
+
+### Novel Synthesis
+- 종합 종류: list / reframing / tension surfacing / methodological shift / bridging
+- 평가: {현재 outline이 어느 패턴인지, 더 강한 패턴 가능한지}
+- 권고: §3 종합을 "단순 list" → "tension framework"로 reframing
+
+## §2 Background
+... (반복)
+
+## 우선순위 수정 권고
+1. {high impact 수정}
+2. ...
+```
+
+**Phase 1.5 후 결정**:
+- critique 심각 → Phase 1으로 복귀, outline 재설계
+- critique 경미 → outline 수정 반영 후 Phase 2 진입
+
+### Chapter Review (Phase 2.5)
+
+**입력**: writing-architect Phase 2의 chapter 출력 (output/0N-{name}.md)
+**작업**: 작성된 본문에 *학파 입장 반박* + *elite 패턴 위반* 둘 다 critique.
+
+**출력 형식** (`output/.internal/chapter-critique-0{N}.md`):
+```markdown
+---
+generated_by: adversarial-reviewer
+phase: 2.5-chapter
+chapter: 0{N}-{name}
+schools: [...]
+generated_at: {ISO}
+---
+
+# Chapter Critique — Chapter {N}
+
+## Part A: 학파별 반박 (전통 adversarial-reviewer 형식)
+
+### 단락별 반박 (위치 정렬)
+{기존 형식 — Phase 1 학파별 시뮬레이션 결과}
+
+## Part B: Elite 패턴 위반 점검 (writing-architect §"Elite Scholarly 패턴" 기준)
+
+### Layered Argumentation
+- 평가: 통과 / 부분 위반 / 위반
+- 위반 위치: {line N — flat claim, layer 분리 안 됨}
+- 권고: {구체 수정 안}
+
+### Counterargument Anticipation
+- 평가: 통과 / 부분 / 위반
+- 위반 위치: {line N — strawman critic, steelman 형태 아님}
+- 권고: {구체 수정 안}
+
+### Quote Framing
+- 평가: 통과 / 부분 / 위반
+- 위반 위치: {같은 quote 같은 framing 반복 사용}
+- 권고: {다른 framing 패턴}
+
+### Scholarly Voice
+- 평가: 통과 / 부분 / 위반
+- 위반 위치: {"I think...", "It is obvious that..." 등 약한 voice}
+- 권고: {대체 표현}
+
+### Novel Synthesis
+- 평가: 통과 / 부분 / 위반
+- 평가 근거: {단순 list인가 / reframing인가}
+- 권고: {synthesis 패턴 변경}
+
+## 권장 수정 (output-editor 디스패치 input)
+- 심각도 high: {수정 항목 list — output-editor 자동 적용}
+- 심각도 medium: {수정 항목 — output-editor 자동 적용}
+- 심각도 low: {사용자 검토 권장}
+```
+
+**Phase 2.5 후 결정**:
+- 심각도 high·medium 수정 → output-editor 자동 호출 (chapter 부분 재작성)
+- 심각도 low → 사용자 검토 권장 (자동 수정 X)
+- 모든 수정 완료 후 다음 chapter Phase 2 진행
+
+### Full Draft Review (기존 Phase 1 — post-draft)
+
+기존 `## 작업 흐름 → Phase 1·2`의 full draft 시뮬레이션. outline·chapter review와 별도.
 
 ## 작업 흐름
 

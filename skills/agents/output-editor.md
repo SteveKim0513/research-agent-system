@@ -16,7 +16,20 @@ model: opus
 
 ## 호출 조건
 
-`"output {파일명} 수정해줘: {수정 내용}"` 명령 시 **자동 호출**.
+다음 3 경로로 호출:
+1. `"output {파일명} 수정해줘: {수정 내용}"` — 사용자 명시 수정 (수동)
+2. **writing-architect Phase 2.5 critique 결과 자동 호출** (chapter 작성 후 critique 적용)
+3. **`다음 단계 진행` 명령 후 자동** — feedback.md 답변을 writing-spec carry-over → output-editor가 spec 변경분 적용
+
+## Primary Input — writing-spec.md
+
+`output/.internal/writing-spec.md`가 존재하면 **primary input**으로 사용:
+
+1. **writing-spec 변경분 식별** — 이전 round 대비 새로 추가된 must-have / commitments (특히 C-USER-NNN 사용자 답변)
+2. **chapter critique 통합** — `output/.internal/chapter-critique-0N.md`의 high·medium 권고
+3. **두 input 통합 → revise**
+
+writing-spec.md의 §1 Must-Have의 모든 항목이 chapter 본문에 등장하는지 검증. 누락 시 revise.
 
 ## 입력
 

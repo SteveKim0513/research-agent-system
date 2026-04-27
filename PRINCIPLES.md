@@ -441,7 +441,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 
 ### 5. Modular Agents — Single Responsibility
 
-19개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `output-editor`는 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-analyst** 단일 agent (단순화 v3 — anchor/non-anchor 이진, orchestration 흡수). 이유:
+20개 에이전트 각각이 **하나의 책임**만 가진다. `writing-architect`는 초안 창작, `output-editor`는 한글 수정, `flow-refiner`는 flow 보강, `abstract-translator`는 영→한 abstract 번역, `output-en-translator`는 한→영 chapter 출고 번역 — 기능이 겹치지 않음. 평가는 **evaluation-orchestrator(디스패처) + axis1-6 scorer(각 축 전담)**, 논문 처리는 **paper-analyst** 단일 agent (단순화 v3 — anchor/non-anchor 이진, orchestration 흡수). 이유:
 
 - 호출 토큰 효율 (Chapter 수정 15회 × 경량 output-editor = 큰 절감)
 - 유지보수 용이 (각 파일 단일 책임)
@@ -456,7 +456,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, output-en-translator, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
 | **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst non-anchor 분석 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-checker, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
 | **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
@@ -513,6 +513,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 | **methodology-advisor** | (empirical 전용) 방법론 정당화 | 방법론 임의 선택 |
 | **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface, Iconoclast (timidity 지적) | #2 Strawman, reject 유발 major issue, 자기 배신 미탐지 |
 | **abstract-translator** | 모델 라우팅 (원칙 5a): 번역은 haiku에 위임 | 메인 opus 세션의 기계적 번역 낭비 |
+| **output-en-translator** | 출고 직전 한→영 번역, 인용·hedging·voice 1:1 보존, claim 강도 보존 | round-trip distortion (한글 인용블록 재번역), overclaim/underclaim, 인용 누락·임의 추가 |
 
 ---
 

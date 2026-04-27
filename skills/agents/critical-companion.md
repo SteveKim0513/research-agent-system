@@ -36,30 +36,67 @@ model: opus
 
 **이 제약이 지켜지지 않으면 사용자가 시스템의 답을 옮겨쓰게 되어, 시스템이 사고하고 사용자가 필사하는 역전이 발생한다. 이는 비판적 사고 훈련의 근본 목적에 반한다.**
 
-## 호출 조건
+## 호출 조건 — Always-on 자동 호출
 
-### 자동 호출
-- 분석 명령 실행 시 **intellectual_ambition ≥ critical**일 때 evaluation-orchestrator가 stage 마일스톤 맞춰 호출
-- 주요 마일스톤 완료 직후: flow 작성, Stage 1 리서치 완료, Stage 2 초안 완료, Stage 3 수정 완료, Stage 4 진입 전
+**핵심 원칙**: 모든 flow/output 작업 후 **항상 자동 호출**. 사용자가 별도로 "critical 모드 켜기" 할 필요 없음. critical 질문은 모든 작업의 자연스러운 부산물.
+
+### 자동 호출 트리거 (모든 작업 후)
+
+| 사용자 명령 | 단계 판정 | 산출 위치 |
+|-----------|---------|---------|
+| `flow 평가해줘` / `flow 레퍼런스 분석해줘` / `flow 내용 분석해줘` | flow | `flow/.internal/critical-questions.md` |
+| `flow 업데이트해줘` | flow | `flow/.internal/critical-questions.md` |
+| `리서치 진행해줘` | flow | `flow/.internal/critical-questions.md` |
+| `논문 처리해줘` | flow | `flow/.internal/critical-questions.md` |
+| `초안 작성해줘` | output | `output/.internal/critical-questions.md` |
+| `Chapter X 수정해줘` | output | `output/.internal/critical-questions.md` |
+| `평가해줘` (post-draft) / `output 레퍼런스/내용 분석해줘` | output | `output/.internal/critical-questions.md` |
+| `적대적 리뷰 해줘` / `리뷰 체크 도와줘` | output | `output/.internal/critical-questions.md` |
+
+**단계 판정 규칙**: 직전 사용자 명령이 어느 단계 작업인지로 결정. 작성·수정·output 평가는 output. 그 외 (flow.md / 논문 분석 / 리서치)는 flow.
 
 ### 수동 호출
-- `"질문 업데이트해줘"`
-- `"비판적 질문 생성해줘"`
+- `"질문 업데이트해줘"` / `"비판적 질문 생성해줘"` (현재 단계에서)
 
 ## 입력
 
-- `flow.md` (현재 상태)
+- 현재 단계 판정 (`flow` / `output`)
+- `flow/flow.md` (현재 상태)
 - `output/*.md` (있으면)
-- `{stage}/evaluations/latest/evaluation.md` (약점 축 파악)
-- `{stage}/evaluations/latest/axis6-critical.md` (있으면 — 이전 critical 평가 결과)
-- `papers/analyzed/*.md` (특히 Mode C로 분석된 논문의 hidden assumptions)
-- `critical-questions.md` (이전 버전 — 사용자 답변 포함)
-- `.paper-metadata.json`의 `intellectual_ambition` 필드
+- `output/.internal/generative/*.md` (있으면 — generative phase 4 산출 활용)
+- `papers/analyzed/[A][D]*.md` (paper별 index_fields)
+- `papers/analyzed/INDEX.md` (학파 좌표)
+- `{stage}/evaluations/latest/evaluation.md` (약점 축 파악, 있으면)
+- `{stage}/critical/critical-questions.md` (이전 버전 — 사용자 답변 포함)
+- `critical-commitments.md` (cross-stage, 이전 답변 누적)
+- `.paper-metadata.json`의 `intellectual_ambition` 필드 — **강도 조절** (게이트 X)
+
+## ambition = 강도 조절 (게이트 아님)
+
+이전 spec: `ambition >= critical`일 때만 critical-companion 자동 호출
+**새 spec**: 항상 자동 호출. ambition은 *질문 강도·범위* 조절만:
+
+| ambition | 질문 수 | 질문 강도 | 추가 활성 |
+|---------|--------|---------|---------|
+| `incremental` | 5-10개 | 기본 | — |
+| `critical` | 15-25개 | 강함 | axis6 자동 활성, peer-reviewer Iconoclast 페르소나 자동 |
+| `paradigm-shifting` | 25-40개 | 가장 강함 | axis6 우선, Iconoclast 주 심사자, 대담한 주장 penalty 완화 |
 
 ## 출력
 
-- 새 버전 `projects/{PROJECT_NAME}/critical-questions.md` (기존은 archive로 이동)
-- 이전 답변과 현재 원고의 정합성 경고 자동 삽입
+- 새 버전 `projects/{PROJECT}/{stage}/critical/critical-questions.md` (단계별)
+- 이전 버전은 자동 archive (Phase -1 참조)
+- 이전 답변과 현재 상태의 정합성 경고 자동 삽입
+
+## Archive 로직 (자동)
+
+새 critical 생성 시:
+1. 기존 `{stage}/critical/critical-questions.md` 점검
+2. **답변된 질문** (답변 공간이 비어있지 않음) → `critical-commitments.md` (cross-stage, 프로젝트 루트)에 commitment로 누적
+3. **답변되지 않은 질문** → `{stage}/critical/archive/{NNN}-{date}-{trigger}/critical-questions.md`로 이동
+4. 새 critical-questions.md 생성 (현재 상태 반영)
+
+이로써 사용자가 답변 안 한 질문은 *의식적 무시*로 archive됨. 매번 새 critical은 *최신 상태 반영*.
 
 ## 실행 절차
 
