@@ -8,8 +8,120 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 INSTALL_DIR=$(pwd)
+OS_TYPE="$(uname -s)"
 echo "📍 설치 위치: $INSTALL_DIR"
+echo "💻 OS: $OS_TYPE"
 echo ""
+
+# ──────────────────────────────────────────────────────────────────────
+# 의존성 부트스트랩 헬퍼
+# 사용자가 한 명령으로 모든 의존성을 끝까지 설치할 수 있도록.
+# 체인: install.sh → ensure_node → (macOS) ensure_brew → Homebrew 공식 설치
+# ──────────────────────────────────────────────────────────────────────
+
+ensure_brew() {
+    # macOS 전용. brew 없으면 공식 installer로 자동 설치 + 현재 셸 PATH에 즉시 반영.
+    if command -v brew &> /dev/null; then
+        return 0
+    fi
+
+    echo "❌ Homebrew(brew) 없음 — Node.js 설치에 필요합니다."
+    echo ""
+    echo "   Homebrew는 macOS 표준 패키지 매니저(brew.sh 공식). 설치 중 sudo 비밀번호를 묻습니다."
+    read -p "지금 Homebrew를 자동 설치할까요? (y/n): " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "⏭️  건너뜀. 수동 설치 후 install.sh를 다시 실행하세요:"
+        echo '   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        return 1
+    fi
+
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    # 설치 후 현재 셸에 PATH 반영 (Apple Silicon: /opt/homebrew, Intel: /usr/local)
+    if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    hash -r 2>/dev/null || true
+
+    if command -v brew &> /dev/null; then
+        echo "✅ Homebrew 설치 완료"
+        return 0
+    fi
+
+    echo "❌ Homebrew 설치는 됐으나 현재 셸 PATH에 노출되지 않았습니다."
+    echo "   새 터미널을 열고 install.sh를 다시 실행하세요."
+    return 1
+}
+
+ensure_node() {
+    # node/npm 보장. macOS면 brew, Linux면 apt/dnf/yum 자동 시도.
+    if command -v npm &> /dev/null; then
+        return 0
+    fi
+
+    echo "❌ npm/node 없음 — Claude Code 설치에 필요합니다."
+    echo ""
+
+    case "$OS_TYPE" in
+        Darwin)
+            ensure_brew || return 1
+            echo "📦 Node.js 설치 중 (brew install node)..."
+            if brew install node; then
+                hash -r 2>/dev/null || true
+                echo "✅ Node.js 설치 완료"
+                return 0
+            fi
+            echo "❌ brew install node 실패"
+            return 1
+            ;;
+        Linux)
+            if command -v apt-get &> /dev/null; then
+                echo "Ubuntu/Debian 감지 — apt 사용"
+                read -p "sudo apt-get install -y nodejs npm 실행할까요? (y/n): " -n 1 -r
+                echo ""
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    sudo apt-get update && sudo apt-get install -y nodejs npm
+                fi
+            elif command -v dnf &> /dev/null; then
+                echo "Fedora/RHEL 감지 — dnf 사용"
+                read -p "sudo dnf install -y nodejs npm 실행할까요? (y/n): " -n 1 -r
+                echo ""
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    sudo dnf install -y nodejs npm
+                fi
+            elif command -v yum &> /dev/null; then
+                echo "RHEL/CentOS 감지 — yum 사용"
+                read -p "sudo yum install -y nodejs npm 실행할까요? (y/n): " -n 1 -r
+                echo ""
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    sudo yum install -y nodejs npm
+                fi
+            elif command -v pacman &> /dev/null; then
+                echo "Arch 감지 — pacman 사용"
+                read -p "sudo pacman -S --noconfirm nodejs npm 실행할까요? (y/n): " -n 1 -r
+                echo ""
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    sudo pacman -S --noconfirm nodejs npm
+                fi
+            else
+                echo "⚠️  패키지 매니저를 자동 감지하지 못함."
+                echo "   수동 설치 후 재실행: https://nodejs.org/ 또는 nvm 사용 (https://github.com/nvm-sh/nvm)"
+                return 1
+            fi
+            hash -r 2>/dev/null || true
+            command -v npm &> /dev/null && { echo "✅ Node.js 설치 완료"; return 0; }
+            return 1
+            ;;
+        *)
+            echo "⚠️  지원하지 않는 OS ($OS_TYPE). 수동으로 Node.js 설치 후 재실행하세요."
+            return 1
+            ;;
+    esac
+}
 
 # 설치 상태 추적
 NEEDS_CLAUDE=false
@@ -157,42 +269,42 @@ if [ "$NEEDS_CLAUDE" = true ]; then
     echo ""
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if command -v npm &> /dev/null; then
-            # 이전 부분 설치 잔존물 사전 정리 (ENOTEMPTY 에러 예방)
-            NPM_PREFIX=$(npm config get prefix 2>/dev/null)
-            CLAUDE_PKG_DIR="$NPM_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
-            CLAUDE_PKG_PARENT="$NPM_PREFIX/lib/node_modules/@anthropic-ai"
-            if [ -d "$CLAUDE_PKG_DIR" ]; then
-                echo "   🧹 이전 설치 디렉토리 정리 중..."
-                rm -rf "$CLAUDE_PKG_DIR" 2>/dev/null || sudo rm -rf "$CLAUDE_PKG_DIR"
-            fi
-            # npm이 rename 시 사용하는 임시 디렉토리 잔존물도 제거
-            if [ -d "$CLAUDE_PKG_PARENT" ]; then
-                find "$CLAUDE_PKG_PARENT" -maxdepth 1 -name '.claude-code-*' -type d -exec rm -rf {} + 2>/dev/null || true
-            fi
+        # npm 없으면 자동 부트스트랩 (필요 시 brew까지 설치)
+        if ! ensure_node; then
+            echo "❌ Node.js 설치에 실패했습니다. 위 안내에 따라 수동 설치 후 install.sh를 다시 실행하세요."
+            exit 1
+        fi
 
-            echo "   설치 중..."
-            if npm install -g @anthropic-ai/claude-code; then
-                hash -r 2>/dev/null || true
-                echo "✅ Claude Code 설치 완료"
-            else
-                echo ""
-                echo "❌ 설치 실패 (npm error)"
-                echo ""
-                echo "가장 흔한 원인: 이전 설치 잔존물 또는 권한 문제."
-                echo "아래 명령으로 수동 복구 후 재시도하세요:"
-                echo ""
-                echo "   sudo rm -rf \"$CLAUDE_PKG_DIR\""
-                echo "   npm install -g @anthropic-ai/claude-code"
-                echo ""
-                echo "그래도 실패하면:"
-                echo "   sudo chown -R \$(whoami) \"$NPM_PREFIX/lib/node_modules\""
-                echo "   npm install -g @anthropic-ai/claude-code"
-                exit 1
-            fi
+        # 이전 부분 설치 잔존물 사전 정리 (ENOTEMPTY 에러 예방)
+        NPM_PREFIX=$(npm config get prefix 2>/dev/null)
+        CLAUDE_PKG_DIR="$NPM_PREFIX/lib/node_modules/@anthropic-ai/claude-code"
+        CLAUDE_PKG_PARENT="$NPM_PREFIX/lib/node_modules/@anthropic-ai"
+        if [ -d "$CLAUDE_PKG_DIR" ]; then
+            echo "   🧹 이전 설치 디렉토리 정리 중..."
+            rm -rf "$CLAUDE_PKG_DIR" 2>/dev/null || sudo rm -rf "$CLAUDE_PKG_DIR"
+        fi
+        # npm이 rename 시 사용하는 임시 디렉토리 잔존물도 제거
+        if [ -d "$CLAUDE_PKG_PARENT" ]; then
+            find "$CLAUDE_PKG_PARENT" -maxdepth 1 -name '.claude-code-*' -type d -exec rm -rf {} + 2>/dev/null || true
+        fi
+
+        echo "   설치 중..."
+        if npm install -g @anthropic-ai/claude-code; then
+            hash -r 2>/dev/null || true
+            echo "✅ Claude Code 설치 완료"
         else
-            echo "❌ npm이 없습니다. Node.js를 먼저 설치하세요:"
-            echo "   brew install node"
+            echo ""
+            echo "❌ 설치 실패 (npm error)"
+            echo ""
+            echo "가장 흔한 원인: 이전 설치 잔존물 또는 권한 문제."
+            echo "아래 명령으로 수동 복구 후 재시도하세요:"
+            echo ""
+            echo "   sudo rm -rf \"$CLAUDE_PKG_DIR\""
+            echo "   npm install -g @anthropic-ai/claude-code"
+            echo ""
+            echo "그래도 실패하면:"
+            echo "   sudo chown -R \$(whoami) \"$NPM_PREFIX/lib/node_modules\""
+            echo "   npm install -g @anthropic-ai/claude-code"
             exit 1
         fi
     else

@@ -62,10 +62,11 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 ### 사전 준비
 
 - macOS / Linux
-- Node.js (Claude Code 설치용)
-- Python 3.8+
+- Python 3.8+ (대부분 OS 기본 제공)
 - Claude Code 계정 (Anthropic API 접근)
 - [Consensus](https://consensus.app) 무료 계정 (논문 검색용 — 미로그인 시 검색당 3개만 반환)
+
+> **Node.js·Homebrew는 install.sh가 자동 처리합니다** — 없으면 macOS는 Homebrew → Node.js, Linux는 시스템 패키지 매니저(apt/dnf/yum/pacman)로 자동 설치 (sudo 비밀번호 한 번 입력).
 
 ### 자동 설치
 
