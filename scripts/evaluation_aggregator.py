@@ -380,13 +380,17 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
     # Sanity check
     issues = validate_axis_consistency(project, axis_data)
 
+    pipeline_desc = "병렬 축별 워커 (evaluation-orchestrator) → aggregator"
+    if stage == "final":
+        pipeline_desc += " → final-holistic-reviewer (adjudication)"
+
     out = [
         f"# 평가 진단 — {project}",
         "",
         f"**대상**: `projects/{project}/flow/flow.md`",
         f"**평가일**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         f"**intellectual_ambition**: **{ambition}**" + (" 🎭" if critical_mode else ""),
-        f"**파이프라인**: 병렬 축별 워커 (evaluation-orchestrator) → aggregator",
+        f"**파이프라인**: {pipeline_desc}",
         "",
         "> 신뢰 가능 (메인): 카테고리·진단·Critical Issues·RESEARCH.  보조 (trend only): 점수.",
         "",
@@ -399,6 +403,21 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
         f"**근거**: {verdict_reason}",
         "",
     ]
+
+    # Final stage 한정 — holistic banner
+    if stage == "final":
+        holistic_path = lat / "holistic-review.md"
+        if holistic_path.exists():
+            holistic_status = f"✅ 함께 생성됨: [`holistic-review.md`]({holistic_path.name}) — 통합 관점 adjudication 결과 참조."
+        else:
+            holistic_status = "⏳ `holistic-review.md` 미생성 — orchestrator가 `final-holistic-reviewer` 를 dispatch해야 work-plan 카드가 actionable."
+        out.extend([
+            "> 🛡 **Final stage 통합 평가 의무**",
+            "> 위 6축 verdict는 *국소 진단*. 통합본은 사용자가 정합성을 선언한 상태이므로 *척추 보호 adjudication*이 별도 필요.",
+            f"> {holistic_status}",
+            "> work-plan WRITE 카드 적용 전 카드의 `holistic_verdict` 필드를 반드시 점검 (REJECT/DEFER/REROUTE는 skip).",
+            "",
+        ])
 
     # Sanity 위반 알림 (있으면)
     if issues:
@@ -1997,6 +2016,25 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
     print(f"✅ work-plan.md 갱신 (active={stats['state_counts']['active']}, "
           f"in_progress={stats['state_counts']['in_progress']}, "
           f"completed={stats['state_counts']['completed']})")
+
+    # Final stage 한정 — holistic dispatch 의무 안내
+    if stage == "final":
+        holistic_path = lat / "holistic-review.md"
+        eval_path = lat / "evaluation.md"
+        needs_holistic = (
+            not holistic_path.exists()
+            or (eval_path.exists() and holistic_path.stat().st_mtime < eval_path.stat().st_mtime)
+        )
+        if needs_holistic:
+            print()
+            print("🛡 stage=final — holistic adjudication 필수")
+            print("   evaluation-orchestrator는 final-holistic-reviewer를 dispatch해야 합니다.")
+            print("   (통합본 척추를 prior로, axis 카드 verdict를 adjudicate)")
+            print(f"   출력 예정: {holistic_path.relative_to(project_root(project))}")
+            print("   미실행 시 work-plan WRITE 카드는 actionable로 간주하지 않음.")
+        else:
+            print()
+            print("🛡 holistic-review.md 최신 — adjudication 완료 상태")
 
     return 0
 

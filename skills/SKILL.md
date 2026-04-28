@@ -257,7 +257,7 @@ final/
 
 **≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
 
-- `평가해줘` — claim-extract → 축별 dispatch → aggregator → delta mark-done → sync update → work-plan 갱신 (≥6 단계)
+- `평가해줘` — claim-extract → 축별 dispatch → aggregator → (stage=final 한정) final-holistic-reviewer → delta mark-done → sync update → work-plan 갱신 (≥6 단계 / final은 +1)
 - `리서치 진행해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
 - `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
 - `초안 작성해줘` — (옵션) generative phase (thesis-developer / cross-paper-insight-finder / steelman-dialectic / field-positioning-oracle) → writing-architect Phase 0/1 → adversarial-reviewer (Phase 1.5) → writing-architect Phase 2 (chapter별) + adversarial-reviewer (Phase 2.5) + output-editor (자동 수정) → peer-reviewer (Phase 3) → claim-extract → 평가 (≥6 단계)
@@ -427,8 +427,8 @@ python3 scripts/migrate_project.py {PROJECT}
 | **분석** | `"flow 내용 분석해줘"` ≡ `"flow 내용 평가해줘"` | flow/flow.md axis2~6 → flow/evaluations/latest/axis{2-6} | WRITE (create/modify) |
 | **분석** | `"output 레퍼런스 분석해줘"` ≡ `"output 레퍼런스 평가해줘"` | output/*.md 문장 분석 + axis1 → output/evaluations/latest/axis1 | RESEARCH |
 | **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
-| **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 (통합본 부재 시 에러) | RESEARCH |
-| **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} | WRITE |
+| **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md (통합본 부재 시 에러) | RESEARCH |
+| **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md + work-plan WRITE 카드에 holistic_verdict 부여 | WRITE (verdict 게이팅) |
 | **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
 | **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
 | **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) | — |
@@ -454,6 +454,13 @@ python3 scripts/migrate_project.py {PROJECT}
 3. **mode 시스템 폐기** — `.current-mode` 파일·`mode_manager.py`·`"output으로 진행"`·`"현재 모드"` 모두 폐기. stage는 명령마다 사용자가 prefix로 명시.
 
 4. **`final` stage 사전 조건** — `final/complete-draft.md`가 없으면 `final 평가해줘` 거부. 사용자가 먼저 `"최종 완성했어"`로 통합본을 만들어야 함.
+
+5. **Final stage 통합 평가 의무 (Coherence Prior)** — `최종 완성했어`로 통합본을 만들었다는 건 사용자가 *"이 글은 한 덩어리로서 정합성·흐름·메시지가 살아있다"*고 선언한 상태. 따라서 final 평가는:
+   - 6축 결과는 *국소 진단*. 그것만으로 work-plan을 actionable로 보지 않음.
+   - `final-holistic-reviewer`가 통합본 척추(메시지·thesis·논증 backbone·voice)를 prior로 받아 axis 카드를 adjudicate.
+   - 5개 verdict로 분류: 🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE-{output|flow} · 🔴 REJECT(veto).
+   - REJECT는 "결함은 있으나 적용 시 척추 net harm" → veto. REROUTE는 "결함이 thesis·구조 수준이라 final 본문 수정으로는 못 고침 → output/flow로 backtrack 필요" → 사용자 결정 사안.
+   - 후속 명령(`Chapter X 수정해줘` 등)은 카드의 `holistic_verdict` 필드를 점검 후 적용. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
 
 4. **레퍼런스 vs 내용 분리**:
    - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
@@ -502,7 +509,7 @@ python3 scripts/migrate_project.py {PROJECT}
 **에이전트 분류 (3 차원)**:
 - **Generative agents** (작성 *전* — 새 시각·thesis 발전): thesis-developer / cross-paper-insight-finder / steelman-dialectic / field-positioning-oracle
 - **Reactive writing agents** (작성·수정·리뷰): writing-architect / output-editor / adversarial-reviewer / peer-reviewer / flow-refiner
-- **Analysis·evaluation agents** (분석·평가): paper-analyst / claim-extractor / citation-checker / evaluation-orchestrator + axis 1-6 / critical-companion / gap-finder / methodology-advisor / research-processor / abstract-translator
+- **Analysis·evaluation agents** (분석·평가): paper-analyst / claim-extractor / citation-checker / evaluation-orchestrator + axis 1-6 / final-holistic-reviewer (final stage 전용) / critical-companion / gap-finder / methodology-advisor / research-processor / abstract-translator
 - **Output translation agents** (출고 영문화): output-en-translator
 
 **모델 라우팅 원칙**: 작업 성격에 따라 서브에이전트를 다른 모델로 실행하여 비용·속도 최적화. 평가·글쓰기는 opus, 분석·검증은 sonnet, 번역 같은 기계적 작업은 haiku. 각 에이전트 정의 파일의 frontmatter `model` 필드에 기본값 표기. Agent 도구 호출 시 `model` 파라미터로 오버라이드 가능.
@@ -516,6 +523,7 @@ python3 scripts/migrate_project.py {PROJECT}
 | **axis4-originality-scorer** | `skills/agents/axis4-originality-scorer.md` | 축 4 독창성·기여도 (opus, delta tag 논문) | 자동 |
 | **axis5-concept-scorer** | `skills/agents/axis5-concept-scorer.md` | 축 5 구성개념 정의 정밀도 (sonnet) | 자동 |
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
+| **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). work-plan WRITE 카드에 `holistic_verdict` 필드·prefix 부여 (opus) | 자동 (final stage orchestrator) |
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
 | **paper-analyst** | `skills/agents/paper-analyst.md` | v3.2 — anchor (opus, 깊은) / non-anchor (sonnet, 가벼운) / Mode B 재분석 / Mode C critique_target. 정책 거부 fallback v3.2 (opus → sonnet 강등 정식 step), [X][D] 마커, index_fields, INDEX.md 자동 빌드 | `논문 처리해줘` 진입점 |

@@ -199,6 +199,37 @@ R은 claim-extraction 내부 ID로 유지 (work-plan.md에 카드로 올라가�
 
 이 흐름이 있어야 **work-plan의 카드 번호 ↔ registry ↔ claim-extraction의 ID가 절대 엇갈리지 않는다.**
 
+### 5.7 Final stage 한정 — Holistic Adjudication
+
+**stage=final일 때만 실행**. flow/output에서는 skip.
+
+aggregator가 WRITE 카드를 work-plan에 발급한 직후, `final-holistic-reviewer` Agent를 dispatch:
+
+| 항목 | 값 |
+|------|----|
+| Agent | `final-holistic-reviewer` |
+| 모델 | opus |
+| 입력 (선로드 + 주입) | `final/complete-draft.md`, `final/evaluations/latest/evaluation.md`, `axis1~6-*.md`, `final/claim-extraction-final.md`, `output/claim-extraction-output.md`(보조), `critical-commitments.md`(있으면), `work-plan.md` |
+| 출력 | `final/evaluations/latest/holistic-review.md` + work-plan WRITE 카드 annotation |
+
+**왜 final 한정인가**:
+- final = 사용자가 통합본 정합성을 *선언한* 상태 → 평가는 *coherence prior*로 와야 함
+- 6축은 자기 렌즈로 *국소 진단*. 척추(메시지·thesis·논증 backbone)를 보호하는 시점이 별도로 필요
+- axis 권고가 척추 disturbance > local benefit이면 REJECT(veto), 결함이 thesis·구조 수준이면 REROUTE-to-output/flow
+
+**4-Phase 작동** (자세한 내용은 `skills/agents/final-holistic-reviewer.md`):
+- Phase A: 척추 articulation (axis 결과 보기 *전*, draft만)
+- Phase B: 통합 전용 검사 (누적 trajectory, 원거리 모순, 비중, 인지 부하, closing coherence, voice 일관성)
+- Phase C: 6축 카드 adjudication — 각 카드에 verdict (🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE · 🔴 REJECT)
+- Phase D: protected revision plan (의존성 정렬)
+
+**work-plan.md 영향**:
+- 카드 본문에 `**holistic_verdict**: <verdict> — <사유>` + `**affected_spine**: <노드들>` 필드 추가
+- verdict가 APPLY/APPLY-SCOPED 외인 경우 카드 제목 prefix (`[🟠 DEFER]`, `[🔵 REROUTE-output]`, `[🔴 VETOED]`)
+- 🟡 Active 섹션 자체는 유지 (WORK-PLAN-FORMAT 호환). 후속 명령이 verdict 필드 보고 적용 결정.
+
+**flow/output stage**: 이 단계는 skip. `final-holistic-reviewer` 호출 X. 출력 메시지에 "(holistic adjudication: stage≠final이므로 skip)" 표기.
+
 ### 6. 캐시 갱신
 
 평가 완료된 축만 stage-aware 캐시 갱신:
@@ -245,8 +276,13 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 4. **Critical Mode** — ambition ≥ critical이면 축 6 강제 실행.
 5. **에러 처리** — 한 축 실패 시 해당 축만 이전 결과 유지 + 경고 표기. 다른 축 계속.
 6. **호환성** — `evaluation.md`는 다운스트림 진입점. output-editor/citation-checker는 evaluation.md만 읽어도 되도록 aggregator가 요약 보존.
+7. **Final-stage holistic은 의무** — stage=final일 때 §5.7 holistic adjudication을 *반드시* 실행. 6축 결과만으로 work-plan을 사용자에게 노출하지 않음. Final 평가의 진짜 산출은 6축 + holistic-review.md 두 산출의 결합.
+8. **Holistic은 카드 발급 X** — adjudicator 역할만. 신규 카드 생성하지 않고 기존 WRITE 카드의 verdict 필드 + prefix 부여만. 발급 권한은 aggregator·axis-scorer·peer-reviewer에 남음.
+9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 카드 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
 
 ## 출력
+
+### output stage 예시
 
 ```
 🎯 평가 완료 (stage=output, delta 모드, stale 2/5)
@@ -265,6 +301,32 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 
 📝 claim-extraction: output/claim-extraction-output.md 갱신 (3 새 문장)
 📝 work-plan.md: RESEARCH-024~026 (mode=search) 신규 발급
+ℹ️ holistic adjudication: stage≠final이므로 skip
 
 ⏱ 소요: 2분 15초
+```
+
+### final stage 예시 (holistic 포함)
+
+```
+🎯 평가 완료 (stage=final, full 모드, 6/6 축 평가)
+
+판정 (6축 roll-up): 🟠 Major Revision
+
+🛡 Holistic Adjudication 실행됨
+  Phase A — 척추 노드 6개 명문화 (메시지: "...")
+  Phase B — 통합 전용 검사: trajectory 🟡 / 원거리 모순 🟢 / 비중 🟠 / 인지 부하 🟢 / closing 🟡 / voice 🟢
+  Phase C — 카드 adjudication (총 12건):
+    🟢 APPLY 5  ·  🟡 APPLY-SCOPED 3  ·  🟠 DEFER 2  ·  🔵 REROUTE 1  ·  🔴 REJECT 1
+
+⚠️ 사용자 결정 필요 (REROUTE 1건):
+  WRITE-026 → §5 챕터 척추 결함. output 단계 backtrack 필요.
+  결정: `Chapter 5 수정해줘` (yes) / 결함 수용 (no)
+
+🛡 Coherence Verdict: 🟡 일부 영역 보강 권장 (척추는 견고)
+
+📝 holistic-review.md 생성: final/evaluations/latest/holistic-review.md
+📝 work-plan.md: 12 WRITE 카드에 holistic_verdict 부여 (REJECT/REROUTE/DEFER 카드는 prefix 표시)
+
+⏱ 소요: 4분 32초
 ```
