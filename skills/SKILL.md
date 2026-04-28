@@ -401,6 +401,20 @@ ambition은 **강도 조절**만 (게이트 X):
 - 디스크 수준: 각 `projects/{X}/` 폴더가 자기 papers·flow·output·final·work-plan·registry를 가짐 — 폴더 간 cross-contamination 없음.
 - 명령 수준: 위 우선순위로 라우팅 → conversation 컨텍스트가 깨지지 않는 한 추적 유지.
 
+**옛 버전 프로젝트 폴더 가져왔을 때**:
+
+다른 사용자에게서 받은 또는 옛 시점 백업에서 복구한 프로젝트 폴더는 v3.2 구조와 다를 수 있다 (`.current-mode` 잔존, `chapters/`, `evaluations/latest/` 옛 위치 등). 첫 작업 전 한 번 마이그레이션:
+
+```bash
+# dry-run으로 변경 예정 항목 미리 보기
+python3 scripts/migrate_project.py {PROJECT} --dry-run
+
+# 실제 적용 (멱등 — 두 번 실행해도 안전)
+python3 scripts/migrate_project.py {PROJECT}
+```
+
+또는 사용자가 `"프로젝트 마이그레이션해줘 {P}"`라고 말하면 Claude가 위 명령을 실행. 이미 최신 구조면 모든 단계 skip 메시지로 끝남.
+
 ## work-plan.md 사용 사이클 (공통)
 
 `projects/{P}/work-plan.md`는 **현재 해야 할 일 + 담당 명령 + 진행 로그**의 단일 소스입니다. 모든 명령이 이 파일을 참조·갱신합니다. **포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수**.
@@ -427,6 +441,7 @@ ambition은 **강도 조절**만 (게이트 X):
 | **실행** | `"참고문헌 만들어줘"` | analyzed/*.md frontmatter → bibliography.md (APA/MLA/Chicago/BibTeX) | — |
 | **메타** | `"현재 상태"` | 폴더 상태·진행도·버전/싱크 한눈 출력 | — |
 | **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 | — |
+| **메타** | `"프로젝트 마이그레이션해줘 {P}"` ≡ `"프로젝트 정리해줘 {P}"` | 옛 버전 폴더(`.current-mode` / `chapters/` / `evaluations/latest/` 잔존)를 v3.2 구조로 정리. `scripts/migrate_project.py` 호출. 멱등 — 이미 최신이면 모두 skip. `--dry-run` 옵션 지원 | — |
 | **Flow 보강** | `"flow 업데이트해줘"` | flow-refiner interactive diff (사용자 승인 후 즉시 반영, 카드 없음) | — |
 
 **중요 원칙**:
