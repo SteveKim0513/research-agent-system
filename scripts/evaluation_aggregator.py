@@ -23,7 +23,6 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 import card_registry
 import version_manager
-import mode_manager
 import paper_reanalysis_delta
 
 
@@ -78,7 +77,8 @@ def project_root(project: str) -> Path:
     return Path("projects") / project
 
 
-STAGES = ("flow", "output")
+STAGES = ("flow", "output", "final")
+VALID_STAGES = STAGES  # 명시 prefix 강제 — 자동 감지 폐기
 
 
 def latest_dir(project: str, stage: str = "flow") -> Path:
@@ -109,7 +109,7 @@ def claim_extraction_path(project: str, stage: str) -> Path:
 
 
 def claim_extraction_paths(project: str) -> list:
-    """존재하는 claim-extraction 파일 모두 반환 (flow + output)."""
+    """존재하는 claim-extraction 파일 모두 반환 (flow + output + final)."""
     paths = []
     for stage in STAGES:
         p = claim_extraction_path(project, stage)
@@ -128,22 +128,7 @@ def read_metadata(project: str) -> dict:
         return {}
 
 
-def detect_stage(project: str) -> str:
-    """현재 모드 우선, 없으면 폴더 상태로 자동 판정.
-
-    - .current-mode 파일이 있으면 그 값 반환
-    - 없으면 output/에 결과물 있으면 'output', 아니면 'flow'
-    """
-    proj = project_root(project)
-    if (proj / ".current-mode").exists():
-        return mode_manager.get_mode(proj)
-    # fallback: 자동 감지
-    out = output_dir(project)
-    if not out.exists():
-        return "flow"
-    real_files = [p for p in out.glob("*.md")
-                  if p.is_file() and not p.name.startswith("claim-extraction")]
-    return "output" if real_files else "flow"
+# (detect_stage 제거 — stage는 사용자가 명시 prefix로만 결정)
 
 
 # ──────────────────────────────────────────────────────────
@@ -242,9 +227,9 @@ def extract_axis(md_path: Path):
     }
 
 
-def parse_axis_scores(project: str):
+def parse_axis_scores(project: str, stage: str):
     """이름은 legacy지만 카테고리·진단·점수 모두 반환."""
-    lat = latest_dir(project, detect_stage(project))
+    lat = latest_dir(project, stage)
     meta = read_metadata(project)
     ambition = meta.get("intellectual_ambition", "incremental")
     critical_mode = ambition in ("critical", "paradigm-shifting")
@@ -375,8 +360,8 @@ def validate_axis_consistency(project: str, axis_data: dict) -> list:
 # evaluation.md 생성
 # ──────────────────────────────────────────────────────────
 
-def write_evaluation_md(project: str, axis_data: dict, missing: list, ambition: str, critical_mode: bool):
-    lat = latest_dir(project, detect_stage(project))
+def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list, ambition: str, critical_mode: bool):
+    lat = latest_dir(project, stage)
     lat.mkdir(parents=True, exist_ok=True)
 
     n_axes = len(axis_data)
@@ -1799,23 +1784,18 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
       - "content"    : 내용 분석 — axis2~6 통합 + WRITE 카드 발급
       - "status"     : 분석 없이 현재 상태만 출력 (status renderer)
 
-    stage: "flow" | "output" — 미지정 시 detect_stage 결과 (mode_manager 우선)
+    stage: "flow" | "output" | "final" — 사용자가 명시 prefix로 지정 (필수)
     """
     if action not in VALID_ACTIONS:
         print(f"❌ action은 {VALID_ACTIONS} 중 하나여야 함, got {action!r}", file=sys.stderr)
         return 1
-    if stage is None:
-        stage = detect_stage(project)
-    if stage not in STAGES:
-        print(f"❌ stage는 {STAGES} 중 하나여야 함, got {stage!r}", file=sys.stderr)
+    if stage is None or stage not in STAGES:
+        print(
+            f"❌ stage 필수: {STAGES} 중 하나 명시 (got {stage!r}). "
+            f"사용자가 'flow / output / final' prefix를 붙여야 함.",
+            file=sys.stderr,
+        )
         return 1
-
-    # prefix 명시는 mode 자동 전환까지 책임 (사용자 실수 방지 — 이후 명령은 새 모드 그대로)
-    proj_root = project_root(project)
-    current_mode = mode_manager.get_mode(proj_root)
-    if stage != current_mode and stage in mode_manager.VALID_MODES:
-        mode_manager.set_mode(proj_root, stage)
-        print(f"🔁 모드 자동 전환: {current_mode} → {stage}")
 
     if action == "status":
         return render_status(project, stage)
@@ -1874,8 +1854,8 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
     _apply_frontmatter_to_derivatives(project, stage)
 
     # 1. axis 파싱 + evaluation.md 생성
-    axis_data, missing, ambition, critical_mode = parse_axis_scores(project)
-    total, prev_total = write_evaluation_md(project, axis_data, missing, ambition, critical_mode)
+    axis_data, missing, ambition, critical_mode = parse_axis_scores(project, stage)
+    total, prev_total = write_evaluation_md(project, stage, axis_data, missing, ambition, critical_mode)
 
     n_axes = len(axis_data)
     verdict_emoji, verdict_label, _ = verdict_from_categories(axis_data)
@@ -2028,13 +2008,13 @@ def render_status(project: str, stage: str) -> int:
         print(f"❌ 프로젝트 없음: {root}", file=sys.stderr)
         return 1
 
-    # 1. 모드 + 기본 상태
-    current_mode = mode_manager.get_mode(root)
+    # 1. 폴더 상태
     print(f"\n📍 Project: {project}")
-    print(f"   Mode:  {current_mode}  ← 현재 모드 (prefix 생략 명령은 이 stage 적용)")
+    flow_status = "있음" if (root/'flow').exists() else "없음"
     out_status = "있음" if (root/'output').exists() else "없음"
-    print(f"   Folders: flow/ {'있음' if (root/'flow').exists() else '없음'} · output/ {out_status}")
-    print(f"   💡 모드 전환: \"flow 모드\" 또는 \"output 모드\"\n")
+    final_status = "있음" if (root/'final').exists() else "없음"
+    print(f"   Folders: flow/ {flow_status} · output/ {out_status} · final/ {final_status}")
+    print(f"   💡 stage 명령: \"flow 평가해줘\" / \"output 평가해줘\" / \"final 평가해줘\"\n")
 
     # 2. flow / output 본문 상태
     for st in STAGES:
@@ -2165,9 +2145,9 @@ def render_status(project: str, stage: str) -> int:
 
 def main(argv: list) -> int:
     if len(argv) < 2:
-        print("Usage: python3 evaluation_aggregator.py <project> [<action>] [<stage>]")
+        print("Usage: python3 evaluation_aggregator.py <project> <action> <stage>")
         print("  action : reference | content | status   (기본: reference)")
-        print("  stage  : flow | output                  (기본: 자동 감지 — mode_manager 우선)")
+        print("  stage  : flow | output | final          (필수 — 사용자 명시 prefix)")
         return 1
     project = argv[1]
     action = argv[2] if len(argv) >= 3 else "reference"

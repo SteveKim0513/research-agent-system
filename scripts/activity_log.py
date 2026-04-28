@@ -32,26 +32,20 @@ from pathlib import Path
 LOG_FORMAT = "[{timestamp}] {action} | {stage} | {target} | {result} | {ref} | {agents} | {meta}"
 
 # Claude Code 기반 명령 패턴 (Korean + English)
-# 명령어 체계:
-#   - prefix(flow|output) 명시 = 항상 그 stage 적용 (현재 모드 무시 override)
-#   - prefix 생략 = .current-mode 파일의 현재 모드 적용
+# 명령어 체계 (v3, mode 시스템 폐기):
+#   - prefix(flow|output|final) 항상 명시 필수 — 단독 "평가해줘" / "분석해줘" 불인식
 #   - 분석 ≡ 평가 혼용
 COMMAND_PATTERNS = [
     # (pattern, action_label, stage_hint)
-    # 모드 전환 (가장 우선)
-    (r"^(flow|output)\s*모드(\s*전환|\s*켜줘|로\s*전환)?\s*$", "모드 전환", None),
-    (r"현재\s*모드|모드\s*확인", "현재 모드 조회", None),
-    # 분석 명령 (4종 — prefix 명시)
+    # 분석 명령 (6종 — prefix 명시 필수)
     (r"flow\s*레퍼런스\s*(분석|평가)해줘", "flow 레퍼런스 분석", "flow"),
     (r"flow\s*내용\s*(분석|평가)해줘", "flow 내용 분석", "flow"),
     (r"output\s*레퍼런스\s*(분석|평가)해줘", "output 레퍼런스 분석", "output"),
     (r"output\s*내용\s*(분석|평가)해줘", "output 내용 분석", "output"),
-    # 분석 명령 (prefix 생략 — 현재 모드 적용)
-    (r"^레퍼런스\s*(분석|평가)해줘", "레퍼런스 분석 (모드 적용)", None),
-    (r"^내용\s*(분석|평가)해줘", "내용 분석 (모드 적용)", None),
-    # Critical mode (prefix 명시 / 생략)
-    (r"(flow|output)\s*크리티컬\s*모드\s*켜줘", "크리티컬 모드 활성 (명시)", None),
-    (r"^크리티컬\s*모드\s*켜줘", "크리티컬 모드 활성 (모드 적용)", None),
+    (r"final\s*레퍼런스\s*(분석|평가)해줘", "final 레퍼런스 분석", "final"),
+    (r"final\s*내용\s*(분석|평가)해줘", "final 내용 분석", "final"),
+    # Critical mode (prefix 명시 필수)
+    (r"(flow|output|final)\s*크리티컬\s*모드\s*켜줘", "크리티컬 모드 활성 (명시)", None),
     # flow 보강 (interactive helper, 카드 없음)
     (r"flow\s*업데이트해줘|flow\s*보강|새\s*논문\s*반영해서\s*flow", "flow 업데이트 요청", "flow"),
     # 실행 명령
@@ -59,12 +53,13 @@ COMMAND_PATTERNS = [
     (r"새\s*논문\s*처리해줘|논문\s*처리해줘|candidates\s*처리해줘|논문\s*분석해줘", "논문 처리 요청", None),
     (r"논문\s*재분석해줘", "논문 재분석 요청", None),
     (r"논문\s*제거해줘", "논문 제거 요청", None),
-    (r"초안\s*작성해줘|draft\s*생성|글\s*써줘", "초안 작성 요청", "v1"),
-    (r"output\s+\S+\s*수정해줘|Chapter\s*\d+\s*수정해줘|\d+장\s*수정", "원고 수정 요청", "revised"),
+    (r"초안\s*작성해줘|draft\s*생성|글\s*써줘", "초안 작성 요청", "output"),
+    (r"output\s+\S+\s*수정해줘|Chapter\s*\d+\s*수정해줘|\d+장\s*수정", "원고 수정 요청", "output"),
+    # 최종 완성 — output/*.md → final/complete-draft.md 머지
+    (r"최종\s*완성했어|최종\s*완성해줘|최종\s*통합해줘|final\s*재빌드|docx\s*재생성|chapter\s*합쳐줘", "최종 완성 요청", "final"),
     # 메타
     (r"현재\s*상태(\s*확인해줘)?", "현재 상태 조회", None),
     (r"버전\s*체크(해줘)?|싱크\s*체크해줘|sync\s*check", "버전 체크 조회", None),
-    (r"(최종\s*통합해줘|final\s*재빌드|docx\s*재생성|chapter\s*합쳐줘)", "최종 통합 요청", "final"),
     (r"(리뷰\s*체크해줘|심사\s*시뮬|제출\s*전\s*체크)", "리뷰 시뮬 요청", "final"),
     (r"(리뷰\s*답변\s*도와줘|리뷰\s*분석)", "리뷰 대응 요청", "final"),
     (r"(질문\s*업데이트해줘|비판적\s*질문\s*생성해줘|critical\s*questions)", "질문 업데이트 요청", None),
@@ -94,13 +89,14 @@ def get_repo_root() -> Path:
 
 
 def detect_project(cwd: Path | None = None, hint_text: str = "") -> str | None:
-    """활성 프로젝트 감지.
+    """활성 프로젝트 감지 (명시적 신호만 인정).
 
     우선순위:
     1. hint_text에 "projects/X" 언급이 있으면 X
     2. hint_text에 프로젝트 이름 직접 언급 (예: "CDEA")
-    3. projects/ 내 가장 최근 수정된 폴더
-    4. 없으면 None
+    3. CWD가 projects/X 또는 그 하위면 X
+    4. 모호하면 None — "가장 최근 폴더" silent 추측은 폐기
+       (잘못된 프로젝트로 silent 라우팅되는 사고 방지. mode_manager 폐기와 같은 원칙.)
     """
     repo = get_repo_root()
     projects_dir = repo / "projects"
@@ -117,12 +113,19 @@ def detect_project(cwd: Path | None = None, hint_text: str = "") -> str | None:
         if p.is_dir() and p.name in hint_text:
             return p.name
 
-    # 3. 가장 최근 수정된 프로젝트 폴더
-    candidates = [p for p in projects_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
-    if not candidates:
-        return None
-    most_recent = max(candidates, key=lambda p: p.stat().st_mtime)
-    return most_recent.name
+    # 3. CWD 기반 — 사용자가 프로젝트 폴더에서 Claude를 실행한 경우
+    if cwd is None:
+        cwd = Path.cwd()
+    try:
+        rel = cwd.resolve().relative_to(projects_dir.resolve())
+        first = rel.parts[0] if rel.parts else None
+        if first and (projects_dir / first).is_dir():
+            return first
+    except (ValueError, OSError):
+        pass
+
+    # 4. 모호 → None (자동 hook은 로그를 스킵, 명령 호출자는 사용자에게 명시 요청)
+    return None
 
 
 def log_path(project: str) -> Path:
@@ -607,21 +610,13 @@ def cmd_recommend(project: str, days: int = 14) -> int:
     recs = []
 
     # P1: 장기 미활동
-    if days_since_last >= 3:
-        if last_stage in ("v1", "revised"):
-            recs.append({
-                "priority": "P1",
-                "command": '"flow 레퍼런스 분석해줘"',
-                "reason": f"{days_since_last}일 미활동. 마지막 stage는 {last_stage}. 재평가로 현재 상태 확인 권장.",
-                "ref_log": last_action["ts"] if last_action else "",
-            })
-        elif last_stage == "stage1":
-            recs.append({
-                "priority": "P1",
-                "command": '"레퍼런스 점검해줘"',
-                "reason": f"{days_since_last}일 미활동. 마지막은 Stage 1 리서치. 축 1 경량 점검으로 재진입 권장.",
-                "ref_log": last_action["ts"] if last_action else "",
-            })
+    if days_since_last >= 3 and last_stage in ("flow", "output", "final"):
+        recs.append({
+            "priority": "P1",
+            "command": f'"{last_stage} 레퍼런스 분석해줘"',
+            "reason": f"{days_since_last}일 미활동. 마지막 stage는 {last_stage}. 재평가로 현재 상태 확인 권장.",
+            "ref_log": last_action["ts"] if last_action else "",
+        })
 
     # P2: stage 자연 다음 단계
     if last_stage == "flow":
@@ -631,25 +626,18 @@ def cmd_recommend(project: str, days: int = 14) -> int:
             "reason": "flow 평가 완료 후 자연 다음 단계. RESEARCH 카드 자동 실행.",
             "ref_log": last_eval["ts"] if last_eval else "",
         })
-    elif last_stage == "stage1":
+    elif last_stage == "output":
         recs.append({
             "priority": "P2",
-            "command": '"초안 작성해줘"',
-            "reason": "리서치 완료 후 Stage 2 초안 작성 권장.",
-            "ref_log": last_action["ts"] if last_action else "",
-        })
-    elif last_stage == "v1":
-        recs.append({
-            "priority": "P2",
-            "command": '"Chapter X 수정해줘: ..."',
-            "reason": "초안 완료. 평가 결과를 바탕으로 약한 챕터부터 순차 수정 권장.",
+            "command": '"output {파일명} 수정해줘: WRITE-NNN" 또는 "최종 완성했어"',
+            "reason": "output 평가 완료. WRITE 카드 처리 또는 최종 완성으로 final/ 진입.",
             "ref_log": last_eval["ts"] if last_eval else "",
         })
-    elif last_stage == "revised":
+    elif last_stage == "final":
         recs.append({
             "priority": "P2",
-            "command": '"최종 통합해줘"',
-            "reason": "수정 완료. final/ 재빌드 후 리뷰 체크로 최종 품질 게이트.",
+            "command": '"final 레퍼런스 분석해줘" / "final 내용 분석해줘"',
+            "reason": "최종 통합본 평가 — 제출 전 마지막 품질 게이트.",
             "ref_log": last_action["ts"] if last_action else "",
         })
 

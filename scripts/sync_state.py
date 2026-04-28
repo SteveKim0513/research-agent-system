@@ -325,6 +325,30 @@ def cmd_snapshot_flow(project_name: str, trigger: str) -> int:
     return 0
 
 
+def cmd_snapshot_final(project_name: str, trigger: str) -> int:
+    """final/complete-draft.md + final/claim-extraction-final.md를 history/final/body/{NNN}-{date}-{trigger}/로."""
+    root = project_root(project_name)
+    final_dir = root / "final"
+    src_draft = final_dir / "complete-draft.md"
+    src_claims = final_dir / "claim-extraction-final.md"
+    if not src_draft.exists():
+        print(f"ℹ️  final/complete-draft.md 없음 — 스냅샷 스킵")
+        return 0
+
+    hist_dir = history_dir(root, "final", "body")
+    hist_dir.mkdir(parents=True, exist_ok=True)
+    seq = next_sequence(hist_dir, dirs_only=True)
+    folder_name = f"{seq:03d}-{today_tag()}-{trigger}"
+    dest_dir = hist_dir / folder_name
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    (dest_dir / "complete-draft.md").write_bytes(src_draft.read_bytes())
+    if src_claims.exists():
+        (dest_dir / "claim-extraction-final.md").write_bytes(src_claims.read_bytes())
+    print(f"✅ final 스냅샷: {dest_dir.relative_to(root)}")
+    return 0
+
+
 def cmd_snapshot_output(project_name: str, trigger: str, output_filename: str) -> int:
     """단일 output 파일 + 현재 claim-extraction-output.md를 history/output/body/{file_id}/{NNN}-*/에."""
     root = project_root(project_name)
@@ -821,6 +845,8 @@ def main(argv: list) -> int:
             return cmd_remove_paper(args[0], args[1])
         if cmd == "snapshot-flow" and len(args) == 2:
             return cmd_snapshot_flow(args[0], args[1])
+        if cmd == "snapshot-final" and len(args) == 2:
+            return cmd_snapshot_final(args[0], args[1])
         if cmd == "snapshot-chapter" and len(args) == 3:
             return cmd_snapshot_chapter(args[0], args[1], args[2])
         if cmd == "snapshot-chapters" and 2 <= len(args) <= 3:

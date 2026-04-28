@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-evaluation_delta.py — 축별 변경 감지 엔진 (v2 stage-aware).
+evaluation_delta.py — 축별 변경 감지 엔진 (v3, stage 명시 강제).
 
 각 축은 평가 대상 stage에 따라 다른 입력에 의존한다:
-  flow 단계 (아직 output/ 없음):
+  flow 단계:
     axis1: flow/flow.md + flow/claim-extraction-flow.md + analyzed/*.md
     axis2: flow/flow.md
     axis3: flow/flow.md + analyzed:steelman
@@ -11,7 +11,7 @@ evaluation_delta.py — 축별 변경 감지 엔진 (v2 stage-aware).
     axis5: flow/flow.md
     axis6: flow/flow.md + critical-questions.md + critical-commitments.md + analyzed:minority
 
-  output 단계 (output/ 존재):
+  output 단계 (output/*.md 챕터들):
     axis1: output/*.md + output/claim-extraction-output.md + analyzed/*.md
     axis2: output/*.md
     axis3: output/*.md + analyzed:steelman
@@ -19,12 +19,19 @@ evaluation_delta.py — 축별 변경 감지 엔진 (v2 stage-aware).
     axis5: output/*.md
     axis6: output/*.md + critical-questions.md + critical-commitments.md + analyzed:minority
 
+  final 단계 (final/*.md 통합본):
+    axis1: final/*.md + final/claim-extraction-final.md + analyzed/*.md
+    axis2~5: final/*.md (+ steelman/delta tag)
+    axis6: final/*.md + critical-questions.md + critical-commitments.md + analyzed:minority
+
 이 스크립트는 입력 해시를 이전 평가 시점의 캐시와 비교해 재계산 필요한 축을 반환한다.
 
+stage는 사용자가 명시 prefix로 지정 (자동 감지 폐기).
+
 하위 명령:
-  compute-inputs {project} [--stage=auto|flow|v1|revised|final]
-  check {project}           [--stage=...]
-  mark-done {project} <axes_csv>  [--stage=...]
+  compute-inputs {project} --stage=flow|output|final
+  check {project}           --stage=...
+  mark-done {project} <axes_csv>  --stage=...
   reset {project}
 """
 import hashlib
@@ -36,12 +43,11 @@ from datetime import datetime
 
 AXES = ["axis1", "axis2", "axis3", "axis4", "axis5", "axis6"]
 
-STAGE_FLOW = "flow"
-STAGE_DRAFT_STAGES = {"v1", "revised", "final"}
+STAGES = ("flow", "output", "final")
 
 # Stage별 축 의존성
 AXIS_DEPENDENCIES = {
-    STAGE_FLOW: {
+    "flow": {
         "axis1": ["flow/flow.md", "flow/claim-extraction-flow.md", "analyzed:*"],
         "axis2": ["flow/flow.md"],
         "axis3": ["flow/flow.md", "analyzed:steelman"],
@@ -49,14 +55,21 @@ AXIS_DEPENDENCIES = {
         "axis5": ["flow/flow.md"],
         "axis6": ["flow/flow.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
     },
-    # output 단계는 v1/revised/final 모두 동일 구조
-    "draft": {
+    "output": {
         "axis1": ["output/*.md", "output/claim-extraction-output.md", "analyzed:*"],
         "axis2": ["output/*.md"],
         "axis3": ["output/*.md", "analyzed:steelman"],
         "axis4": ["output/*.md", "analyzed:delta"],
         "axis5": ["output/*.md"],
         "axis6": ["output/*.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
+    },
+    "final": {
+        "axis1": ["final/*.md", "final/claim-extraction-final.md", "analyzed:*"],
+        "axis2": ["final/*.md"],
+        "axis3": ["final/*.md", "analyzed:steelman"],
+        "axis4": ["final/*.md", "analyzed:delta"],
+        "axis5": ["final/*.md"],
+        "axis6": ["final/*.md", "critical-questions.md", "critical-commitments.md", "analyzed:minority"],
     },
 }
 
@@ -79,29 +92,15 @@ def sha256_str(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
 
 
-def chapter_files(proj: Path) -> list:
-    """output/의 실제 챕터 (claim-extraction-output.md 제외)."""
-    chap_dir = proj / "chapters"
-    if not chap_dir.exists():
+def stage_files(proj: Path, stage: str) -> list:
+    """stage 폴더의 본문 *.md (claim-extraction-* 제외)."""
+    st_dir = proj / stage
+    if not st_dir.exists():
         return []
     return sorted([
-        p for p in chap_dir.glob("*.md")
-        if p.is_file() and p.name != "claim-extraction-output.md"
+        p for p in st_dir.glob("*.md")
+        if p.is_file() and not p.name.startswith("claim-extraction")
     ])
-
-
-def detect_stage(proj: Path) -> str:
-    """프로젝트 현재 stage 자동 감지.
-
-    output/에 실제 챕터 파일이 있으면 draft, 없으면 flow.
-    세부 구분(v1/revised/final)은 현재 단순화 위해 draft로 통합.
-    """
-    return "v1" if chapter_files(proj) else STAGE_FLOW
-
-
-def stage_key(stage: str) -> str:
-    """stage 이름을 AXIS_DEPENDENCIES의 키로 매핑."""
-    return STAGE_FLOW if stage == STAGE_FLOW else "draft"
 
 
 # ─────────────────────── 태그 추출 ───────────────────────
@@ -141,7 +140,7 @@ def collect_analyzed_by_tag(proj: Path) -> dict:
 
 def compute_axis_input_hash(project: str, axis: str, stage: str) -> str:
     proj = project_root(project)
-    deps = AXIS_DEPENDENCIES[stage_key(stage)][axis]
+    deps = AXIS_DEPENDENCIES[stage][axis]
     parts = []
     analyzed_map = None
 
@@ -154,19 +153,19 @@ def compute_axis_input_hash(project: str, axis: str, stage: str) -> str:
             for f in sorted(files):
                 parts.append(f"{f.name}:{sha256_file(f)}")
             parts.append(f"analyzed:{tag}:count={len(files)}")
-        elif dep == "output/*.md":
-            chaps = chapter_files(proj)
-            for f in chaps:
-                parts.append(f"chapter:{f.name}:{sha256_file(f)}")
-            parts.append(f"chapters:count={len(chaps)}")
-        elif dep == "output/claim-extraction-output.md":
-            f = proj / "chapters" / "claim-extraction-output.md"
+        elif dep.endswith("/*.md"):
+            # stage 본문 (output/*.md or final/*.md)
+            st = dep.split("/", 1)[0]
+            files = stage_files(proj, st)
+            for f in files:
+                parts.append(f"{st}:{f.name}:{sha256_file(f)}")
+            parts.append(f"{st}:count={len(files)}")
+        elif "/claim-extraction-" in dep:
+            # flow/claim-extraction-flow.md, output/claim-extraction-output.md, final/claim-extraction-final.md
+            f = proj / dep
             parts.append(f"{dep}:{sha256_file(f)}")
         elif dep == "flow/flow.md":
             f = proj / "flow" / "flow.md"
-            parts.append(f"{dep}:{sha256_file(f)}")
-        elif dep == "flow/claim-extraction-flow.md":
-            f = proj / "flow" / "claim-extraction-flow.md"
             parts.append(f"{dep}:{sha256_file(f)}")
         elif dep in ("critical-questions.md", "critical-commitments.md"):
             f = proj / dep
@@ -181,7 +180,12 @@ def compute_axis_input_hash(project: str, axis: str, stage: str) -> str:
 # ─────────────────────── 캐시 ───────────────────────
 
 def cache_path(project: str) -> Path:
-    return project_root(project) / "evaluations" / "latest" / ".eval-cache.json"
+    """캐시 파일 위치 — 프로젝트 루트에 단일 파일.
+
+    Stage가 다른 (flow/output/final) 평가들 모두 같은 캐시에 저장하되
+    엔트리 안에 stage 필드를 함께 보관.
+    """
+    return project_root(project) / ".eval-cache.json"
 
 
 def load_cache(project: str) -> dict:
@@ -204,9 +208,15 @@ def save_cache(project: str, cache: dict) -> None:
 # ─────────────────────── 커맨드 ───────────────────────
 
 def resolve_stage(project: str, stage_arg: str) -> str:
-    if stage_arg and stage_arg != "auto":
-        return stage_arg
-    return detect_stage(project_root(project))
+    """stage 명시 강제. 자동 감지 폐기."""
+    if not stage_arg or stage_arg == "auto":
+        raise ValueError(
+            f"stage 필수 (--stage=flow|output|final). "
+            f"v3에서 자동 감지 폐기 — 사용자 명시 prefix만 인식."
+        )
+    if stage_arg not in STAGES:
+        raise ValueError(f"stage는 {STAGES} 중 하나여야 함, got {stage_arg!r}")
+    return stage_arg
 
 
 def cmd_compute_inputs(project: str, stage: str) -> int:
@@ -285,9 +295,9 @@ def cmd_reset(project: str) -> int:
 # ─────────────────────── 엔트리 ───────────────────────
 
 def parse_stage_arg(args: list) -> tuple:
-    """--stage=X 플래그를 추출 후 (plain_args, stage) 반환."""
+    """--stage=X 플래그를 추출 후 (plain_args, stage) 반환. stage 미지정 시 None."""
     plain = []
-    stage = "auto"
+    stage = None
     for a in args:
         if a.startswith("--stage="):
             stage = a.split("=", 1)[1]

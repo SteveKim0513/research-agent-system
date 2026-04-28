@@ -324,9 +324,11 @@ claim-extractor는 *평가의 input*. 평가 명령 (`평가해줘`)에서만 �
 
 | 명령 | 자동 재분석 조건 | 대상 | 출력 |
 |------|----------------|-----|-----|
-| `평가해줘` (flow) | flow.md mtime > `flow/claim-extraction-flow.md` mtime | flow | `flow/claim-extraction-flow.md` |
-| `평가해줘` (draft) | 어느 chapter든 mtime > `output/claim-extraction-output.md` mtime | chapters 통합 | `output/claim-extraction-output.md` |
+| `flow 평가해줘` | flow.md mtime > `flow/claim-extraction-flow.md` mtime | flow | `flow/claim-extraction-flow.md` |
+| `output 평가해줘` | 어느 chapter든 mtime > `output/claim-extraction-output.md` mtime | chapters 통합 | `output/claim-extraction-output.md` |
+| `final 평가해줘` | `final/complete-draft.md` mtime > `final/claim-extraction-final.md` mtime | 통합본 | `final/claim-extraction-final.md` |
 | `flow 업데이트해줘` | flow-refiner 승인 반영 후 | flow | `flow/claim-extraction-flow.md` |
+| `최종 완성했어` | output/*.md 머지 시점에 final/ 생성 (claim-extraction은 다음 `final 평가해줘`에서 lazy 갱신) | — | — |
 
 **작성/수정 명령은 자동 체이닝 X**:
 - `초안 작성해줘` 직후엔 sync_state + build_index만 (단계 9). claim-extractor는 사용자가 다음 `평가해줘` 호출 시점에 lazy 갱신.
@@ -375,6 +377,30 @@ ambition은 **강도 조절**만 (게이트 X):
 - **Reactivation**: completed 카드와 동일 dedup_key가 재제안되면 자동 부활 (status=ready + work-plan 재삽입 + reactivated_count 증가)
 - **CLI**: `python3 scripts/card_registry.py {list|stats|bootstrap|issue} {PROJECT} <research|write>`
 
+## 🔒 프로젝트 컨텍스트 규약 (세션 추적)
+
+여러 프로젝트가 `projects/` 안에 공존할 수 있다. 어떤 프로젝트로 명령이 라우팅되는지는 **명시 신호로만 결정**한다 — silent 추측 금지.
+
+**프로젝트 식별 우선순위 (모든 명령에 적용)**:
+1. 사용자 메시지에 `projects/X` 경로 직접 등장
+2. 사용자 메시지에 프로젝트 이름 직접 등장 (예: `"CDEA flow 평가해줘"`)
+3. 같은 conversation 내 이전 메시지에서 사용자가 명시한 프로젝트 (Claude가 컨텍스트로 추적)
+4. CWD가 `projects/X` 또는 그 하위 — 사용자가 그 폴더에서 Claude를 실행한 경우
+5. 위 모두 모호하면 → **사용자에게 명시 요청 후 중단**. "가장 최근 폴더" 같은 fallback 추측 절대 금지.
+
+**세션 시작 시 규약**:
+- 새 conversation의 첫 명령에서 프로젝트가 모호하면 Claude는 먼저 묻는다:
+  > "어느 프로젝트인가요? 현재 `projects/` 안에 있는 프로젝트: CDEA, …"
+- 사용자가 `"CDEA로 작업할게"` 같이 한 번 명시하면, **이 conversation이 끝날 때까지 그 프로젝트만 작업**. 다른 프로젝트로 옮기려면 사용자가 명시적으로 전환 선언.
+
+**자동 hook 처리**:
+- `activity_log.py:detect_project`는 명시 신호 부재 시 None 반환 → 로그 스킵 (silent 라우팅 사고 방지).
+- `mode_manager` 폐기와 같은 원칙: hidden state 추측 대신 명시 신호 강제.
+
+**프로젝트 격리 보장**:
+- 디스크 수준: 각 `projects/{X}/` 폴더가 자기 papers·flow·output·final·work-plan·registry를 가짐 — 폴더 간 cross-contamination 없음.
+- 명령 수준: 위 우선순위로 라우팅 → conversation 컨텍스트가 깨지지 않는 한 추적 유지.
+
 ## work-plan.md 사용 사이클 (공통)
 
 `projects/{P}/work-plan.md`는 **현재 해야 할 일 + 담당 명령 + 진행 로그**의 단일 소스입니다. 모든 명령이 이 파일을 참조·갱신합니다. **포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수**.
@@ -387,30 +413,32 @@ ambition은 **강도 조절**만 (게이트 X):
 | **분석** | `"flow 내용 분석해줘"` ≡ `"flow 내용 평가해줘"` | flow/flow.md axis2~6 → flow/evaluations/latest/axis{2-6} | WRITE (create/modify) |
 | **분석** | `"output 레퍼런스 분석해줘"` ≡ `"output 레퍼런스 평가해줘"` | output/*.md 문장 분석 + axis1 → output/evaluations/latest/axis1 | RESEARCH |
 | **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
+| **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 (통합본 부재 시 에러) | RESEARCH |
+| **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} | WRITE |
 | **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
 | **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
 | **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) | — |
 | **실행** | `"비판적으로 분석해줘 X"` | critique_target=true → analyzed/{X}.md에 비판 섹션 추가 (Mode C) | — |
 | **실행** | `"초안 작성해줘"` | flow → output 신규 작성 (WRITE create 카드 처리) | — |
 | **실행** | `"output {파일명} 수정해줘: WRITE-NNN"` | WRITE modify 카드 처리 | — |
+| **실행** | `"최종 완성했어"` ≡ `"최종 완성해줘"` | output/*.md → final/complete-draft.md 머지 (`finalize_draft.py`). final/ 폴더는 이때만 생성 | — |
 | **실행** | `"적대적 리뷰 해줘"` | adversarial-reviewer 학파별 반박 시뮬 → adversarial-review.md | — |
 | **실행** | `"인용 확인해줘"` | citation_check output ↔ analyzed/*.md 정합성 → output/.citation-check-report.md | — |
 | **실행** | `"참고문헌 만들어줘"` | analyzed/*.md frontmatter → bibliography.md (APA/MLA/Chicago/BibTeX) | — |
-| **모드** | `"output으로 진행"` 또는 자동 (`"초안 작성해줘"` 호출 시) | flow → output 단방향 전진 | — |
-| **모드** | `"현재 모드"` | 현재 단계 (flow|output) 출력 | — |
-| **메타** | `"현재 상태"` | 폴더 상태·진행도·모드·버전/싱크 한눈 출력 | — |
+| **메타** | `"현재 상태"` | 폴더 상태·진행도·버전/싱크 한눈 출력 | — |
 | **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 | — |
-| ~~**Critical**~~ | ~~`"flow 크리티컬 모드 켜줘"`~~ | **폐기** — critical 질문은 모든 작업 후 자동 생성됨 (always-on). ambition은 강도 조절만. | — |
 | **Flow 보강** | `"flow 업데이트해줘"` | flow-refiner interactive diff (사용자 승인 후 즉시 반영, 카드 없음) | — |
 
 **중요 원칙**:
 
-1. **명령어 prefix 필수** — `"레퍼런스 분석해줘"` (prefix 없음) 금지. `flow` 또는 `output` 명시 필요. 미입력 시 에러:
-   > "단계를 명시해주세요: `flow` 또는 `output`"
+1. **명령어 prefix 필수** — `"레퍼런스 분석해줘"` (prefix 없음) 금지. `flow` / `output` / `final` 중 하나 명시 필요. 미입력 시 에러:
+   > "단계를 명시해주세요: `flow`, `output`, 또는 `final`"
 
 2. **분석 ≡ 평가**(혼용) — 두 표현 어느 쪽이든 같은 명령으로 인식. 사용자 자연스러운 표현 그대로.
 
-3. **`"평가해줘"` (단독, prefix 없음) 폐기** — 항상 prefix + 분석 종류 명시 (`"flow 레퍼런스 분석해줘"` 등).
+3. **mode 시스템 폐기** — `.current-mode` 파일·`mode_manager.py`·`"output으로 진행"`·`"현재 모드"` 모두 폐기. stage는 명령마다 사용자가 prefix로 명시.
+
+4. **`final` stage 사전 조건** — `final/complete-draft.md`가 없으면 `final 평가해줘` 거부. 사용자가 먼저 `"최종 완성했어"`로 통합본을 만들어야 함.
 
 4. **레퍼런스 vs 내용 분리**:
    - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
@@ -483,7 +511,7 @@ ambition은 **강도 조절**만 (게이트 X):
 | **writing-architect** ✍️ | `skills/agents/writing-architect.md` | "초안 작성" Phase 0 (positioning) / Phase 1 (outline) / Phase 1.5 (adversarial review) / Phase 2 (chapter별 작성 + self-critique loop) / Phase 2.5 (chapter critique) / Phase 3 (peer-review 시뮬). Elite Scholarly 패턴 (layered argumentation·counterargument anticipation·quote framing·scholarly voice·novel synthesis·self-critique). | 자동 |
 | **output-editor** ✏️ | `skills/agents/output-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정 + adversarial-reviewer Phase 2.5 결과 자동 적용) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
-| **citation-checker** | `skills/agents/citation-checker.md` | chapter 수정 후 자동 + 평가(v1/revised/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
+| **citation-checker** | `skills/agents/citation-checker.md` | chapter 수정 후 자동 + 평가(output/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
 | **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
 | **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
@@ -746,12 +774,17 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 ## 🎯 6축 평가 (evaluation-orchestrator, 병렬 delta 아키텍처)
 
-사용자가 "flow 레퍼런스 분석해줘"·"flow 내용 분석해줘"·"output 레퍼런스 분석해줘"·"output 내용 분석해줘" 등 분석 명령을 말하면:
+사용자가 분석 명령을 말하면 (3 stage × 2 종류 = 6 명령):
+- `"flow 레퍼런스 분석해줘"` / `"flow 내용 분석해줘"`
+- `"output 레퍼런스 분석해줘"` / `"output 내용 분석해줘"`
+- `"final 레퍼런스 분석해줘"` / `"final 내용 분석해줘"`
 
-**플래그 지원**:
-- `평가해줘` — delta 모드 (변경된 축만 재계산, 기본)
-- `평가해줘 --full` — 전체 6축 강제 재실행
-- `평가해줘 axis3,4` — 명시 축만 실행 (쉼표 구분)
+**stage prefix 필수**: 단독 `"평가해줘"` (prefix 없음) → 에러 (`flow / output / final 명시`).
+
+**플래그 지원** (prefix와 함께):
+- `"output 평가해줘"` — delta 모드 (변경된 축만 재계산, 기본)
+- `"output 평가해줘 --full"` — 전체 6축 강제 재실행
+- `"output 평가해줘 axis3,4"` — 명시 축만 실행 (쉼표 구분)
 
 ### 단계 0a: 최소 요구사항 검증 (gate)
 
@@ -781,17 +814,18 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 `python3 scripts/sync_state.py check {PROJECT_NAME}` 실행 — Critical stale 시 사용자 확인, Minor stale 시 경고만, Clean 시 진행.
 
-### 단계 1: 평가 대상 판별 + stage 결정
+### 단계 1: stage 결정 (사용자 prefix 그대로)
 
-- `flow.md`만 존재 → **flow** 단계
-- `output/*.md` 존재 + `final/complete-draft.md` 없음 → **v1**
-- `final/complete-draft.md` 존재 + 수정 기록 → **revised**
-- "최종 평가" 명시 → **final**
+- `"flow 평가해줘"` → stage=`flow`, 대상 `flow/flow.md`
+- `"output 평가해줘"` → stage=`output`, 대상 `output/*.md`
+- `"final 평가해줘"` → stage=`final`, 대상 `final/complete-draft.md` (부재 시 에러: "먼저 '최종 완성했어'로 통합본 만들어주세요")
+
+자동 감지 없음. 사용자 명시 prefix로만 결정.
 
 ### 단계 2: Delta 감지
 
 ```bash
-python3 scripts/evaluation_delta.py check {PROJECT_NAME}
+python3 scripts/evaluation_delta.py check {PROJECT_NAME} --stage={flow|output|final}
 ```
 
 출력(JSON)에서 `stale_axes` 배열을 얻는다. 이것이 이번에 재계산할 축 집합.
@@ -811,21 +845,15 @@ python3 scripts/sync_state.py snapshot-evaluation {PROJECT_NAME} {stage}
 
 ### 단계 4: claim-extractor 선행 호출 (자동 재분석)
 
-**두 가지 "stage" 개념 구분**:
-- **Project stage** (work-plan.md 헤더 + `evaluation_delta.py --stage=`): `flow | v1 | revised | final` — 작업의 실제 단계
-- **claim-extractor stage** (내부 분기 파라미터): `flow | draft` — 분석 대상이 `flow/flow.md`인지 `output/*.md` 통합인지. Project stage가 `v1/revised/final` 중 어느 것이든 claim-extractor stage는 동일하게 `draft`로 호출됨 (동일 파일 `output/claim-extraction-output.md` 갱신)
-
-**Project stage 감지**: `output/`에 실제 챕터 파일이 있으면 `v1` 이상, 없으면 `flow`. 세부 구분(v1 vs revised vs final)은 final 통합본·수정 이력으로 판정.
-**claim-extractor stage 감지**: 실제 챕터 파일 존재 여부만 본다 (`v1`+는 `draft`).
-
-Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행한다:
+stage는 사용자 prefix 그대로 (`flow | output | final`). 각 stage 폴더 안의 `claim-extraction-{stage}.md`에 출력.
 
 | Stage | 조건 | 호출 전 snapshot | 호출 | 출력 |
 |-------|------|------------------|------|------|
-| flow  | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` mtime (또는 후자 부재) | `sync_state.py snapshot-flow {P} pre-claim-extract` | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
-| output | 어느 `output/*.md` mtime > `output/claim-extraction-output.md` mtime (또는 후자 부재) | 변경된 각 챕터마다 `sync_state.py snapshot-output {P} pre-claim-extract {chapter}` | claim-extractor(stage=output) | `output/claim-extraction-output.md` |
+| flow   | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` (또는 부재) | `sync_state.py snapshot-flow {P} pre-claim-extract` | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
+| output | 어느 `output/*.md` mtime > `output/claim-extraction-output.md` (또는 부재) | 변경된 각 챕터마다 `sync_state.py snapshot-output {P} pre-claim-extract {chapter}` | claim-extractor(stage=output) | `output/claim-extraction-output.md` |
+| final  | `final/complete-draft.md` mtime > `final/claim-extraction-final.md` (또는 부재) | `sync_state.py snapshot-final {P} pre-claim-extract` | claim-extractor(stage=final) | `final/claim-extraction-final.md` |
 
-이미 최신이면 스킵.
+이미 최신이면 스킵. final stage 평가 시 `final/complete-draft.md`가 없으면 진행 거부.
 
 ### 단계 5: 축별 워커 병렬 디스패치
 
@@ -850,13 +878,21 @@ Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행�
 - axis5: `flow/flow.md`만
 - axis6: `flow/flow.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `axis_tags`에 `"minority"`
 
-**Axis-input map (Stage `draft`)**:
+**Axis-input map (Stage `output`)**:
 - axis1: `output/*.md` + `output/claim-extraction-output.md` + `papers/analyzed/*.md`
 - axis2: `output/*.md`만
 - axis3: `output/*.md` + `papers/analyzed/*.md` 중 `"steelman"`
 - axis4: `output/*.md` + `papers/analyzed/*.md` 중 `"delta"`
 - axis5: `output/*.md`만
 - axis6: `output/*.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `"minority"`
+
+**Axis-input map (Stage `final`)**:
+- axis1: `final/complete-draft.md` + `final/claim-extraction-final.md` + `papers/analyzed/*.md`
+- axis2: `final/complete-draft.md`만
+- axis3: `final/complete-draft.md` + `papers/analyzed/*.md` 중 `"steelman"`
+- axis4: `final/complete-draft.md` + `papers/analyzed/*.md` 중 `"delta"`
+- axis5: `final/complete-draft.md`만
+- axis6: `final/complete-draft.md` + `critical-questions.md` + `critical-commitments.md` + `papers/analyzed/*.md` 중 `"minority"`
 
 **stale_axes에 없는 축**은 이전 archive의 동명 파일(`axis{N}-*.md`)을 그대로 `latest/`에 유지(복사). 재계산 없음.
 
@@ -874,9 +910,8 @@ python3 scripts/evaluation_aggregator.py {PROJECT_NAME}
 
 ### 단계 8: citation-checker 체이닝 (조건부)
 
-stage가 `v1/revised/final`이고 axis1이 stale이었다면 `citation-checker`를 호출:
-- v1: chapters 무작위 30% 샘플
-- revised: chapters 전량
+stage가 `output/final`이고 axis1이 stale이었다면 `citation-checker`를 호출:
+- output: chapters 무작위 30% 샘플
 - final: 전량 + archive 대비 new-error diff
 
 ### 단계 9: critical-companion (stage 마일스톤)
@@ -886,10 +921,10 @@ Critical Mode이고 해당 stage가 마일스톤이면 `critical-companion`을 �
 | stage | trigger |
 |-------|---------|
 | flow 첫 평가 | `initial` |
-| Stage 1 리서치 완료 후 | `post-research` |
-| v1 | `post-draft` |
-| revised | `post-revision` |
-| final 직전 | `pre-final` |
+| 리서치 완료 후 | `post-research` |
+| output 첫 평가 | `post-draft` |
+| output 재평가 (수정 후) | `post-revision` |
+| final 평가 직전 | `pre-final` |
 
 ### 단계 10: 캐시 갱신
 
@@ -916,7 +951,7 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🩺 종합 판정: [🔴 Reject / 🟠 Major Revision / 🟡 R&R / 🟢 Accept]
-평가 단계: [flow / v1 / revised / final]
+평가 단계: [flow / output / final]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 | 축 | 이름 | 상태 | 변화 | 핵심 진단 |
@@ -1013,7 +1048,7 @@ gap-finder는 분야의 빈틈 탐색 → gap-analysis.md 산출.
 다음 조건 시:
 - axis3 (반박·강화) verdict 결과에 "steelman 부족" 진단
 - axis6 (비판적 시각) Critical Mode 결과에 "학파 X 입장 반박 안 다뤄짐" 신호
-- v1+ stage에 chapter 작성 후 *학파별 반박 simul 미실행*
+- output stage에 chapter 작성 후 *학파별 반박 simul 미실행*
 
 권장 출력:
 ```
@@ -1058,7 +1093,7 @@ adversarial-reviewer는 학파별 simulated reviewer로 단락 단위 반박 + �
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|v1|revised|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-checker}" "ambition={ambition}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={flow|output|final}" "verdict={Reject|Major|R&R|Accept}" "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" "ref=ref:eval-{NNN}" "agents=evaluation-orchestrator,axis1-5{,citation-checker}" "ambition={ambition}" "commits={fulfilled}/{total}"
 ```
 
 (점수 기반 `result={score}/500` 폐기 — verdict + 카테고리 카운트로 대체)
@@ -1699,7 +1734,7 @@ projects/{PROJECT_NAME}/final/complete-draft.docx          # Word (docx skill)
 ### 단계 9: 자동 체이닝 (sync + INDEX만)
 
 작성 직후 자동 (작성 자체 마무리만):
-1. `python3 scripts/sync_state.py snapshot-output {PROJECT} post-v1`
+1. `python3 scripts/sync_state.py snapshot-output {PROJECT} post-draft`
 2. `sync_state.py update-output {PROJECT} {chapter}` 각 chapter
 3. `sync_state.py update-final {PROJECT}`
 4. `python3 scripts/build_index.py {PROJECT} --quiet` — INDEX A2/A3 (output 실제 인용·discrepancy) 갱신, 각 paper `citation_state.use_count_in_output` 자동 갱신
@@ -1745,7 +1780,7 @@ projects/{PROJECT_NAME}/final/complete-draft.docx          # Word (docx skill)
 ### 단계 11: 활동 로그 기록
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=v1" "target=output/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect,adversarial-reviewer,peer-reviewer{,thesis-developer,cross-paper-insight-finder,steelman-dialectic,field-positioning-oracle}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=output" "target=output/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect,adversarial-reviewer,peer-reviewer{,thesis-developer,cross-paper-insight-finder,steelman-dialectic,field-positioning-oracle}" "commits={fulfilled}/{total}"
 ```
 
 ---
@@ -1872,7 +1907,7 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit-{규모}
 ### 단계 4: 활동 로그 기록
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=revised" "target=Ch{X}" "scale={국소/중간/큰/thesis}" "result={변경 요약}" "ref=ref:ch-{NNN}" "agents={규모별 호출 list}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=output" "target=Ch{X}" "scale={국소/중간/큰/thesis}" "result={변경 요약}" "ref=ref:ch-{NNN}" "agents={규모별 호출 list}"
 ```
 
 ---
@@ -2672,7 +2707,7 @@ JSON을 파싱하여 아래 형식으로 출력:
 📍 현재 상태 (최근 14일 로그 기반)
 
    마지막 활동: 평가 완료 (3일 전)
-   마지막 stage: v1
+   마지막 stage: output
    평가 판정: 🟠 Major Revision (카테고리: 🔴:1 🟠:3 🟡:1)
    로그 엔트리: 42건
 

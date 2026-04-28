@@ -10,13 +10,20 @@ model: opus
 
 평가 오케스트레이션만 담당. 채점 로직은 축별 워커(axis1~6-scorer)가 수행. 본인은 **stage 감지 + claim-extractor 선행 + dispatch + aggregate + work-plan 번호 발급**.
 
-## Stage 감지
+## Stage (사용자 명시 prefix 강제)
 
-**두 가지 stage 구분**:
-- **Project stage**: `flow | v1 | revised | final` — work-plan.md 헤더 + `evaluation_delta.py --stage=` 파라미터
-- **claim-extractor stage**: `flow | draft` — 분석 대상 구분용. v1·revised·final 모두 `draft`로 호출 (동일 `output/claim-extraction-output.md` 갱신)
+**3개 stage 동급**: `flow | output | final`
 
-**감지**: `output/`에 실제 챕터 파일(`claim-extraction-output.md` 제외)이 있으면 claim-extractor는 `draft`, Project stage는 `v1` 이상. 세분화(v1/revised/final)는 작업 맥락 + final 통합본 존재 여부로 판정.
+- 사용자가 항상 prefix 명시: `"flow 평가해줘"` / `"output 평가해줘"` / `"final 평가해줘"`
+- 단독 `"평가해줘"` (prefix 없음) → 에러 ("flow / output / final 명시")
+- mode 시스템 (`mode_manager.py`, `.current-mode`) 폐기 — 자동 감지 로직 없음
+
+**stage별 평가 대상**:
+- `flow`: `flow/flow.md` (개요·논증 구조)
+- `output`: `output/*.md` (챕터별 본문)
+- `final`: `final/complete-draft.md` (사용자가 `"최종 완성했어"` 호출 시 생성된 통합본)
+
+**claim-extractor stage 매핑**: `flow | output | final` 동일. 각 stage 폴더 안에 `claim-extraction-{stage}.md` 생성.
 
 ## 작동 순서
 
@@ -42,19 +49,23 @@ Stage별로 다음 조건에서 **반드시** claim-extractor를 먼저 실행�
 
 | Stage | 조건 | 호출 | 출력 |
 |-------|------|------|------|
-| flow  | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` mtime | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
-| draft | 임의 `output/{X}.md` mtime > `output/claim-extraction-output.md` mtime<br>**또는** `output/claim-extraction-output.md` 부재 | claim-extractor(stage=output) | `output/claim-extraction-output.md` |
+| flow   | `flow/flow.md` mtime > `flow/claim-extraction-flow.md` mtime | claim-extractor(stage=flow) | `flow/claim-extraction-flow.md` |
+| output | 임의 `output/{X}.md` mtime > `output/claim-extraction-output.md` mtime<br>**또는** `output/claim-extraction-output.md` 부재 | claim-extractor(stage=output) | `output/claim-extraction-output.md` |
+| final  | `final/complete-draft.md` mtime > `final/claim-extraction-final.md` mtime<br>**또는** `final/claim-extraction-final.md` 부재 | claim-extractor(stage=final) | `final/claim-extraction-final.md` |
 
 **호출 직전 history 스냅샷**:
-- flow: `python3 scripts/sync_state.py snapshot-flow {PROJECT} pre-claim-extract` — flow.md + 현재 claim-extraction-flow.md 쌍 보존
-- draft: 변경된 각 챕터마다 `python3 scripts/sync_state.py snapshot-output {PROJECT} pre-claim-extract {chapter_filename}` — 해당 챕터 + 현재 draft 분석 쌍 보존
+- flow: `python3 scripts/sync_state.py snapshot-flow {PROJECT} pre-claim-extract`
+- output: 변경된 각 챕터마다 `python3 scripts/sync_state.py snapshot-output {PROJECT} pre-claim-extract {chapter_filename}`
+- final: `python3 scripts/sync_state.py snapshot-final {PROJECT} pre-claim-extract`
 
 이미 최신이면 claim-extractor 스킵.
+
+**final stage 사전 조건**: `final/complete-draft.md` 부재 시 평가 거부 ("먼저 '최종 완성했어'로 통합본을 만들어야 합니다").
 
 ### 2. Delta 감지
 
 ```bash
-python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|v1}
+python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|output|final}
 ```
 
 출력:
@@ -82,10 +93,16 @@ python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|v1}
 - `critical-questions.md` — axis6 필요 (존재 시)
 - `critical-commitments.md` — axis3·6 필요 (존재 시)
 
-**Stage draft 선로드 대상**:
+**Stage output 선로드 대상**:
 - `output/*.md` 전체 concatenated — 6개 축 모두 필요
 - `output/claim-extraction-output.md` — axis1·3·4 필요
 - `flow/claim-extraction-flow.md` — 보조 (axis1 seed 비교용)
+- `critical-questions.md`, `critical-commitments.md` — 있으면
+
+**Stage final 선로드 대상**:
+- `final/complete-draft.md` — 6개 축 모두 필요 (단일 통합본)
+- `final/claim-extraction-final.md` — axis1·3·4 필요
+- `output/claim-extraction-output.md` — 보조 (output stage와 비교용)
 - `critical-questions.md`, `critical-commitments.md` — 있으면
 
 **주입 형식** (각 Agent prompt 끝에 추가):
@@ -187,7 +204,7 @@ R은 claim-extraction 내부 ID로 유지 (work-plan.md에 카드로 올라가�
 평가 완료된 축만 stage-aware 캐시 갱신:
 
 ```bash
-python3 scripts/evaluation_delta.py mark-done {PROJECT} axis2,axis3 --stage={stage}
+python3 scripts/evaluation_delta.py mark-done {PROJECT} axis2,axis3 --stage={flow|output|final}
 ```
 
 ### 7. citation-checker 체이닝 (옵션)
@@ -198,7 +215,7 @@ Axis 1이 실행되었고 `intellectual_ambition >= baseline`이면 3편 spot-ch
 
 ```bash
 python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
-  "stage={flow|v1|revised|final}" \
+  "stage={flow|output|final}" \
   "verdict={Reject|Major|R&R|Accept}" \
   "categories=Crit:{N},Need:{M},Adeq:{K},Strong:{S},NA:{X}" \
   "ref=ref:eval-{NNN}" \
@@ -232,7 +249,7 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 ## 출력
 
 ```
-🎯 평가 완료 (stage=v1, delta 모드, stale 2/5)
+🎯 평가 완료 (stage=output, delta 모드, stale 2/5)
 
 판정: 🟠 Major Revision
 축별 상태:

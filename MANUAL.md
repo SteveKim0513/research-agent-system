@@ -70,7 +70,7 @@ Top-tier 저널 심사 엄격도의 **5축 냉정 평가**를 중심으로, 줄�
 |------|------|-------------|-------------------------|--------|
 | 1. 프로젝트 생성 | `"[이름] 프로젝트 만들어줘"` | — | sync_state.py init | 폴더 구조 + 빈 flow.md |
 | 2. flow.md 작성 | (사용자 직접) | — | — | flow.md (prose) |
-| 3. 1차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 감지·병렬 디스패치) | claim-extractor (axis1 선행, prose 시) + axis1~axis6 scorers 병렬 + evaluation_aggregator.py + (ambition ≥ critical: critical-companion stage 마일스톤) + (v1/revised/final: citation-checker 샘플링) | axis1-reference.md ~ axis6-critical.md, evaluation.md(aggregator 생성), work-plan.md, claim-extraction.md, (+{stage}/critical/questions.md v+1) |
+| 3. 1차 평가 | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` | **evaluation-orchestrator** (delta 감지·병렬 디스패치) | claim-extractor (axis1 선행, prose 시) + axis1~axis6 scorers 병렬 + evaluation_aggregator.py + (ambition ≥ critical: critical-companion stage 마일스톤) + (output/final: citation-checker 샘플링) | axis1-reference.md ~ axis6-critical.md, evaluation.md(aggregator 생성), work-plan.md, claim-extraction.md, (+{stage}/critical/questions.md v+1) |
 | 4a. 리서치 실행 | `리서치 진행해줘` | — (MCP 직접 호출) | **paper-analyst Mode B** (mode=reanalyze), Consensus MCP (mode=search) | consensus-results.md 누적, analyzed/*.md v2+ append |
 | 4b. PDF 처리 | `새 논문 처리해줘` | **paper-analyst** (Mode A) | — | analyzed/*.md v1 (axis_tags 포함) |
 | 5a. 경량 점검 | `레퍼런스 점검해줘` | **evaluation-orchestrator** (axis1만) | **axis1-reference-scorer**, archive 스냅샷 생략 | axis1-reference.md + evaluation.md 축 1 블록만 갱신 |
@@ -710,9 +710,9 @@ python3 scripts/sync_state.py snapshot-critical-commitments {project} <trigger>
 
 ```bash
 # 평가 delta (축별 stale 판정, stage-aware)
-python3 scripts/evaluation_delta.py check {project} [--stage=auto|flow|v1|revised|final]
-python3 scripts/evaluation_delta.py compute-inputs {project} [--stage=...]
-python3 scripts/evaluation_delta.py mark-done {project} <axis1,axis2,...> [--stage=...]
+python3 scripts/evaluation_delta.py check {project} --stage=flow|output|final
+python3 scripts/evaluation_delta.py compute-inputs {project} --stage=...
+python3 scripts/evaluation_delta.py mark-done {project} <axis1,axis2,...> --stage=...
 python3 scripts/evaluation_delta.py reset {project}
 
 # 평가 aggregator (axis*-*.md → evaluation.md + work-plan.md 갱신)
@@ -955,14 +955,15 @@ updated_by: claim-extractor
 - `"버전 체크"` — 모든 파일 sync 상태 표
 - `"현재 상태"` — 버전/싱크 통합 표시
 
-### 모드 (`scripts/mode_manager.py`)
+### Stage 시스템 (v3.2 — mode 폐기)
 
-`projects/{P}/.current-mode` 파일에 현재 모드 한 줄 저장. 기본값 `flow`.
+이전 버전의 `scripts/mode_manager.py` / `.current-mode` 파일 / `"output으로 진행"` 전환 명령은 **모두 폐기**.
 
 **동작**:
-- v3.1 단방향: `"output으로 진행"` 또는 `"초안 작성해줘"`가 자동으로 flow → output 전진 (되돌리기 X)
-- prefix 생략 명령(예: `"레퍼런스 분석해줘"`) → 현재 모드의 stage 적용
-- prefix 명시(예: `"output 레퍼런스 분석해줘"`) → 모드 무시 (override)
+- 평가·분석 명령은 항상 `flow` / `output` / `final` prefix 사용자 명시
+- 단독 `"평가해줘"` (prefix 없음) → 에러
+- `final` stage는 `"최종 완성했어"` 명령 (`scripts/finalize_draft.py`)으로 `final/complete-draft.md` 통합본을 만든 후에만 평가 가능
+- final/ 폴더는 `"최종 완성했어"` 시점에 생성 (그 전엔 존재하지 않음)
 
 ### Action 분기 (aggregator 내부)
 
@@ -1339,7 +1340,7 @@ claude --dangerously-skip-permissions
 | `work-plan.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | active RESEARCH/WRITE 카드의 live view — completed RESEARCH(search)는 삭제됨 (registry 보존) |
 | `papers/.registry.json` | 첫 평가 또는 bootstrap 시 | **RESEARCH 발급 SSOT** — 모든 RESEARCH 카드의 ID·covers·lifecycle status(ready/in_progress/blocked/deferred/completed) 영속 보존 + reactivation 이력 |
 | `output/.registry.json` | 첫 분석 또는 bootstrap 시 | **WRITE 발급 SSOT** — WRITE 카드 ID·dedup_key·lifecycle 영속 |
-| `.current-mode` | `"초안 작성해줘"` 또는 `"output으로 진행"` 시 자동 advance | 현재 단계 (flow/output) 한 줄 — 단방향 진행 |
+| ~~`.current-mode`~~ | (v3.2 폐기) | stage는 명령 prefix로 매번 명시 (mode 시스템 제거) |
 | `flow/claim-extraction-flow.md` (flow 모드) 또는 `output/claim-extraction-output.md` (output 모드) | `"{stage} 레퍼런스 분석해줘"` | 문장 단위 주장 테이블 (MATCHED / UNMATCHED-INTERNAL / UNMATCHED-EXTERNAL) |
 | `{stage}/evaluations/latest/axis1-reference.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" / "레퍼런스 점검해줘" | 축 1: Coverage·Accuracy·Authority·Balance |
 | `{stage}/evaluations/latest/axis2-logic.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | 축 2: Argument chain·Transition·Thesis alignment·Scope |

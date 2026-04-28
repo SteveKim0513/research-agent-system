@@ -109,7 +109,7 @@
 - `paper-analyst`가 각 논문의 "조건·한계" 필드를 명시
 - `writing-architect`가 이 필드를 준수
 - `citation-checker`가 **PDF 원문과 대조**하여 over-claim·misattribution 탐지
-- 평가 단계별 자동 체이닝: v1(30% 샘플) / revised(전량) / final(전량 + new-error diff)
+- 평가 단계별 자동 체이닝: output (30% 샘플) / final (전량 + new-error diff)
 
 #### 1-3. Authority & Recency — 세미널 + 최신 논문 균형
 
@@ -385,7 +385,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
 ### 시스템의 반복 루프 구조
 
 ```
-작성(v1) → 평가(1차) → 수정 → 평가(2차) → 수정 → ... → 최종 평가
+작성(output 1차) → 평가 → 수정 → 재평가 → ... → "최종 완성했어" → final 평가
               ↓              ↓              ↓
          archive/001    archive/002    archive/003
 ```
