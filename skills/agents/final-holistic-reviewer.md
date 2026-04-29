@@ -119,6 +119,30 @@ Phase C adjudication 결과를 기반으로 사용자가 실제로 따라갈 *�
 3. **🟠 DEFER · 🔵 REROUTE · 🔴 REJECT** 카드는 별도 섹션에 verdict 사유와 함께 기재
 4. **사용자 결정 필요** 항목 (REROUTE 1건 이상이면) — "이 결함은 final에서 못 고침. {output|flow}로 backtrack 필요. 결정 요망."
 
+### Phase E — 🎯 핵심 요약 (Executive Summary, *맨 위 배치*)
+
+Phase D 완료 후 마지막에 작성하지만 **출력 파일에서는 Phase A 위에 배치**. 사용자가 "어디서 어디까지 손볼지"를 즉시 알 수 있게.
+
+**선정 규칙**:
+- 후보군: APPLY + APPLY-SCOPED 카드 + Phase B의 🔴/🟠 항목
+- 정렬 기준: **impact × confidence / disturbance** (단순 severity 아님 — 영향력 큰 순)
+- 한 axis에 최대 1개 (편향 방지). 단 Phase B 항목은 axis 외부라 별도 카운트.
+- 최대 3~5개. 그 이상은 사용자가 우선순위 못 잡음.
+
+**필수 요소**:
+1. **Coherence Verdict** 한 줄 (🟢/🟡/🟠/🔴 + 라벨)
+2. **임팩트 큰 N개** — 각 항목에:
+   - severity 라벨 (`🔴 critical` / `🟠 strong` / `🟡 worth doing`)
+   - 한 줄 요지 + 영향 (왜 임팩트 큰지)
+   - 다음 행동 명령 (`Chapter X 수정해줘 WRITE-NNN`) + 예상 작업 부피 (작은/중간/큰 — line 단위 추정)
+3. **✅ 충분 신호** — "위 N개 처리하면 통합본 통과" 또는 "위 N개로는 부족, 추가로 X 필요" 명시. 사용자에게 *stop 시점*을 줘야 함.
+4. **무시 권고** — DEFER/REJECT/REROUTE 카드 + APPLY 중 하위 중요도를 *카테고리로 묶어* 한 줄 요약. 개별 나열 X. 예: "axis5 부수 용어 정의 5건 — 이번 사이클 보류".
+
+**금지**:
+- 평면적인 "🔴 5건 / 🟠 8건 / 🟡 12건" 식 카운트만 보여주기 (사용자가 어디부터 할지 모름)
+- 모든 카드를 다 띄워서 우선순위 흐림
+- "전부 다 처리해야 함" 식 stop 신호 없는 결론
+
 ## 출력 파일 형식
 
 ```markdown
@@ -136,6 +160,29 @@ based_on:
 > **Coherence prior**: 통합본은 사용자가 정합성을 선언한 상태.
 > 이 리뷰는 그 선언을 prior로 받고, 척추를 흔드는 권고만 걸러낸다.
 > 결함이 발견되어도 적용 비용이 척추 disturbance를 초과하면 **REJECT (veto)**.
+
+---
+
+## 🎯 핵심 요약 (먼저 이것만 결정)
+
+**Coherence Verdict**: 🟡 일부 영역 보강 권장
+
+**임팩트 큰 3가지** (impact × confidence / disturbance 기준 정렬):
+
+1. **[🔴 critical]** §3 thesis 진술이 §7 결론과 drift — 일관성 깨짐 (영향: 글 전체 메시지 신뢰도)
+   → `Chapter 3 수정해줘 WRITE-024` (작은 작업, ~15분)
+2. **[🟠 strong]** §5 핵심 구성개념 정의 모호 — 독자가 thesis 이해 못함
+   → `Chapter 5 수정해줘 WRITE-027` (중간 작업, ~30분)
+3. **[🟡 worth doing]** §6 반박 paragraph 4개 → 메시지 흐려짐 (axis3·6 C-5 결과)
+   → `Chapter 6 수정해줘 WRITE-031` (작은 작업, ~10분)
+
+**✅ 충분 신호**: 위 3개 처리하면 통합본 통과 수준. 나머지 14개 카드는 *다음 사이클* 또는 무시.
+
+**무시 권고** (8개 카테고리 묶음):
+- axis5 부수 용어 정의 5건 — peripheral 영역, 메시지 영향 작음
+- axis1 부수 인용 보강 3건 — 핵심 인용은 이미 충실, 부수만 누락
+
+**REROUTE 결정 필요** (있는 경우): {예: WRITE-026 → output §5 backtrack 필요. yes/no?}
 
 ---
 
@@ -228,9 +275,8 @@ based_on:
 
 ---
 
-## 종합 판정
+## 카드 통계 (참고용)
 
-### 카드 통계
 | Verdict | 건수 |
 |---------|------|
 | 🟢 APPLY | A |
@@ -239,21 +285,10 @@ based_on:
 | 🔵 REROUTE | D |
 | 🔴 REJECT | E |
 
-### 사용자 결정 필요 (REROUTE ≥ 1 시)
-- WRITE-026 — output §5 backtrack 결정 요망. (yes → `Chapter 5 수정해줘` / no → 결함 수용 + commitment 기록)
-
-### Coherence Verdict
-🟢 척추 견고 (현재 상태 양호) / 🟡 일부 영역 보강 권장 / 🟠 척추 흔들림 우려 (REROUTE 비율 높음) / 🔴 통합본 자체 재구성 필요 (veto 50%↑)
-
-**판정**: {🟢|🟡|🟠|🔴} {라벨}
-**근거**: ...
-
----
-
-## 후속 명령 권고
-1. `Chapter X 수정해줘` — APPLY/APPLY-SCOPED 카드 적용
-2. (REROUTE 있으면) `Chapter Y 수정해줘` 또는 `output 평가해줘`
-3. 적용 후 `최종 완성했어` 재호출 → `final 평가해줘`로 재검증
+> Coherence Verdict 라벨 기준:
+> 🟢 척추 견고 / 🟡 일부 영역 보강 권장 / 🟠 척추 흔들림 우려 (REROUTE 비율 높음) / 🔴 통합본 자체 재구성 필요 (veto 50%↑)
+>
+> 사용자 액션은 *맨 위 핵심 요약*에 이미 정렬되어 있음. 본 통계는 진단용.
 
 *생성: final-holistic-reviewer at {ISO}*
 ```
