@@ -392,16 +392,18 @@ output/
 
 → `final/complete-draft.md` (모든 챕터 합본, .docx 옵션).
 
-#### 10-4-1. 최종 평가 (3가지 모드)
+#### 10-4-1. 최종 평가 (4가지 모드)
 
 ```
-"final 평가해줘"                    ← 기본: 6축 + holistic-reviewer (척추 보호 + Top 3 핵심 요약)
-"final 평가해줘 --mode coursework"  ← Oxford Coursework rubric (8 criteria × 6-band)
-"final 평가해줘 --mode dissertation" ← Oxford Dissertation rubric (10 criteria, methodology stack 포함)
+"final 평가해줘"                                ← 기본: 6축 + holistic-reviewer (척추 보호 + Top 3 핵심 요약)
+"final 평가해줘 --mode coursework"              ← Oxford Coursework rubric 단일 LLM (~3분)
+"final 평가해줘 --mode coursework --committee"  ← 위 rubric + 5인 위원회 절차 (~10분, 적중률↑)
+"final 평가해줘 --mode dissertation"            ← Oxford Dissertation rubric (10 criteria, methodology stack 포함)
 ```
 
 - **기본 모드**: 통합본의 척추(메시지·thesis)를 보호하면서 6축 결과를 adjudicate. Top 3 임팩트 큰 액션만 추려서 어디까지 손볼지 명확히.
 - **`--mode coursework` / `--mode dissertation`**: Oxford MSc Education marking rubric 단독 적용. Distinction/Merit/Pass/Fail 등급 + 한 등급 상승 Top 3 actionable feedback. 기존 6축·holistic 미사용 (summative grading 전용).
+- **`--mode coursework --committee`** (opt-in): PDF §3.3 절차 그대로 모델링한 5인 페르소나 위원회 — Marker 1 (methods-leaning) + Marker 2 (theory-leaning) blind 1차 → Reconciliation → Third Marker (조건부 blind) → External Examiner calibration → Chair 최종 결정. 단일 LLM의 systematic bias를 페르소나 차별화로 노출 → 적중률 향상. 비용 ~5×, 제출 직전 정밀 채점 시뮬레이션 권장.
 
 #### 10-5. 모의 심사 (선택)
 

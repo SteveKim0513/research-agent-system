@@ -494,7 +494,12 @@ peer-reviewer Mode B:
 | **axis5-concept-scorer** | 축 5 구성개념 정의 (Definition·Operationalization·Boundary·Categorical). **flow.md만** | sonnet | orchestrator 자동 |
 | **axis6-critical-scorer** 🎭 | 축 6 비판적 시각 (Paradigm·Fault-line·Bold Defense·Minority Recovery · **C-5 Engagement Discipline (over-defense penalty)**). `axis_tags: minority` 논문 + critical-questions/commitments | opus | ambition ≥ critical 시 orchestrator 자동 |
 | **final-holistic-reviewer** 🛡 | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation + 통합 전용 검사 + 6축 카드 adjudication (5 verdict). 핵심 요약(Top 3) 산출 | opus | final stage orchestrator 자동 |
-| **final-coursework-evaluator** 🎓 | **`final 평가해줘 --mode coursework` 한정**. Oxford MSc Education Coursework rubric (8 criteria × 6-band). 6-axis·holistic·claim-extractor 미사용 | opus | --mode coursework |
+| **final-coursework-evaluator** 🎓 | **`final 평가해줘 --mode coursework` 한정**. Oxford Coursework rubric (8 criteria × 6-band). `--committee` 부재 시 단독 평가, 부재 시 5-Phase orchestrator | opus | --mode coursework |
+| **coursework-marker-1** 👤 | **위원회 모드 한정**. Internal Examiner (methods-leaning). Phase 1 blind. 구조·rigour·citation detail strict | opus | --committee Phase 1 |
+| **coursework-marker-2** 👤 | **위원회 모드 한정**. Internal Examiner (theory-leaning). Phase 1 blind. 이론·비판·originality strict | opus | --committee Phase 1 |
+| **coursework-third-marker** 👤 | **위원회 모드 한정**. Senior Generalist. Phase 3 blind tie-breaker (Marker 1·2 합의 실패 시만 발동) | opus | --committee Phase 3 (조건부) |
+| **coursework-external-examiner** 👤 | **위원회 모드 한정**. Cross-field calibration. raw mark 미부여, systematic bias 권고만 | opus | --committee Phase 4 |
+| **coursework-chair** 👤 | **위원회 모드 한정**. Chair of Examiners. Phase 5 reconciliation·최종 mark·Top 3 결정. PDF §3.3 절차 준수 | opus | --committee Phase 5 |
 | **final-dissertation-evaluator** 🎓 | **`final 평가해줘 --mode dissertation` 한정**. Oxford MSc Education Dissertation rubric (10 criteria × 6-band, methodology stack 포함) | opus | --mode dissertation |
 | **claim-extractor** 📝 | 문장 단위 주장 추출·5종 분류·3-way 매칭 | sonnet | axis1이 stale일 때 orchestrator가 선행 호출 |
 
@@ -1142,11 +1147,12 @@ axis3에도 동일 원리의 **3-5 Engagement Discipline** 신설 (Steelman·Fal
 
 `final 평가해줘`에 `--mode coursework` 또는 `--mode dissertation` 옵션 부착 시 기존 6-axis · holistic · aggregator · claim-extractor **모두 skip**. mode evaluator 단독 dispatch:
 
-| 옵션 | rubric | 산출 |
-|------|--------|------|
-| (옵션 없음) | 기존 6-axis + holistic | evaluation.md + axis*.md + holistic-review.md + work-plan |
-| `--mode coursework` | Oxford MSc Education Coursework (8 criteria × 6-band) | `final/evaluations/latest/coursework-evaluation.md` |
-| `--mode dissertation` | Oxford MSc Education Dissertation (10 criteria × 6-band, methodology stack 포함) | `final/evaluations/latest/dissertation-evaluation.md` |
+| 옵션 | rubric | 산출 | 비용 |
+|------|--------|------|------|
+| (옵션 없음) | 기존 6-axis + holistic | evaluation.md + axis*.md + holistic-review.md + work-plan | 기본 |
+| `--mode coursework` | Oxford Coursework (8 criteria × 6-band) — 단일 LLM | `coursework-evaluation.md` | ~3분, 1× |
+| `--mode coursework --committee` | 위 rubric + **5인 페르소나 위원회 절차** (PDF §3.3 그대로 — Marker 1·2 blind → reconciliation → Third → External → Chair) | `coursework-committee-evaluation.md` + `committee/*.md` (5개 페르소나 outputs) | ~10분, ~5× |
+| `--mode dissertation` | Oxford Dissertation (10 criteria × 6-band, methodology stack 포함) | `dissertation-evaluation.md` | ~3분, 1× |
 
 **Marking convention** (mode evaluator 한정): `_3` / `_8` mark + 66 (narrow Merit) — Oxford 학과 규칙. Overall mark + 등급(Distinction/Merit/Pass/Fail) + 한 등급 상승 Top 3 actionable.
 
@@ -1368,6 +1374,8 @@ claude --dangerously-skip-permissions
 | `{stage}/evaluations/latest/axis6-critical.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 🎭 축 6: Paradigm·Fault-line·Bold Defense·Minority Recovery·Engagement Discipline (over-defense penalty) |
 | `final/evaluations/latest/holistic-review.md` | `final 평가해줘` (mode 없음) 자동 | 🛡 final stage 통합 평가: 척추 articulation + 통합 전용 검사 + 6축 카드 adjudication + Top 3 핵심 요약 |
 | `final/evaluations/latest/coursework-evaluation.md` | `final 평가해줘 --mode coursework` | 🎓 Oxford Coursework rubric (8 criteria × 6-band) — Distinction/Merit/Pass/Fail 등급 + Top 3 등급 상승 액션 |
+| `final/evaluations/latest/coursework-committee-evaluation.md` | `final 평가해줘 --mode coursework --committee` | 🎓 위 rubric + 5인 위원회 절차 — Chair 최종 mark + 위원회 의견 분포 + 만장일치/분극 zone 명시 |
+| `final/evaluations/latest/committee/{marker-1,marker-2,third-marker,external-examiner,chair-decision}.md` | (위원회 모드 자동 산출) | 각 페르소나의 독립 output (debugging/검증용) |
 | `final/evaluations/latest/dissertation-evaluation.md` | `final 평가해줘 --mode dissertation` | 🎓 Oxford Dissertation rubric (10 criteria × 6-band, methodology stack 포함) |
 | `{stage}/history/{stage}/evaluations/{NNN}-{date}-{stage}/` | 매 평가 실행 직전 | 이전 평가 스냅샷 (delta 추적용) |
 | `papers/.research-raw/RESEARCH-NNN.json` | "리서치 진행해줘" Stage A | MCP 원본 응답 (SSOT — 재개·복구 기반) |
