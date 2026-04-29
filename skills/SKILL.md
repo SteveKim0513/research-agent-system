@@ -474,12 +474,12 @@ python3 scripts/migrate_project.py {PROJECT}
    - mode 옵션 없는 `final 평가해줘`는 기존 파이프라인 그대로 (6-axis + holistic). 두 모드는 완전 격리.
    - **언제 사용**: coursework essay·dissertation 제출 직전 채점 시뮬레이션. Distinction/Merit/Pass/Fail 등급 + actionable feedback이 목표일 때.
 
-⛔ **Blind Protocol (모든 평가에 적용, 2026-04-29~)** — `skills/BLIND-PROTOCOL.md` 준수. 모든 evaluator (axis 1-6 · claim-extractor · final-holistic · mode evaluators · 위원회 5인)는:
+⛔ **Blind Protocol (모든 평가에 적용)** — `skills/BLIND-PROTOCOL.md` 준수. 모든 evaluator (axis 1-6 · claim-extractor · final-holistic · mode evaluators · 위원회 5인)는:
    - 같은 session에서 *이전 essay context · prior conversation history* 사용 X
    - 다른 essay와의 *anchoring · comparative reasoning · "한 칸 위/아래 등급"* 식 추론 X
    - 각 mark는 *rubric descriptor 직접 비교*만으로 결정 (어느 descriptor 매칭됐는지 명시)
+   - Width 신호 (refs 수·paradigm 수·beyond-field 언급)만으로 70+/80+ 부여 X — Oxford rubric의 distinguisher는 *depth*
    - **사용자 권고**: 한 conversation session = 한 essay 평가. 여러 essay는 각각 fresh conversation에서 실행
-   - **trigger 사례**: 2026-04-29 FLW evaluation에서 FER context anchoring으로 systematic under-estimation (73 vs 78 strict-blind 차이) 발생 → protocol 신설
 
 7. **Coursework 위원회 모드 (`--mode coursework --committee`, opt-in)** — Oxford PDF §3.3 절차를 그대로 모델링한 5-Phase 채점:
    - 5인 페르소나: **Marker 1** (Internal, methods-leaning) · **Marker 2** (Internal, theory-leaning) · **Third Marker** (Senior Generalist, blind 합의 실패 시 발동) · **External Examiner** (cross-field calibration) · **Chair of Examiners** (reconciliation·최종 결정)

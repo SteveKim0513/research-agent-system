@@ -390,7 +390,7 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
          archive/001    archive/002    archive/003
 ```
 
-**⛔ Blind Protocol (모든 평가에 적용, 2026-04-29 신설)**: 모든 evaluator는 *같은 session 내 이전 essay context · prior conversation history · 다른 essay와의 anchoring* 사용 금지. 각 essay는 rubric descriptor 직접 비교만으로 채점. 한 conversation session = 한 essay 평가가 원칙. `skills/BLIND-PROTOCOL.md` 참조. trigger: FLW evaluation의 FER context anchoring으로 인한 systematic under-estimation 사례.
+**⛔ Blind Protocol (모든 평가에 적용)**: 모든 evaluator는 *같은 session 내 이전 essay context · prior conversation history · 다른 essay와의 anchoring* 사용 금지. 각 essay는 rubric descriptor 직접 비교만으로 채점. Width 신호(refs 수·paradigm 수·beyond-field 언급)는 *depth*(각 ref/paradigm의 substantive use)와 구분. 한 conversation session = 한 essay 평가가 원칙. `skills/BLIND-PROTOCOL.md` 참조.
 
 **Final 평가 4가지 모드** (mode 옵션으로 선택):
 - 옵션 없음: 6-axis + `final-holistic-reviewer` (척추 prior로 축 카드 adjudicate, Top 3 핵심 요약)

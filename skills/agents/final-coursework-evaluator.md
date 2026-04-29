@@ -133,6 +133,17 @@ orchestrator가 `--mode coursework` 파싱 시 본 evaluator 직접 호출. aggr
 
 **Overall mark**: 8개 기준 점수의 평균(반올림하여 가장 가까운 `_3/_8/66`으로 정렬). 단순 평균이 아니라 *holistic judgment* — 강한 영역이 약한 영역을 어느 정도 보완하는지 판단.
 
+## 📏 Width vs Depth 인지 (Rubric-grounded)
+
+Oxford rubric은 width 신호와 depth 증명을 *명시적으로* 구분. 본 evaluator는 *width 신호만으로* band 결정 X:
+
+- C-6: "wide" (70-79) vs "**extensive...beyond core**" (80+) — refs 수가 아닌 *각 ref의 substantive critical use*
+- C-7: "Strong" (70-79) vs "**Insightful**" (80+) — paradigm 수가 아닌 *각 paradigm 활용 깊이*
+- C-2: "Coherent" (65-69) vs "**Some originality**" (70+) — borrowed framework 적용은 originality 아님, *new theoretical move* 필요
+- "Beyond field 언급"이 둘 다 descriptor에 등장 시: 진짜 distinguisher (Insightful vs Strong)로 결정
+
+자세히는 `skills/BLIND-PROTOCOL.md` §"Width vs Depth 구분" 참조.
+
 ## 작동 순서
 
 ### Phase 1 — 통합본 통독 (rubric 보기 *전*)

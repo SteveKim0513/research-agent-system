@@ -1162,7 +1162,7 @@ axis3에도 동일 원리의 **3-5 Engagement Discipline** 신설 (Steelman·Fal
 - 같은 conversation session에서 *이전 essay context*가 모든 평가 페르소나에 contamination — anchoring bias 위험
 - 한 conversation session = 한 essay 평가가 원칙. 여러 essay는 각각 *fresh conversation*에서 실행
 - 평가 보고서에 *다른 essay 이름·comparative 표·"한 칸 위/아래" 식 추론* 등장 시 polluted — 재평가 필요
-- 2026-04-29 FLW evaluation의 FER context anchoring 사례가 본 protocol 신설의 trigger
+- Width 신호 (refs 수·paradigm 수·beyond-field 언급)는 Oxford rubric의 *depth* distinguisher와 구분 필요
 
 ### peer-reviewer Iconoclast (Reviewer 4)
 

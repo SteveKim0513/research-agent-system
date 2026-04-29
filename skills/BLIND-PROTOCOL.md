@@ -2,8 +2,6 @@
 
 > 모든 evaluation agent (axis 1-6 scorers · claim-extractor · final-holistic-reviewer · final-coursework-evaluator · final-dissertation-evaluator · coursework 위원회 5인 페르소나)는 본 protocol을 *반드시* 준수.
 
-본 protocol은 2026-04-29 FLW evaluation의 systematic bias 사례 (FER context anchoring으로 인한 under-estimation)를 trigger로 신설.
-
 ---
 
 ## 핵심 원칙
@@ -12,12 +10,12 @@
 
 ### 1. 이전 essay context 사용 금지
 - 같은 conversation session에서 *이전에 평가된 다른 essay*의 mark·band·진단·요약 인용 X
-- "이전 X 평가에서는...", "FER 대비...", "다른 essay와 비교하면..." 식 referencing 일체 금지
+- "이전 X 평가에서는...", "다른 essay와 비교하면..." 식 referencing 일체 금지
 - 보고서 본문에 다른 essay 이름이 등장하면 protocol 위반
 
 ### 2. Anchoring 금지
 - 다른 essay의 mark를 baseline으로 ±N 식 추론 금지
-- "한 칸 위/아래 등급" 식 결정 금지 (이건 anchoring의 가장 흔한 형태)
+- "한 칸 위/아래 등급" 식 결정 금지 (anchoring의 가장 흔한 형태)
 - 각 essay는 *rubric descriptor 직접 비교*만으로 mark 결정
 - Phase 1 첫인상 단계에서 *specific mark 추측* 금지 — band만 정하고, sub-criteria 채점에서 `_3`/`_8` 결정
 
@@ -30,6 +28,11 @@
 - 본 essay의 한 영역(예: 강한 literature)이 다른 영역(예: writing) 채점에 자동 영향 X
 - 각 criterion 독립 채점 — descriptor 매칭에 집중
 - 첫인상이 한 criterion으로 다른 criterion에 spillover 안 되도록 의식
+
+### 5. Overcorrection 금지
+- "이전 평가가 틀렸으니 다르게 채점해야 한다" 식 *implicit drift* 금지
+- "Strict blind"는 *prior 무시*이지 *prior와 다른 결론*이 아님
+- 결과적으로 다른 essay와 같은 mark가 나와도 OK — *rubric-grounded 결과면 정당*
 
 ---
 
@@ -52,7 +55,34 @@ For each criterion:
 - ❌ "다른 essay가 68이었으니 이건 한 단계 위 73"
 
 **올바른 패턴**:
-- ✅ "C-6 본문이 'extensive...possibly going well beyond core literature' descriptor에 매칭 (Hidden Talents·life history 같은 core 외부 인용 명백) → 80+ band → 83"
+- ✅ "C-N 본문이 '{descriptor 인용}' 매칭 (본문 evidence: ...) → {band} → {mark}"
+
+---
+
+## Width vs Depth 구분 (Rubric-grounded)
+
+Oxford rubric *자체*가 width 신호와 depth 증명을 명시적으로 구분. 각 band descriptor의 진짜 distinguisher는 *depth*:
+
+### C-6 Engagement with literature
+- 70-79: "**wide and well-chosen** range...critically evaluated"
+- 80+: "**extensive and well-chosen** range...possibly going **well beyond core literature**"
+- distinguisher: ref *수*가 아닌 *각 ref의 substantive critical use*. 50+ refs도 *passing citation* 다수면 wide 미만.
+
+### C-7 Theory & beyond-field
+- 70-79: "**Strong understanding**...thorough engagement; **may occasionally consider** issues/theory beyond field"
+- 80+: "**Insightful understanding**...strong engagement; **may consider** issues/theory beyond field"
+- distinguisher: "may consider beyond field"가 *둘 다*에 등장 — 진짜 차이는 *insightful* vs *strong*. beyond-field theory 한 섹션 (1-2 단락) *언급*은 두 band 어느 쪽도 자동 보장 X. *sustained engagement*가 핵심.
+
+### C-2 Argument
+- 65-69: "Coherent and well-structured"
+- 70-79: "**Some originality** of argument; persuasive, coherent and well-structured"
+- 80+: "**An original argument**; persuasive, coherent and well-structured"
+- distinguisher: *borrowed framework 적용*은 originality 아님. *new theoretical move*가 70+ 진입 조건. *suggestive synthesis* (axes 정당화 부재)는 65-69 영역.
+
+### C-3 Engagement with topic
+- 70-79: "Engages **thoroughly and clearly**"
+- 80+: "Engages **illuminatingly, clearly and thoroughly**"
+- distinguisher: *thoroughness*는 70-79부터 요구. multiple criteria 분석 *sustained*해야 thoroughly. 표면 처리는 65-69 이하.
 
 ---
 
@@ -66,6 +96,7 @@ For each criterion:
 - [ ] 첫인상이 *prior context*가 아닌 *본문 자체*에서 형성됨
 - [ ] 8 (or 10) criteria 각각이 독립 채점됨 (한 criterion이 다른 criterion 채점을 spillover 안 함)
 - [ ] 보고서에 "한 단계 위/아래" 식 단계 추론 없음
+- [ ] Width 신호 (refs 수·paradigm 수·beyond-field 언급)가 *depth 증명 없이* 70+/80+ 부여 근거가 되지 않음
 
 위 중 하나라도 미충족 시 보고서 *polluted* — 재평가 필요.
 
@@ -78,31 +109,6 @@ For each criterion:
 - 같은 session에서 이전 essay 평가하면 그 context가 prompt에 *남아*. agent가 본 protocol을 준수하려 해도 첫인상 형성 단계부터 contamination 됨 (sub-conscious anchoring).
 - **여러 essay 평가 시 각각 fresh conversation에서 실행 권장**.
 - 또는 agent dispatch 시 orchestrator가 *사용자에게 명시 경고* 후 진행.
-
----
-
-## Bias 검출 사례 — FLW Evaluation (2026-04-29)
-
-**상황**:
-- 사용자가 같은 session에서 FER essay 평가 (위원회 모드, mark 68 적중) → FLW essay 평가 요청
-- 위원회 5인 평가 결과: 73 (Distinction lower) prediction
-- 사용자: "틀렸다"
-
-**Bias 분석**:
-1. **Comparative anchoring**: 보고서에 *FER vs FLW 비교 표* 명시 등장. mark가 "한 칸 위 등급 = 73" 식 산수로 도출.
-2. **Persona context shared**: 5인 페르소나가 *한 conversation 안*에서 운영되어 FER context가 모든 페르소나에 동일 침투.
-3. **Confirmation bias**: FER 68 적중 → calibration 확신 강화 → FLW도 같은 framework 그대로 적용.
-4. **Halo / framing effect**: FLW의 *다른 패턴*을 FER 패턴과 *대비*로 인식 → 자동 "한 등급 위" categorize.
-
-**Strict blind 재평가 결과**:
-- C-6 Literature: 73 → **83** (descriptor "extensive...possibly going well beyond core literature" 명백 매칭, 50+ refs + 2024-2025 최신 paper + Hidden Talents/life history 같은 core 외부 인용)
-- C-7 Theory: 73 → **83** ("may consider issues/theory beyond the current field" 매칭)
-- Final mark: 73 → **78** (Distinction upper)
-
-**교훈**:
-- Comparative anchoring은 단일 ±5 점 변화를 만들 수 있음 (band 경계도 넘김)
-- 80+ tier descriptor 매칭은 *각 essay 독립적*으로만 가능 — anchored 상태에서는 누락됨
-- 본 사례가 system-wide blind protocol 신설의 trigger
 
 ---
 
@@ -141,3 +147,11 @@ orchestrator 책임:
 | coursework-chair | reconciliation 시 본 essay 결과만 종합 |
 
 각 agent 파일은 본 BLIND-PROTOCOL.md를 참조 (4-line reference 의무).
+
+---
+
+## 지속 보정
+
+본 protocol의 *rule*은 rubric-grounded이지만, *threshold calibration* (각 band의 실제 분포·default 가설)은 더 많은 평가 사례 누적 후 결정.
+
+현재로선 *prescriptive default mark band 명시 안 함* — 각 essay는 rubric descriptor 직접 비교로 독립 결정. 시스템 calibration은 추후 다수 사례에서 패턴 확인 후 보정.

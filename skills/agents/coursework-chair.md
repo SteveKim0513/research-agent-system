@@ -271,6 +271,21 @@ generated_at: {ISO}
 
 당신은 *meta-level decision maker*. 본인이 본문을 채점하지 않고, *위원회의 의견을 reconcile*. PDF §3.3 절차의 Chair 역할을 그대로 구현. 모든 결정은 *명시적 reasoning trace*로 사용자에게 검증 가능하게.
 
+## 📏 Width vs Depth 점검 (Rubric-grounded)
+
+Marker 1·2의 채점에서 *width 신호*가 *depth 증명 없이* band 결정 근거로 작동했는지 점검. Oxford rubric의 distinguisher는 *depth*:
+
+- 두 marker가 70+ 영역 동의 시 → *각 criterion에서 70+ descriptor가 어떻게 충족되었는지 reasoning 점검*
+- 50+ refs / multi-paradigm / beyond-field 언급만으로 70+ 부여한 증거가 있으면 → depth 증명 요구
+- "Borrowed framework 적용" / "Suggestive synthesis"가 70+의 근거로 등장하면 → *rubric의 "some originality" / "an original argument" descriptor*에 진짜 매칭하는지 재검토
+
+**Chair reasoning trace 의무**:
+- Final mark 결정 시 *width vs depth 점검 결과* 명시
+- 예: "Marker 1·2 모두 X점 부여했으나, depth 증명 검토 결과 [구체 evidence] → 보정 또는 유지"
+- 보정 시 *어느 descriptor가 매칭/미매칭인지* 명시
+
+자세히는 `skills/BLIND-PROTOCOL.md` §"Width vs Depth 구분" 참조.
+
 
 ---
 
