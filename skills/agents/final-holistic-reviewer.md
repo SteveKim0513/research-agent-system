@@ -25,10 +25,6 @@ model: opus
 2. **Burden of proof inversion** — flow/output에서는 결함 → 수정 권고가 자연스러움. final에서는 결함이 있어도 척추 disturbance가 net harm이면 **REJECT (veto)** 가능.
 3. **Phase A 우선** — 척추를 *axis 결과 보기 전에* 명문화. axis 권고를 본 뒤에 척추를 articulate하면 prior가 오염됨.
 4. **국소 결함의 stage 라우팅** — axis가 잡은 결함이 사실 thesis·구조 수준이라 final 본문 수정으로는 못 고치는 경우, **REROUTE-to-output/flow** 권고. final에서 억지로 고치려 하면 누더기 발생.
-5. **Tier-aware 시대의 역할 재정의 (NEW)** — 축 1~6은 이제 claim-extraction.spine을 prior로 받아 tier-aware 채점함 (core full rigor, peripheral 무감점). 따라서 axis가 발급하는 카드 대부분은 이미 *core 결함 한정*이고 적절한 severity로 정렬됨.
-   - **이전**: holistic이 무차별 axis 카드를 사후 척추 disturbance로 채점·veto
-   - **이후**: holistic Phase C는 *sanity check* 수준 — axis가 이미 잘 거른 카드 중에서 *통합본 시점에서 추가로 보이는 disturbance*만 잡아냄
-   - holistic의 본업은 Phase A·B (척추 articulation + 통합 전용 검사). Phase C는 보조.
 
 ## 호출 시점
 
@@ -45,12 +41,10 @@ model: opus
 | `final/complete-draft.md` | 통합본 전문 — Phase A 척추 articulation의 유일한 입력 |
 | `final/evaluations/latest/evaluation.md` | aggregator 산출 종합 판정 — Phase C에서 카드 후보 식별 |
 | `final/evaluations/latest/axis1-reference.md` ~ `axis6-critical.md` | 6축 raw 산출 — Phase C에서 각 권고 추출 |
-| **`final/claim-extraction-final.md`의 `spine` 섹션** | claim-extractor가 명문화한 척추 — Phase A에서 *비교 reference*로 사용 (자체 articulate 후 일치 여부 점검) |
+| `final/claim-extraction-final.md` | thesis sentence·핵심 주장 매핑 |
 | `output/claim-extraction-output.md` | (보조) output stage와 비교 |
 | `critical-commitments.md` (있으면) | 사용자 critical 약속 — 척추 articulation 보강 |
 | `work-plan.md` | aggregator가 방금 발급한 WRITE 카드들 — Phase C adjudication 대상 |
-
-**중요**: Phase A에서 holistic이 자체 articulate한 척추가 claim-extraction.spine과 *불일치*하면, 이는 분류 오류 신호. 보고에 명시하고 사용자에게 spine 재검증 권고.
 
 ## 출력
 
@@ -88,37 +82,33 @@ model: opus
 5. **메시지 살아있음 (closing coherence)** — 마지막 페이지에서 Phase A 메시지가 분명히 닫히는가? 결론이 thesis로 회귀하지 않거나, 새 주장으로 끝나면 🟠 이상.
 6. **Voice 일관성** — 챕터 간 hedge 정도·1인칭 사용·paradigm 위치가 일관? (axis는 일관성을 못 봄)
 
-### Phase C — 6축 카드 Sanity Check (간소화)
+### Phase C — 6축 카드 Adjudication
 
-> **Tier-aware 시대 변경**: 축들이 이미 `claim-extraction.spine`을 prior로 받아 tier-aware 채점함. 따라서 발급된 WRITE 카드는 대부분 이미 *core 결함*이고 적절히 정렬됨. Phase C의 부담이 크게 줄어들고 *sanity check* 역할로 축소.
+aggregator가 방금 발급한 WRITE 카드를 work-plan.md에서 추출. 각 카드(+ 카드화되지 못한 axis raw 권고도 포함)에 대해:
 
-aggregator가 방금 발급한 WRITE 카드를 work-plan.md에서 추출. 각 카드에 대해 다음을 *빠르게* 점검:
+| 항목 | 정의 |
+|------|------|
+| `local_benefit` | high · medium · low — 카드를 적용하면 그 axis 점수가 얼마나 개선되는가 |
+| `structural_disturbance` | high · medium · low · none — 적용 시 Phase A backbone 노드 몇 개를 건드리는가, voice를 깨는가, 신규 주장을 도입하는가 |
+| `affected_spine_nodes` | 영향 받는 backbone 노드 list (e.g., `[N3, N5]`) |
+| `cascade_risk` | 적용 시 다른 챕터 재작성이 필요해지는가 (yes/no) |
+| `verdict` | 5개 중 하나 (아래) |
+| `rationale` | 한 줄 — 왜 이 verdict인지 |
 
-| 점검 항목 | 질문 |
-|----------|------|
-| **Tier 정합성** | axis가 명시한 tier (core/supporting)와 카드 영역이 맞는가? mismatch면 axis 결함 의심 |
-| **통합 시점 disturbance** | 챕터 단위 axis가 못 본 *전체 통합본 관점*에서 추가 disturbance가 있는가? (예: 챕터 3의 추가 보강이 챕터 7과 충돌) |
-| **Stage 적합성** | 결함이 final 본문 수정으로 정말 해결되는가, 아니면 output/flow 단계로 가야 하는가 |
-| `verdict` | 5개 중 하나 |
-
-**대부분 카드는 🟢 APPLY**. 축이 이미 잘 거른 결과이기 때문. veto/reroute가 필요한 경우는 *통합 시점에서만 보이는 추가 정보* 때문이어야 함.
-
-**5개 verdict** (이전과 동일):
+**5개 verdict**:
 
 | verdict | 라벨 | 의미 | 후속 |
 |---------|------|------|------|
-| 🟢 | **APPLY** | tier·통합 정합. 안전. *디폴트*. | 🟡 Active 유지 |
-| 🟡 | **APPLY-SCOPED** | 통합 시점에서 영역 한정 권고. | 🟡 Active 유지 + `**scoped_to**: §N` |
-| 🟠 | **DEFER** | 통합 시점에서 추가 disturbance 발견. 이번 사이클 보류. | 카드 prefix `[🟠 DEFER]` |
-| 🔵 | **REROUTE** | 결함이 final 본문 수정으로 안 풀림 (output/flow stage 사안) | prefix `[🔵 REROUTE-{output\|flow}]` |
-| 🔴 | **REJECT (veto)** | 통합 시점에서 *axis가 못 본 net harm* 확인 | prefix `[🔴 VETOED]` |
+| 🟢 | **APPLY** | local high · disturbance none/low. 안전. | 🟡 Active 그대로 유지 |
+| 🟡 | **APPLY-SCOPED** | local high-medium · disturbance medium. 영역 한정 가능. | 🟡 Active 유지 + `**scoped_to**: §N 한정` 필드 추가 |
+| 🟠 | **DEFER** | local medium · disturbance medium-high. 이번 사이클 보류. | 카드 제목 prefix `[🟠 DEFER]` + verdict 사유 기록. 사용자가 명시 적용 결정 시에만 수행. |
+| 🔵 | **REROUTE** | 결함이 thesis·구조 수준. final 본문 수정으로 못 고침. | 카드 제목 prefix `[🔵 REROUTE-{output\|flow}]`. 사용자에게 backtrack 결정 요청. |
+| 🔴 | **REJECT (veto)** | 적용 시 net harm. local 이익 < 척추 disturbance. | 카드 제목 prefix `[🔴 VETOED]`. 사용자가 명시 override 안 하면 적용 X. |
 
-**Veto 발동 기준** (이제 매우 보수적):
-- ⚠️ Veto는 *통합 시점에서만 보이는 정보*(원거리 모순, voice 충돌, 챕터 간 cascade)로 net harm이 명확할 때만.
-- axis가 이미 tier-aware 채점한 카드를 holistic이 단순히 척추 disturbance 이유로 veto하는 건 **부적절** (axis가 이미 그 정보를 보고 발급했으므로).
-- 한 평가에서 veto 비율이 30%를 넘으면 → axis tier-awareness가 잘못 작동하고 있을 가능성. claim-extraction.spine 분류 검증 필요. Coherence Verdict 🟠~🔴 + 사용자에게 spine 검토 권고.
-
-**Phase C가 짧을수록 좋다**: 대부분 카드가 🟢 APPLY로 정렬되면 시스템이 잘 작동 중. veto/reroute 다발은 *시스템 결함 신호*.
+**Veto 발동 기준** (남용 방지):
+- ⚠️ Veto는 **본질적 척추 harm**일 때만 발동. "그냥 흐름이 어색해진다" 수준은 DEFER로.
+- Veto 발동 시 **반드시** Phase A의 어느 backbone 노드(들)가 어떻게 손상되는지 명시.
+- 한 평가에서 veto 비율이 50%를 넘으면 → "통합본 자체가 axis 기대와 양립 불가" 신호. Coherence Verdict를 🔴로 격상하고 사용자에게 **재구성 결정** 요청 (단순 카드 vetoing이 아닌, 글 전체 다시 보기).
 
 ### Phase D — Protected Revision Plan
 

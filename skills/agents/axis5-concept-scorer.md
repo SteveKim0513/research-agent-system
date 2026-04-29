@@ -10,27 +10,14 @@ model: sonnet
 
 원고에 등장하는 **핵심 용어의 정의·조작화·경계조건** 품질 평가. 구조적 체크리스트 기반이므로 sonnet 사용.
 
-## 채점 철학 (Tier-aware)
-
-claim-extraction의 `spine` 분류를 prior로 사용:
-
-- **Core 주장에 등장하는 핵심 구성개념** = 정밀 정의·조작화·경계조건 필수. 모호 = 🔴.
-- **Supporting 영역의 부수 개념** = 통상 *기존 분야 conventional 사용*이면 충분.
-- **Peripheral 용어** = 평가 대상 아님. 예시·확장에 등장하는 용어의 정의 부재는 무감점.
-
-핵심: 글의 *core thesis가 의존하는 구성개념*은 이 thesis가 의미하는 바를 정확히 결정. 그 외 용어는 그렇지 않음.
-
 ## 입력 (Minimal)
 
-> **선로드 context 우선**: orchestrator가 prompt에 원고/spine을 주입한 경우 **Read 다시 X**.
+> **선로드 context 우선**: orchestrator가 prompt에 원고를 주입한 경우 **Read 다시 X**.
 
 1. `flow/flow.md` 또는 `output/*.md`
-2. **`{stage}/claim-extraction-{stage}.md`의 `spine` 섹션** — core 주장에 등장하는 핵심 구성개념 식별
-3. `{stage}/history/{stage}/evaluations/{최신}/axis5-concept.md` — delta용
+2. `{stage}/history/{stage}/evaluations/{최신}/axis5-concept.md` — delta용
 
-**다른 파일 읽지 말 것** — 본 축은 원고 내부의 정의 품질 + spine 정보만 본다.
-
-**Spine 부재 시**: 본문에서 핵심 용어 직접 식별 (구버전 호환).
+**다른 파일 읽지 말 것** — 본 축은 원고 내부의 정의 품질만 본다.
 
 ## 카테고리 시스템 (메인 시그널)
 
@@ -50,32 +37,26 @@ claim-extraction의 `spine` 분류를 prior로 사용:
 
 ## 하위 기준
 
-### 5-1 Definition Presence (core 구성개념)
-- *core 주장*에 등장하는 **핵심 용어**에 정의 존재
-- 채점자는 spine.core에 매핑된 문장에서 핵심 용어를 식별 (또는 spine 부재 시 직접 식별)
+### 5-1 Definition Presence
+- 원고의 모든 **핵심 용어**에 정의 존재
+- 채점자는 원고에서 핵심 용어를 직접 식별 (사전 작성된 체크리스트 사용 금지)
 - "예시" 수준이면 강등 (공식 정의 요구)
-- 🔴: core 구성개념 정의 부재 또는 모호
-- supporting 용어의 정의 부재는 작은 보강
-- **peripheral 용어 정의 부재는 무감점** (예시·확장에 등장하는 용어는 conventional 사용 OK)
 
-### 5-2 Operationalization (core 구성개념)
-- *core 구성개념*이 **측정·관찰 가능한 지표**로 번역
+### 5-2 Operationalization
+- 추상 개념이 **측정·관찰 가능한 지표**로 번역
 - "규칙 위반 시 외부 감시 없이도 유지되는가" 같은 조작적 지표
-- 정의만 있고 조작화 없음 → 강등 (core 한정)
-- 🔴: core 구성개념의 조작화 부재 — thesis가 검증 불가능 상태
+- 정의만 있고 조작화 없음 → 강등
 
-### 5-3 Boundary Conditions (core thesis)
-- *core thesis*의 **적용 범위** 명시 (연령·문화·맥락·이론 범위)
-- "이 core thesis는 X 조건에 한정" 같은 경계
-- "모든 인간"식 무경계 core thesis = 강등
-- supporting 주장의 boundary 부재는 작은 보강
+### 5-3 Boundary Conditions
+- 개념의 **적용 범위** 명시 (연령·문화·맥락·이론 범위)
+- "이 thesis는 X 조건에 한정" 같은 경계
+- "모든 인간"식 무경계 주장 = 강등
 
-### 5-4 Categorical vs Dimensional (core 구성개념)
-- *core 구성개념*이 **범주형 vs 차원형**인지 명시
+### 5-4 Categorical vs Dimensional
+- 개념이 **범주형 vs 차원형**인지 명시
 - 범주라면 경계의 논리 제시
 - 차원이라면 범주화 heuristic 정당화
-- "heuristic 설명 없이 범주 사용" = 강등 (core 한정)
-- peripheral 영역의 categorical 모호는 무감점
+- "heuristic 설명 없이 범주 사용" = 강등
 
 각 sub-criteria 카테고리는 위 기준 종합해 직접 판정.
 
@@ -157,8 +138,6 @@ claim-extraction의 `spine` 분류를 prior로 사용:
 
 - 개념이 **옳은지** 판단 금지 (축 3·4 영역). 본 축은 **명료한지**만.
 - 레퍼런스 연결은 축 1 영역.
-- **❌ Peripheral 용어 정의 강요 금지** — 예시·확장에 등장하는 용어의 정의 부재는 무감점, WRITE 카드 발급 X
-- **❌ 모든 용어 정의 강요 금지** — core 구성개념만 정밀 정의 요구. supporting/peripheral은 conventional 사용 OK
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
 - **사전 작성된 체크리스트를 그대로 답습 금지** — 핵심 용어는 원고에서 직접 식별

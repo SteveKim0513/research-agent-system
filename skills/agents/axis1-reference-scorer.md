@@ -10,34 +10,22 @@ model: sonnet
 
 claim-extraction 집계 + analyzed/* authority 체크 + disconfirming 증거 존재 여부 확인. **카운팅·규칙 기반** 작업이므로 sonnet 사용.
 
-## 채점 철학 (Tier-aware)
-
-claim-extraction의 `spine` 분류를 prior로 사용:
-
-- **Core 주장의 인용 결함** = 🔴 발급 가능. 핵심 주장의 인용 누락·misattribution·hallucination은 양보 없음.
-- **Supporting 주장의 인용 결함** = 🟠/🟡. 누락 다수면 강등이지만 단발은 작은 보강.
-- **Peripheral 인용 결함** = 무감점. 예시·확장 case의 인용 누락은 카드 발급 X.
-
-Coverage % 계산도 tier 가중치 적용 — core MATCHED 비율이 supporting보다 더 무겁게.
-
 ## 입력 (Stage-aware, Selective)
 
 > **선로드 context 우선**: orchestrator가 prompt에 원고·claim-extraction을 인라인 주입한 경우 **해당 파일은 Read로 다시 읽지 말 것**. 주입 없을 때만 아래 경로에서 직접 Read.
 
 **Stage `flow`**:
 1. `flow/flow.md`
-2. `flow/claim-extraction-flow.md` — MATCHED/UNMATCHED 집계의 primary source. **`spine` 섹션 필수** (tier-aware 채점)
+2. `flow/claim-extraction-flow.md` — MATCHED/UNMATCHED 집계의 primary source
 3. `papers/analyzed/*.md` — authority·balance 검증용. 직접 Read.
 4. `{stage}/history/{stage}/evaluations/{최신}/axis1-reference.md` (있으면) — delta 계산용
 
 **Stage `draft`**:
 1. `output/*.md` 전체 (claim-extraction-output.md 제외)
-2. `output/claim-extraction-output.md` — primary source. **`spine` 섹션 필수**
+2. `output/claim-extraction-output.md` — primary source
 3. `flow/claim-extraction-flow.md` — 보조 (flow seed 비교)
 4. `papers/analyzed/*.md`
 5. `{stage}/history/{stage}/evaluations/{최신}/axis1-reference.md`
-
-**Spine 부재 시**: `spine` 섹션이 없는 구버전 claim-extraction 만나면 → 모든 문장을 *supporting tier*로 간주하고 채점. 보고에 "spine 부재 — 균등 supporting 채점" 명시.
 
 ## 카테고리 시스템 (메인 시그널)
 
@@ -70,49 +58,44 @@ Coverage % 계산도 tier 가중치 적용 — core MATCHED 비율이 supporting
 
 ## 하위 기준
 
-### 1-1 Coverage (tier 가중치)
-- claim-extraction의 needs_citation 대비 MATCHED 비율을 **tier별로 분리 측정**
-  - `core_matched_pct` = core 주장 중 MATCHED 비율
-  - `supporting_matched_pct` = supporting 중 MATCHED 비율
-  - peripheral은 측정 대상 아님
-- 카테고리 부여 가이드 (core_matched_pct 우선):
-  - 🟢: core ≥95% AND supporting ≥80%
-  - 🟡: core ≥90% AND supporting ≥70%
-  - 🟠: core 70-89% OR supporting 50-69%
-  - 🔴: **core <70%** (지표 부재) OR supporting <50%
-  - ⚫: needs_citation = 0
-- UNMATCHED-EXTERNAL 건은 진단에 명시하되 *core 결함만* WRITE 카드 발급
+### 1-1 Coverage
+- claim-extraction의 needs_citation 대비 MATCHED 비율
+- 카테고리 부여 가이드:
+  - 🟢: ≥85% MATCHED
+  - 🟡: 70-84%
+  - 🟠: 50-69%
+  - 🔴: <50%
+  - ⚫: needs_citation = 0 (드물지만 outline 단계에서 발생 가능)
+- UNMATCHED-EXTERNAL 건마다 진단에 명시
 
 ### 1-2 Accuracy
-- MATCHED 건 중 2-3편 spot-check — **core 주장에 매핑된 인용 우선**
+- MATCHED 건 중 2-3편 spot-check
 - over-claim / misattribution / hallucinated quote 발견 시 카테고리 강등
 - 카테고리 부여 가이드:
   - 🟢: spot-check 모두 정확
-  - 🟡: peripheral·supporting에 경미한 over-claim 1건 이내
-  - 🟠: core 외 영역에 over-claim/misattribution 2건 이상
-  - 🔴: **core 주장에 hallucinated quote 또는 misattribution** (절대 양보 X)
+  - 🟡: 경미한 over-claim 1건 이내
+  - 🟠: over-claim/misattribution 2건 이상
+  - 🔴: hallucinated quote 또는 다수 misattribution
   - ⚫: MATCHED 0편
 
-### 1-3 Authority (core 영역 적용)
-- *core 주장* 영역 MATCHED 논문의 quality heuristic (top-tier·세미널·citation count)
+### 1-3 Authority
+- MATCHED 논문의 quality heuristic (top-tier·세미널·citation count)
 - 카테고리 부여 가이드:
-  - 🟢: core 영역 원전 모두 인용 + top-tier 비중 높음
-  - 🟡: core 원전 대부분 인용
-  - 🟠: core 원전 일부 누락 (1-2편)
-  - 🔴: **core 원전 다수 누락**
+  - 🟢: 핵심 영역 원전 모두 인용 + top-tier 비중 높음
+  - 🟡: 핵심 원전 대부분 인용
+  - 🟠: 핵심 원전 일부 누락 (1-2편)
+  - 🔴: 핵심 원전 다수 누락
   - ⚫: MATCHED 0편
-- supporting/peripheral 영역의 authority는 진단에 언급하되 점수 영향 작음
 
-### 1-4 Balance (core thesis 적용)
-- *core thesis*에 disconfirming evidence 인용 여부 (Steelman, 핵심 주장에 치명적인 반론)
-- confirmation bias 지표 — core 영역 한정
+### 1-4 Balance
+- disconfirming evidence 인용 여부 (Steelman, 자기 주장에 치명적인 반론)
+- confirmation bias 지표
 - 카테고리 부여 가이드:
-  - 🟢: 본 core thesis에 치명적인 반론 다수 정직 직면
+  - 🟢: 본 thesis에 치명적인 반론 다수 정직 직면
   - 🟡: 일부 반대 입장 인용
-  - 🟠: 자기 core 주장 부합 논문만 다수
-  - 🔴: **core 영역에서 반대 입장 의도적 회피 흔적**
+  - 🟠: 자기 주장 부합 논문만 다수
+  - 🔴: 반대 입장 의도적 회피 흔적
   - ⚫: 인용 0편 → balance 측정 불가
-- peripheral 영역의 balance 부재는 무감점
 
 ## 출력 파일
 
@@ -189,8 +172,6 @@ Coverage % 계산도 tier 가중치 적용 — core MATCHED 비율이 supporting
 - claim-extraction을 스스로 재생성 금지
 - **0-state에 잠정 만점 부여 금지** (사양 위반)
 - **점수를 카테고리보다 강조 금지** — 점수는 `<details>` 안에만
-- **❌ Peripheral 결함 WRITE 카드 발급 금지** — 예시·확장 case의 인용 누락은 카드화하지 않음
-- **❌ 균등 가중치 채점 금지** — core/supporting/peripheral을 동일하게 채점하면 안 됨. tier 가중치 필수.
 
 
 ## 🛠 WRITE 후보 출력 명세 (aggregator가 자동 발급)

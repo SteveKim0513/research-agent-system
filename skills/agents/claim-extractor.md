@@ -9,19 +9,11 @@ model: sonnet
 ## 역할
 
 줄글(prose)로 작성된 **flow** 또는 **chapter 원고**를 문장 단위로 스캔하여:
-1. **글의 척추(spine) 분류** — 메시지·core 주장·supporting 주장·peripheral 식별 (모든 axis의 tier-aware 채점 prerequisite)
-2. 각 문장이 레퍼런스가 필요한 주장인지 분류
-3. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 **RESEARCH 카드 후보**를 제안 (mode=search: 외부 검색 / mode=reanalyze: 보유 PDF 재스캔 — 최종 ID 발급은 `card_registry`에서)
-4. 전체 결과를 구조화된 테이블로 출력
+1. 각 문장이 레퍼런스가 필요한 주장인지 분류
+2. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 **RESEARCH 카드 후보**를 제안 (mode=search: 외부 검색 / mode=reanalyze: 보유 PDF 재스캔 — 최종 ID 발급은 `card_registry`에서)
+3. 전체 결과를 구조화된 테이블로 출력
 
 **철학**: "모든 문장이 레퍼런스를 필요로 하지는 않는다". 저자의 novel claim, 논리 연결어, 메타 문장은 인용하지 않는다. 그러나 **empirical/descriptive/background/borrowed-definition** 주장은 예외 없이 인용해야 한다.
-
-**Tier 철학 (모든 axis가 이걸 prior로 사용)**:
-- **Core (척추)** = 글의 메시지·thesis로 가는 *load-bearing* 주장. 제거 시 논증 붕괴. 모든 axis가 *full rigor*로 채점 — 결함 발견 시 🔴 가능.
-- **Supporting** = 척추를 보강하지만 *대체 가능*한 주장. axis가 *standard rigor*로 채점 — 결함은 감점이지만 카드 발급 보수적.
-- **Peripheral** = 예시·확장 case·hedge·부수 언급. axis가 *관대*하게 채점 — 결함은 사실상 무시. 오히려 *over-engagement*가 처벌 대상.
-
-이 분류가 잘못되면 모든 axis가 잘못된 tier로 채점함. 채점자(claim-extractor)는 신중하게 분류하고 **사용자 검증 권장 항목**을 ⚠️ 표시.
 
 ## Stage 판별
 
@@ -107,41 +99,9 @@ model: sonnet
 → [S042a] EF는 보편적으로 발달한다
 → [S042b] 문화 간 수행 차이는 크다
 
-### Phase 1.5: Spine Classification (NEW — tier 식별)
-
-문장 분류 *전에* 글의 척추를 한 번 정한다. 이게 모든 axis의 채점 reference가 됨.
-
-**산출**:
-
-1. **Message** (한 문장) — 이 글이 결국 독자에게 전달하려는 한 문장. *positive read*로 추출.
-2. **Core claims** (3~7개) — 메시지로 가는 *load-bearing* 주장. 제거하면 논증 붕괴. 각 항목에 문장 ID(들) 매핑 (`C1 → S012, S013`).
-3. **Supporting claims** (가변) — core 주장을 *보강*하는 데이터·예시·근거. 다른 supporting으로 대체 가능. (`Sup1 → S005, S007`)
-4. **Peripheral** (가변) — 예시·확장 case·hedge·부수 언급·연결어·meta. 제거해도 메시지·thesis 무사. (`P1 → S001` 등)
-
-**판정 휴리스틱**:
-
-| 후보 분류 | 판정 질문 | 결과 |
-|----------|----------|------|
-| Core | "이 주장 없으면 메시지가 성립하나?" → No | ✅ Core |
-| Core | "이 주장이 다른 주장의 *전제*가 되나?" → Yes | ✅ Core |
-| Supporting | "이 주장이 core 주장을 보강하지만 대체 가능한가?" | ✅ Supporting |
-| Peripheral | "이 문장이 예시·확장·hedge·연결어인가?" | ✅ Peripheral |
-| Peripheral | "이 문장이 메시지에서 멀리 떨어진 부수 언급인가?" | ✅ Peripheral |
-
-**분류 비율 가이드** (학술 article 기준):
-- Core: 전체 문장의 5~15%
-- Supporting: 30~50%
-- Peripheral: 35~60%
-
-비율이 크게 벗어나면 (예: Core가 30%) — 척추가 너무 비대하거나 글이 thesis-less. 분류 의심.
-
-**모호한 경우** ⚠️ 사용자 검증 권장:
-- core/supporting 경계 모호: 보수적으로 supporting (axis가 덜 매서움)
-- supporting/peripheral 경계 모호: 보수적으로 supporting (under-evaluation 방지)
-
 ### Phase 2: 각 문장 분류
 
-5종 중 하나로 분류 (Phase 1.5의 spine tier와 *직교*: 한 문장은 [tier=core, 분류=A. Empirical] 처럼 두 라벨 동시 보유). 애매한 경우 **보수적으로 NEEDS_CITATION**으로 분류 (over-inclusion이 under-inclusion보다 안전).
+5종 중 하나로 분류. 애매한 경우 **보수적으로 NEEDS_CITATION**으로 분류 (over-inclusion이 under-inclusion보다 안전).
 
 ### Phase 3: 기존 논문 pool 매칭 (3-way 분류)
 
@@ -227,47 +187,6 @@ Stage에 따라 다른 경로:
 
 ---
 
-## 🏛 Spine Map (tier-aware 채점의 prior)
-
-> **이 분류는 모든 axis(1~6) + final-holistic이 채점 시 reference로 사용**. core 주장의 결함은 axis가 *full rigor*로 평가, peripheral 결함은 *관대*하게.
-
-### Message (한 문장)
-"..."
-
-### Core claims (3~7, load-bearing)
-
-| ID | 주장 | 매핑 문장 | 위치 |
-|----|------|----------|------|
-| C1 | "..." | S012, S013 | §2 첫 단락 |
-| C2 | "..." | S045 | §3 thesis 진술 |
-| ... | ... | ... | ... |
-
-### Supporting claims
-
-| ID | 주장 | 매핑 문장 | 보강 대상 |
-|----|------|----------|----------|
-| Sup1 | "..." | S007, S009 | C2 보강 |
-| ... | ... | ... | ... |
-
-### Peripheral
-
-| ID | 유형 | 매핑 문장 |
-|----|------|----------|
-| P1 | 예시 | S023 |
-| P2 | hedge | S031 |
-| P3 | 연결어 | S001, S002 |
-| ... | ... | ... |
-
-### Tier 분포
-- Core: N (X%)
-- Supporting: M (Y%)
-- Peripheral: K (Z%)
-- 합계: T 문장
-
-⚠️ **사용자 검증 권장**: {모호 분류 N건} — 아래 "분류 모호" 섹션 참조
-
----
-
 ## 📊 요약
 
 | 분류 | 개수 | ✅ MATCHED | 🔄 INTERNAL | ❌ EXTERNAL |
@@ -288,21 +207,19 @@ Stage에 따라 다른 경로:
 
 ## 📖 문장 단위 추출 테이블
 
-| ID | 문장 | Tier | 분류 | 매칭 상태 | 인용(매칭 시) / 검색 키워드(신규 시) |
-|----|------|------|------|----------|----------------------------------|
-| S001 | "EF는 전통적으로 보편적 인지 역량으로 간주되어 왔다." | Sup | B | ✅ MATCHED | Kroupin (2025), Jukes (2024) |
-| S002 | "그러나 Kroupin은 전형적 EF 과제 대부분이 탈맥락적 처리를 요구한다고 지적한다." | **Core** | D | ✅ MATCHED | Kroupin (2025) |
-| S003 | "아동기에 hot/cool EF는 단일 요인 구조로 수렴한다는 증거가 있다." | Sup | A | ✅ MATCHED | Prencipe (2011), Wiebe (2011) |
-| S004 | "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다." | Sup | A | ❌ UNMATCHED | `executive function task performance motivation familiarity confound` |
-| S005 | "본 에세이는 규칙의 자발성과 임의성을 두 축으로 한 4분면 재개념화를 제안한다." | **Core** | F | — (저자 기여) | — |
-| S006 | "이 재개념화는 Doebel (2020)의 상황가변적 EF를 확장한다." | **Core** | E | ✅ MATCHED | Doebel (2020) |
-| S007 | "Latent variable approach는 개인차 EF 구조 연구의 표준이 되어왔다." | Sup | B | ✅ MATCHED | Friedman & Miyake (2017), Miyake (2000) |
-| S008 | "단, 최근 drift-diffusion 분석은 EF 공통 요인이 정보 흡수 속도에 환원될 수 있음을 보였다." | Sup | A | ✅ MATCHED | Löffler (2024) |
-| S009 | "Dynamic field theory는 규칙 사용 창발을 신경 흔적 강화로 설명한다." | Periph | C | ✅ MATCHED | Buss & Spencer (2014) |
-| S010 | "양심은 어린 시절 내면화를 거쳐 자발적 규칙 따르기로 발달한다." | **Core** | A | ❌ UNMATCHED | `conscience internalization voluntary rule following childhood` |
-| ... | ... | ... | ... | ... | ... |
-
-**Tier 표기**: `Core` (굵게) / `Sup` (supporting) / `Periph` (peripheral)
+| ID | 문장 | 분류 | 매칭 상태 | 인용(매칭 시) / 검색 키워드(신규 시) |
+|----|------|------|----------|----------------------------------|
+| S001 | "EF는 전통적으로 보편적 인지 역량으로 간주되어 왔다." | B | ✅ MATCHED | Kroupin (2025), Jukes (2024) |
+| S002 | "그러나 Kroupin은 전형적 EF 과제 대부분이 탈맥락적 처리를 요구한다고 지적한다." | D | ✅ MATCHED | Kroupin (2025) |
+| S003 | "아동기에 hot/cool EF는 단일 요인 구조로 수렴한다는 증거가 있다." | A | ✅ MATCHED | Prencipe (2011), Wiebe (2011) |
+| S004 | "EF 측정에는 동기·과제 친숙도·언어 이해가 혼입된다." | A | ❌ UNMATCHED | `executive function task performance motivation familiarity confound` |
+| S005 | "본 에세이는 규칙의 자발성과 임의성을 두 축으로 한 4분면 재개념화를 제안한다." | F | — (저자 기여) | — |
+| S006 | "이 재개념화는 Doebel (2020)의 상황가변적 EF를 확장한다." | E | ✅ MATCHED | Doebel (2020) |
+| S007 | "Latent variable approach는 개인차 EF 구조 연구의 표준이 되어왔다." | B | ✅ MATCHED | Friedman & Miyake (2017), Miyake (2000) |
+| S008 | "단, 최근 drift-diffusion 분석은 EF 공통 요인이 정보 흡수 속도에 환원될 수 있음을 보였다." | A | ✅ MATCHED | Löffler (2024) |
+| S009 | "Dynamic field theory는 규칙 사용 창발을 신경 흔적 강화로 설명한다." | C | ✅ MATCHED | Buss & Spencer (2014) |
+| S010 | "양심은 어린 시절 내면화를 거쳐 자발적 규칙 따르기로 발달한다." | A | ❌ UNMATCHED | `conscience internalization voluntary rule following childhood` |
+| ... | ... | ... | ... | ... |
 
 ---
 
@@ -384,20 +301,9 @@ Stage에 따라 다른 경로:
 
 ### 🟠 분류 모호 (사용자 확인 필요)
 
-분류는 두 종류: (a) NEEDS_CITATION 분류(A~G) 모호, (b) Spine tier(core/sup/periph) 모호.
-
-**(a) 인용 분류 모호**:
-
 - **S023**: "이러한 문화 간 차이는 발달 궤적의 보편성을 의심케 한다."
   - E (저자 확장)인지 A (경험적 주장)인지 모호. 저자가 근거를 제시하려면 A로 보고 인용. 자기 해석이면 E.
   - 권장: **A로 보수적 분류** — Miller (2023) 등 보편/특수 논의 문헌 인용
-
-**(b) Spine tier 모호** ⚠️ 모든 axis 채점에 영향 — 사용자 검증 권장:
-
-- **S045**: "..."
-  - Core인지 Supporting인지 모호. 메시지 직결 여부 사용자 판단 필요.
-  - 보수적 분류: Supporting (axis가 덜 매서움)
-  - 사용자 결정 시: "이 주장 빠지면 메시지가 성립하나?"
 
 ### 🔴 Over-Claim 위험
 
@@ -425,22 +331,6 @@ Stage에 따라 다른 경로:
   "unmatched_external": U_EXT,
   "reanalyze_proposals": U_INT,
   "research_targets": U_EXT,
-  "spine": {
-    "message": "한 문장 메시지",
-    "core": [
-      {"id": "C1", "claim": "...", "sentences": ["S012", "S013"], "location": "§2 첫 단락"},
-      {"id": "C2", "claim": "...", "sentences": ["S045"], "location": "§3 thesis"}
-    ],
-    "supporting": [
-      {"id": "Sup1", "claim": "...", "sentences": ["S007", "S009"], "supports": "C2"}
-    ],
-    "peripheral": [
-      {"id": "P1", "type": "example", "sentences": ["S023"]},
-      {"id": "P2", "type": "hedge", "sentences": ["S031"]}
-    ],
-    "tier_distribution": {"core_pct": 12, "supporting_pct": 42, "peripheral_pct": 46},
-    "ambiguous_tier_count": 3
-  },
   "search": [
     {"id": "RESEARCH-001", "covers": ["R-01", "R-04"], "query": "executive function task impurity ...", "topic": "EF 측정 혼입 + impurity"},
     {"id": "RESEARCH-002", "covers": ["R-02"], "query": "Kochanska conscience internalization ...", "topic": "Kochanska conscience"}
@@ -457,8 +347,6 @@ Stage에 따라 다른 경로:
   "ambiguous_classifications": C
 }
 ```
-
-**`spine`** 필드는 axis 1~6과 final-holistic-reviewer가 모두 입력으로 사용. tier 분류 변경 시 모든 axis 결과가 바뀜 — 그래서 신중하게 분류하고 모호 항목은 ambiguous_tier_count로 보고.
 
 **`research_targets`**: UNMATCHED-EXTERNAL 문장/클러스터 총 개수 (R-NN 개수와 동일).
 **`search`**: R들을 병합해 만든 execution unit 배열. aggregator가 이걸 1:1로 work-plan.md의 **RESEARCH mode=search 카드**로 발급 (dedup_key = covers 정규화).
@@ -483,14 +371,10 @@ aggregator가 `search[]` 배열을 읽어 work-plan.md의 RESEARCH 카드(mode=s
 작업 완료 전 다음을 확인:
 
 - [ ] 모든 문장에 ID가 부여되었는가?
-- [ ] **모든 문장에 spine tier (Core/Sup/Periph) 가 할당되었는가?**
-- [ ] **Spine Map 섹션이 출력 상단에 있고, message + core 3-7개 + supporting + peripheral 모두 명시되었는가?**
-- [ ] **Tier 분포가 정상 범위인가?** (Core 5-15%, Supporting 30-50%, Peripheral 35-60%)
-- [ ] **JSON 요약의 `spine` 필드가 완전한가?**
 - [ ] NEEDS_CITATION 분류 중 "MATCHED" 건은 실제로 해당 논문이 그 주장을 뒷받침하는지 확인했는가?
 - [ ] UNMATCHED 건마다 검색 키워드가 3개 이상 제시되었는가?
 - [ ] 저자의 순수 기여를 NEEDS_CITATION으로 잘못 분류하지 않았는가?
-- [ ] "모호" 항목 (인용 분류 + spine tier 둘 다)을 사용자에게 보수적 권장안과 함께 제시했는가?
+- [ ] "모호" 항목을 사용자에게 보수적 권장안과 함께 제시했는가?
 
 ## 태도
 
