@@ -392,6 +392,17 @@ output/
 
 → `final/complete-draft.md` (모든 챕터 합본, .docx 옵션).
 
+#### 10-4-1. 최종 평가 (3가지 모드)
+
+```
+"final 평가해줘"                    ← 기본: 6축 + holistic-reviewer (척추 보호 + Top 3 핵심 요약)
+"final 평가해줘 --mode coursework"  ← Oxford Coursework rubric (8 criteria × 6-band)
+"final 평가해줘 --mode dissertation" ← Oxford Dissertation rubric (10 criteria, methodology stack 포함)
+```
+
+- **기본 모드**: 통합본의 척추(메시지·thesis)를 보호하면서 6축 결과를 adjudicate. Top 3 임팩트 큰 액션만 추려서 어디까지 손볼지 명확히.
+- **`--mode coursework` / `--mode dissertation`**: Oxford MSc Education marking rubric 단독 적용. Distinction/Merit/Pass/Fail 등급 + 한 등급 상승 Top 3 actionable feedback. 기존 6축·holistic 미사용 (summative grading 전용).
+
 #### 10-5. 모의 심사 (선택)
 
 ```

@@ -489,10 +489,13 @@ peer-reviewer Mode B:
 | **evaluation-orchestrator** 🎯 | Delta 감지 + stale 축 병렬 디스패치 + aggregator 호출. 스스로 채점하지 않음 | opus | `flow 레퍼런스 분석해줘` 또는 `flow 내용 분석해줘` 진입점 |
 | **axis1-reference-scorer** | 축 1 레퍼런스 충실도 (Coverage·Accuracy·Authority·Balance). claim-extraction 집계 + PDF spot-check | sonnet | orchestrator 자동 / `레퍼런스 점검해줘` alias |
 | **axis2-logic-scorer** | 축 2 논리 전개 (Argument·Transition·Thesis·Scope). **flow.md만** 읽음 | opus | orchestrator 자동 |
-| **axis3-defense-scorer** | 축 3 반박·강화 (Steelman·Falsifiability·Limitations·Attack Surface). `axis_tags: steelman` 논문 3-5편만 | opus | orchestrator 자동 |
+| **axis3-defense-scorer** | 축 3 반박·강화 (Steelman·Falsifiability·Limitations·Attack Surface · **3-5 Engagement Discipline (over-defense penalty)**). `axis_tags: steelman` 논문 3-5편만 | opus | orchestrator 자동 |
 | **axis4-originality-scorer** | 축 4 독창성 (So What·Novelty·Layer·Implications). `axis_tags: delta` 논문 3-5편만 | opus | orchestrator 자동 |
 | **axis5-concept-scorer** | 축 5 구성개념 정의 (Definition·Operationalization·Boundary·Categorical). **flow.md만** | sonnet | orchestrator 자동 |
-| **axis6-critical-scorer** 🎭 | 축 6 비판적 시각 (Paradigm·Fault-line·Bold Defense·Minority Recovery). `axis_tags: minority` 논문 + critical-questions/commitments | opus | ambition ≥ critical 시 orchestrator 자동 |
+| **axis6-critical-scorer** 🎭 | 축 6 비판적 시각 (Paradigm·Fault-line·Bold Defense·Minority Recovery · **C-5 Engagement Discipline (over-defense penalty)**). `axis_tags: minority` 논문 + critical-questions/commitments | opus | ambition ≥ critical 시 orchestrator 자동 |
+| **final-holistic-reviewer** 🛡 | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation + 통합 전용 검사 + 6축 카드 adjudication (5 verdict). 핵심 요약(Top 3) 산출 | opus | final stage orchestrator 자동 |
+| **final-coursework-evaluator** 🎓 | **`final 평가해줘 --mode coursework` 한정**. Oxford MSc Education Coursework rubric (8 criteria × 6-band). 6-axis·holistic·claim-extractor 미사용 | opus | --mode coursework |
+| **final-dissertation-evaluator** 🎓 | **`final 평가해줘 --mode dissertation` 한정**. Oxford MSc Education Dissertation rubric (10 criteria × 6-band, methodology stack 포함) | opus | --mode dissertation |
 | **claim-extractor** 📝 | 문장 단위 주장 추출·5종 분류·3-way 매칭 | sonnet | axis1이 stale일 때 orchestrator가 선행 호출 |
 
 스크립트 동반:
@@ -1123,7 +1126,7 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 | 7 | 5년 후 독자 | "5년 후 이 논문의 embarrassing할 부분은?" |
 | 8 | 숨은 가정 | "당신 자신이 당연하게 받아들이는 것은?" |
 
-### axis6-critical-scorer의 4 하위 기준 (축 6)
+### axis6-critical-scorer의 5 하위 기준 (축 6)
 
 | 기준 | 평가 내용 |
 |------|---------|
@@ -1131,6 +1134,21 @@ critical-companion은 **질문만** 만들고 **답은 절대 제공하지 않�
 | C-2 Fault-line Identification | 그 paradigm의 구조적 약점 |
 | C-3 Bold Defense | Over-hedge 없는 대담한 주장 + falsifiability |
 | C-4 Minority Evidence Recovery | 잊혀진 소수 의견·비주류 전통 복원 |
+| **C-5 Engagement Discipline** | **Over-defense penalty (inverted-U)** — under-defense뿐 아니라 over-defense(반박 paragraph 도배·hedge 남용)도 처벌. 메시지 명료성 보호. |
+
+axis3에도 동일 원리의 **3-5 Engagement Discipline** 신설 (Steelman·Falsifiability·Limitations·Attack Surface 다음).
+
+### Final stage 한정 — `--mode` 옵션
+
+`final 평가해줘`에 `--mode coursework` 또는 `--mode dissertation` 옵션 부착 시 기존 6-axis · holistic · aggregator · claim-extractor **모두 skip**. mode evaluator 단독 dispatch:
+
+| 옵션 | rubric | 산출 |
+|------|--------|------|
+| (옵션 없음) | 기존 6-axis + holistic | evaluation.md + axis*.md + holistic-review.md + work-plan |
+| `--mode coursework` | Oxford MSc Education Coursework (8 criteria × 6-band) | `final/evaluations/latest/coursework-evaluation.md` |
+| `--mode dissertation` | Oxford MSc Education Dissertation (10 criteria × 6-band, methodology stack 포함) | `final/evaluations/latest/dissertation-evaluation.md` |
+
+**Marking convention** (mode evaluator 한정): `_3` / `_8` mark + 66 (narrow Merit) — Oxford 학과 규칙. Overall mark + 등급(Distinction/Merit/Pass/Fail) + 한 등급 상승 Top 3 actionable.
 
 ### peer-reviewer Iconoclast (Reviewer 4)
 
@@ -1347,7 +1365,10 @@ claude --dangerously-skip-permissions
 | `{stage}/evaluations/latest/axis3-defense.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" | 축 3: Steelman·Falsifiability·Limitations·Reviewer attack |
 | `{stage}/evaluations/latest/axis4-originality.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" / "독창성 평가해줘" | 축 4: "So What?"·Novelty Delta Map·Contribution layer |
 | `{stage}/evaluations/latest/axis5-concept.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" / "정의 정밀도 평가해줘" | 축 5: Definition·Operationalization·Boundary |
-| `{stage}/evaluations/latest/axis6-critical.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 🎭 축 6: Paradigm·Fault-line·Bold Defense·Minority Recovery |
+| `{stage}/evaluations/latest/axis6-critical.md` | `"비판적 시각 평가해줘"` 또는 ambition ≥ critical 자동 | 🎭 축 6: Paradigm·Fault-line·Bold Defense·Minority Recovery·Engagement Discipline (over-defense penalty) |
+| `final/evaluations/latest/holistic-review.md` | `final 평가해줘` (mode 없음) 자동 | 🛡 final stage 통합 평가: 척추 articulation + 통합 전용 검사 + 6축 카드 adjudication + Top 3 핵심 요약 |
+| `final/evaluations/latest/coursework-evaluation.md` | `final 평가해줘 --mode coursework` | 🎓 Oxford Coursework rubric (8 criteria × 6-band) — Distinction/Merit/Pass/Fail 등급 + Top 3 등급 상승 액션 |
+| `final/evaluations/latest/dissertation-evaluation.md` | `final 평가해줘 --mode dissertation` | 🎓 Oxford Dissertation rubric (10 criteria × 6-band, methodology stack 포함) |
 | `{stage}/history/{stage}/evaluations/{NNN}-{date}-{stage}/` | 매 평가 실행 직전 | 이전 평가 스냅샷 (delta 추적용) |
 | `papers/.research-raw/RESEARCH-NNN.json` | "리서치 진행해줘" Stage A | MCP 원본 응답 (SSOT — 재개·복구 기반) |
 | `papers/.translations/RESEARCH-NNN.md` | "리서치 진행해줘" Stage B (research-processor Phase B) | sonnet 한글 abstract 번역 |

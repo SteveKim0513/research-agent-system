@@ -390,6 +390,13 @@ Top-tier 저널 심사자의 **첫 번째 질문**은 "So What?"입니다. 기�
          archive/001    archive/002    archive/003
 ```
 
+**Final 평가 3가지 모드** (mode 옵션으로 선택):
+- 옵션 없음: 6-axis + `final-holistic-reviewer` (척추 prior로 축 카드 adjudicate, Top 3 핵심 요약)
+- `--mode coursework`: Oxford Coursework rubric 단독 (8 criteria × 6-band, summative grading)
+- `--mode dissertation`: Oxford Dissertation rubric 단독 (10 criteria × 6-band, methodology stack 포함)
+
+mode 옵션 사용 시 기존 6-axis·holistic·claim-extractor 모두 skip — *iterative revision*과 *summative grading*은 다른 작업이므로 격리.
+
 각 평가 회차마다 `{stage}/history/{stage}/evaluations/{NNN}/`로 스냅샷을 남겨:
 - **축별 점수 delta 추적** (어느 수정이 어느 축을 몇 점 올렸는가)
 - **과거 평가 복기**
@@ -456,7 +463,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
-| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, critical-companion, writing-architect, output-editor, output-en-translator, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
+| **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, **final-holistic-reviewer, final-coursework-evaluator, final-dissertation-evaluator**, critical-companion, writing-architect, output-editor, output-en-translator, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
 | **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst non-anchor 분석 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-checker, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
 | **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
@@ -498,10 +505,13 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 | **evaluation-orchestrator** | 병렬 delta 아키텍처 + 모델 라우팅 + Archive 스냅샷 + sync gate | 순차 체이닝 낭비, 변경 없는 축 재계산, 관대한 평가 |
 | **axis1-reference-scorer** | 1-1~1-4 (Coverage·Accuracy·Authority·Balance) + PDF spot-check | 세미널 누락, placeholder citation, confirmation bias |
 | **axis2-logic-scorer** | 2-1~2-4 (Argument Chain·Transition·Thesis·Scope) | Warrant 누락, 섹션 간 logic jump |
-| **axis3-defense-scorer** | 3-1~3-4 (Steelman·Falsifiability·Limitations·Attack Surface) | Strawman, 반증 조건 부재 |
+| **axis3-defense-scorer** | 3-1~3-4 (Steelman·Falsifiability·Limitations·Attack Surface) + **3-5 Engagement Discipline** | Strawman, 반증 조건 부재, **over-defense (반박 paragraph 도배)** |
 | **axis4-originality-scorer** | 4-1~4-4 (So What·Novelty·Layer·Implications) + Delta Map | "So What?" 답 부재, Novelty 드리프트 |
 | **axis5-concept-scorer** | 5-1~5-4 (Definition·Operationalization·Boundary·Categorical) | Concept drift, Vague operationalization |
-| **axis6-critical-scorer** | 축 6 (C-1 Paradigm ~ C-4 Minority Recovery) + 자기 배신 탐지 | orthodox 편향, timidity, 소수 의견 배제 |
+| **axis6-critical-scorer** | 축 6 (C-1 Paradigm ~ C-4 Minority Recovery + **C-5 Engagement Discipline**) + 자기 배신 탐지 | orthodox 편향, timidity, 소수 의견 배제, **over-defense (hedge 남용)** |
+| **final-holistic-reviewer** | Final stage 통합 평가 (척추 articulation + 통합 전용 검사 + 6축 카드 adjudication 5 verdict + 핵심 요약 Top 3) | local 결함 위주 시각의 척추 파괴, exhaustive coverage 압력 |
+| **final-coursework-evaluator** | `--mode coursework` 단독 (Oxford rubric 8 criteria × 6-band) | rubric 외 기준 침범, summative grading vs iterative revision 혼동 |
+| **final-dissertation-evaluator** | `--mode dissertation` 단독 (Oxford rubric 10 criteria × 6-band, methodology stack 포함) | research outcome으로 grade 깎기 (rubric 위반) |
 | **claim-extractor** | 1-1 Coverage, 1-2 Accuracy 예비, 5-1 Definition 탐지 | #7 Placeholder citation, #5 Moving goalpost |
 | **critical-companion** | Socratic 질문 (답변 생산 금지) + commitment 추출 + 정합성 점검 | 지적 자기 배신 (답변 → 원고 누락), 회피 중인 질문 |
 | **paper-analyst** | 인용 재료의 "조건·한계" 필드 + axis_tags + Mode C (hidden assumptions) | #1 Over-claim (근본 예방), confirmation bias 재생산 |
