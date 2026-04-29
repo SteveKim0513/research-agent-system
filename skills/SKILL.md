@@ -429,6 +429,8 @@ python3 scripts/migrate_project.py {PROJECT}
 | **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
 | **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md (통합본 부재 시 에러) | RESEARCH |
 | **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md + work-plan WRITE 카드에 holistic_verdict 부여 | WRITE (verdict 게이팅) |
+| **분석** | `"final 평가해줘 --mode coursework"` | Oxford MSc Education **Coursework** rubric (8 criteria × 6-band) — `final-coursework-evaluator` 단독 → final/evaluations/latest/coursework-evaluation.md. 기존 6-axis·holistic 미사용. | — (work-plan 미관여) |
+| **분석** | `"final 평가해줘 --mode dissertation"` | Oxford MSc Education **Dissertation** rubric (10 criteria × 6-band, methodology stack 포함) — `final-dissertation-evaluator` 단독 → final/evaluations/latest/dissertation-evaluation.md. 기존 6-axis·holistic 미사용. | — (work-plan 미관여) |
 | **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
 | **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
 | **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) | — |
@@ -461,6 +463,15 @@ python3 scripts/migrate_project.py {PROJECT}
    - 5개 verdict로 분류: 🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE-{output|flow} · 🔴 REJECT(veto).
    - REJECT는 "결함은 있으나 적용 시 척추 net harm" → veto. REROUTE는 "결함이 thesis·구조 수준이라 final 본문 수정으로는 못 고침 → output/flow로 backtrack 필요" → 사용자 결정 사안.
    - 후속 명령(`Chapter X 수정해줘` 등)은 카드의 `holistic_verdict` 필드를 점검 후 적용. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
+
+6. **Final 평가 `--mode` 옵션 (Oxford rubric 단독 평가)** — `final 평가해줘`에 `--mode coursework` 또는 `--mode dissertation` 옵션 부착 시:
+   - 기존 6-axis · holistic-reviewer · claim-extractor · aggregator **모두 skip**
+   - 해당 mode evaluator 단독 dispatch — Oxford MSc Education marking rubric 적용
+   - 산출: `final/evaluations/latest/{coursework|dissertation}-evaluation.md` (단일 파일)
+   - work-plan 미관여, 카드 미발급 (rubric은 *summative grading*)
+   - mode evaluator는 `final/complete-draft.md`만 읽음. analyzed papers·flow·claim-extraction 일절 사용 X.
+   - mode 옵션 없는 `final 평가해줘`는 기존 파이프라인 그대로 (6-axis + holistic). 두 모드는 완전 격리.
+   - **언제 사용**: coursework essay·dissertation 제출 직전 채점 시뮬레이션. Distinction/Merit/Pass/Fail 등급 + actionable feedback이 목표일 때.
 
 4. **레퍼런스 vs 내용 분리**:
    - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
@@ -509,7 +520,7 @@ python3 scripts/migrate_project.py {PROJECT}
 **에이전트 분류 (3 차원)**:
 - **Generative agents** (작성 *전* — 새 시각·thesis 발전): thesis-developer / cross-paper-insight-finder / steelman-dialectic / field-positioning-oracle
 - **Reactive writing agents** (작성·수정·리뷰): writing-architect / output-editor / adversarial-reviewer / peer-reviewer / flow-refiner
-- **Analysis·evaluation agents** (분석·평가): paper-analyst / claim-extractor / citation-checker / evaluation-orchestrator + axis 1-6 / final-holistic-reviewer (final stage 전용) / critical-companion / gap-finder / methodology-advisor / research-processor / abstract-translator
+- **Analysis·evaluation agents** (분석·평가): paper-analyst / claim-extractor / citation-checker / evaluation-orchestrator + axis 1-6 / final-holistic-reviewer (final stage 전용) / final-coursework-evaluator (--mode coursework) / final-dissertation-evaluator (--mode dissertation) / critical-companion / gap-finder / methodology-advisor / research-processor / abstract-translator
 - **Output translation agents** (출고 영문화): output-en-translator
 
 **모델 라우팅 원칙**: 작업 성격에 따라 서브에이전트를 다른 모델로 실행하여 비용·속도 최적화. 평가·글쓰기는 opus, 분석·검증은 sonnet, 번역 같은 기계적 작업은 haiku. 각 에이전트 정의 파일의 frontmatter `model` 필드에 기본값 표기. Agent 도구 호출 시 `model` 파라미터로 오버라이드 가능.
@@ -524,6 +535,8 @@ python3 scripts/migrate_project.py {PROJECT}
 | **axis5-concept-scorer** | `skills/agents/axis5-concept-scorer.md` | 축 5 구성개념 정의 정밀도 (sonnet) | 자동 |
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
 | **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). work-plan WRITE 카드에 `holistic_verdict` 필드·prefix 부여 (opus) | 자동 (final stage orchestrator) |
+| **final-coursework-evaluator** 🎓 | `skills/agents/final-coursework-evaluator.md` | **`final 평가해줘 --mode coursework` 한정**. Oxford MSc Education Coursework rubric (8 criteria × 6-band, High Distinction/Distinction/Merit/High Pass/Low Pass/Fail) 적용. 통합본 단독 평가. 6-axis·holistic·claim-extractor 미사용 (opus) | 자동 (--mode coursework) |
+| **final-dissertation-evaluator** 🎓 | `skills/agents/final-dissertation-evaluator.md` | **`final 평가해줘 --mode dissertation` 한정**. Oxford MSc Education Dissertation rubric (10 criteria × 6-band, methodology stack 포함). 통합본 단독 평가. 6-axis·holistic·claim-extractor 미사용 (opus) | 자동 (--mode dissertation) |
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
 | **paper-analyst** | `skills/agents/paper-analyst.md` | v3.2 — anchor (opus, 깊은) / non-anchor (sonnet, 가벼운) / Mode B 재분석 / Mode C critique_target. 정책 거부 fallback v3.2 (opus → sonnet 강등 정식 step), [X][D] 마커, index_fields, INDEX.md 자동 빌드 | `논문 처리해줘` 진입점 |

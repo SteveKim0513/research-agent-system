@@ -25,9 +25,50 @@ model: opus
 
 **claim-extractor stage 매핑**: `flow | output | final` 동일. 각 stage 폴더 안에 `claim-extraction-{stage}.md` 생성.
 
+## Final stage 한정 — `--mode` 옵션 (NEW)
+
+`final 평가해줘`에 한해 사용자가 `--mode {coursework|dissertation}` 옵션으로 평가 체계 자체를 교체. flow/output stage에는 무효 (옵션 무시).
+
+| 옵션 | 동작 | 사용 evaluator |
+|------|------|---------------|
+| (옵션 없음) | 기존 6-axis 병렬 채점 + holistic-reviewer | `axis1~6-scorer` + `final-holistic-reviewer` |
+| `--mode coursework` | Oxford MSc Education **Coursework** rubric (8 criteria × 6-band) | `final-coursework-evaluator` 단독 |
+| `--mode dissertation` | Oxford MSc Education **Dissertation** rubric (10 criteria × 6-band) | `final-dissertation-evaluator` 단독 |
+
+**Mode 모드의 격리 원칙**:
+- `--mode coursework` / `--mode dissertation` 호출 시 **기존 6-axis · holistic · claim-extractor · aggregator 모두 skip**.
+- mode evaluator가 단독으로 통합본 읽고 산출물 한 개 생성. work-plan·카드 시스템 미관여.
+- 산출 위치: `final/evaluations/latest/{coursework|dissertation}-evaluation.md` (기존 `evaluation.md` · `axis*.md` · `holistic-review.md`와 별개).
+
+**파싱 규칙**:
+- `final 평가해줘 --mode coursework` 또는 `final 평가해줘 --mode dissertation` 두 형태 인식
+- 알 수 없는 mode 값 → 에러 (`--mode는 coursework 또는 dissertation`)
+- mode 옵션 위치: `--mode` 가 명령 어디에든 등장 가능 (자유 위치)
+- flow/output stage에 `--mode` 붙으면 → 경고 후 옵션 무시 (`--mode는 final stage 한정`)
+
 ## 작동 순서
 
-### 0. Archive 스냅샷 (증분)
+### 0. Mode 분기 (final stage `--mode` 옵션)
+
+**가장 먼저** 사용자 명령에서 `--mode` 옵션 파싱. final stage + mode 옵션이 있으면 **이후의 모든 단계(§0.5~§8)를 skip**하고 mode evaluator로 직접 분기:
+
+| 명령 | 분기 |
+|------|------|
+| `final 평가해줘 --mode coursework` | `final-coursework-evaluator` Agent 단독 호출 → `final/evaluations/latest/coursework-evaluation.md` 생성 후 종료 |
+| `final 평가해줘 --mode dissertation` | `final-dissertation-evaluator` Agent 단독 호출 → `final/evaluations/latest/dissertation-evaluation.md` 생성 후 종료 |
+| `final 평가해줘` (mode 없음) | §0.5 이후 정상 진행 (기존 파이프라인) |
+| `flow 평가해줘 --mode X` 또는 `output 평가해줘 --mode X` | 경고 출력 후 `--mode` 무시, 기존 파이프라인 진행 |
+
+**mode evaluator 호출 시 의무 단계**:
+1. **사전 조건 점검**: `final/complete-draft.md` 존재 — 부재 시 거부 (`먼저 '최종 완성했어'로 통합본 생성`).
+2. **Archive 스냅샷** (해당 mode 한정): `final/evaluations/latest/{mode}-evaluation.md`가 있으면 `final/evaluations/history/{mode}/{NNN}-{date}/`로 이동.
+3. **선로드 + dispatch**: orchestrator가 `final/complete-draft.md`를 한 번 읽고 evaluator prompt에 인라인 주입 (Read 중복 방지).
+4. **다른 산출물 미생성**: aggregator·claim-extractor·축 워커·holistic 모두 skip. evaluation.md, axis*.md, holistic-review.md, work-plan.md 미수정.
+5. **활동 로그**: `python3 scripts/activity_log.py append {PROJECT} "최종 평가" "stage=final" "mode={coursework|dissertation}" "agents=final-{mode}-evaluator"`
+
+mode 분기 종료 후 §0.5~§8 모두 skip.
+
+### 0.6 Archive 스냅샷 (증분)
 
 `{stage}/evaluations/latest/`가 있으면 `{stage}/history/{stage}/evaluations/{NNN}-{date}-{stage}/`로 **증분 스냅샷** (변경된 축만 실제 복사, 나머지는 `manifest.json`에서 이전 경로 참조).
 
@@ -35,7 +76,7 @@ model: opus
 python3 scripts/sync_state.py snapshot-evaluation {PROJECT} {stage}
 ```
 
-### 0.5 work-plan snapshot (변경 시에만)
+### 0.7 work-plan snapshot (변경 시에만)
 
 `work-plan.md`가 존재하고 마지막 스냅샷 이후 내용이 달라졌으면:
 
@@ -279,6 +320,8 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 7. **Final-stage holistic은 의무** — stage=final일 때 §5.7 holistic adjudication을 *반드시* 실행. 6축 결과만으로 work-plan을 사용자에게 노출하지 않음. Final 평가의 진짜 산출은 6축 + holistic-review.md 두 산출의 결합.
 8. **Holistic은 카드 발급 X** — adjudicator 역할만. 신규 카드 생성하지 않고 기존 WRITE 카드의 verdict 필드 + prefix 부여만. 발급 권한은 aggregator·axis-scorer·peer-reviewer에 남음.
 9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 카드 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
+10. **Over-defense penalty (axis3 3-5 + axis6 C-5)** — under-defense뿐 아니라 over-defense도 처벌. 한 챕터에 반박 paragraph 도배·hedge 남용 시 감점.
+11. **Final `--mode` 옵션의 격리** — `--mode coursework`/`--mode dissertation` 호출 시 §0.5~§8 *전부* skip. mode evaluator가 통합본 단독 평가, 6-axis·holistic·aggregator·claim-extractor 어느 것도 호출 X. 산출은 단일 mode-evaluation.md 파일.
 
 ## 출력
 
@@ -306,7 +349,63 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 ⏱ 소요: 2분 15초
 ```
 
-### final stage 예시 (holistic 포함)
+### final stage `--mode coursework` 예시
+
+```
+🎯 Coursework 평가 완료 (mode=coursework, single-evaluator dispatch)
+
+기존 6-axis · holistic · claim-extractor 모두 skip.
+
+📊 Overall Mark: 68 / 100
+🥈 등급: Merit (Very good)
+
+기준별 band:
+| 기준 | Mark | Band |
+| C-1 Overall | 68 | 🥈 Merit |
+| C-2 Argument | 68 | 🥈 Merit |
+| C-3 Engagement w/ topic | 73 | 🥇 Distinction |
+| C-4 Writing | 68 | 🥈 Merit |
+| C-5 Presentational | 73 | 🥇 Distinction |
+| C-6 Literature | 63 | 🥉 High Pass |
+| C-7 Theory | 68 | 🥈 Merit |
+| C-8 Summary | 66 | 🥈 Merit (narrow) |
+
+🚀 Distinction(70+)으로 가는 Top 3:
+  1. C-2 Argument originality 강화 (~1h)
+  2. C-6 critical engagement 보강 (~30m)
+  3. C-7 issues beyond field (~1h)
+
+📝 산출: final/evaluations/latest/coursework-evaluation.md
+⏱ 소요: 2분 30초
+```
+
+### final stage `--mode dissertation` 예시
+
+```
+🎯 Dissertation 평가 완료 (mode=dissertation, single-evaluator dispatch)
+
+기존 6-axis · holistic · claim-extractor 모두 skip.
+
+📊 Overall Mark: 63 / 100
+🥉 등급: High Pass (Competent)
+
+⚠️ Methodology stack 약점 — D-8 (58), D-9 (58), D-10 (53)
+
+기준별 band:
+| 기준 | Mark | Band |
+| D-1 Overall | 63 | 🥉 High Pass |
+| ... (10개) | ... | ... |
+
+🚀 Merit(65+)으로 가는 Top 3 (methodology 우선):
+  1. D-10 reliability/validity 명시화 (~2h)
+  2. D-9 data quality control 명시화 (~1h)
+  3. D-6 누락 key sources 보강 (~2h)
+
+📝 산출: final/evaluations/latest/dissertation-evaluation.md
+⏱ 소요: 3분 10초
+```
+
+### final stage 기본 (mode 없음, holistic 포함)
 
 ```
 🎯 평가 완료 (stage=final, full 모드, 6/6 축 평가)
