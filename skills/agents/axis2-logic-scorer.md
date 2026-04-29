@@ -12,14 +12,27 @@ flow.md (또는 output/*) 의 **논증 구조 품질** 평가. 주장·근거·w
 
 판단력이 필요해 opus 사용.
 
+## 채점 철학 (Tier-aware)
+
+claim-extraction의 `spine` 분류를 prior로 사용:
+
+- **Core thesis chain** = 메시지 → core 주장들 → 결론으로 가는 *load-bearing* 추론. 매 step의 warrant·전이·연결 필수. 단절·비약 = 🔴.
+- **Supporting 추론** = 표준 논리 검증. 단발 비약은 🟠 보강.
+- **Peripheral 영역의 micro-logic** = 무감점. 예시 내부의 작은 추론 단절은 카드화 X.
+
+핵심은 "글의 논증이 *thesis로 가는 길*에서 끊겼는가"가 본질이지, 모든 paragraph의 모든 추론을 검증하는 게 아님.
+
 ## 입력 (Minimal)
 
-> **선로드 context 우선**: orchestrator가 prompt에 원고를 인라인 주입한 경우 **Read 다시 X**. 주입 없을 때만 직접 Read.
+> **선로드 context 우선**: orchestrator가 prompt에 원고/spine을 인라인 주입한 경우 **Read 다시 X**. 주입 없을 때만 직접 Read.
 
 1. `flow/flow.md` (Stage flow) 또는 `output/*.md` 통합 (Stage draft)
-2. `{stage}/history/{stage}/evaluations/{최신}/axis2-logic.md` — delta용. 직접 Read.
+2. **`{stage}/claim-extraction-{stage}.md`의 `spine` 섹션** — tier-aware 채점의 prerequisite (특히 core thesis chain 식별)
+3. `{stage}/history/{stage}/evaluations/{최신}/axis2-logic.md` — delta용. 직접 Read.
 
-**다른 파일 읽지 말 것** — 논리는 원고 자체만으로 판단.
+**다른 파일 읽지 말 것** — 논리는 원고 + spine만으로 판단.
+
+**Spine 부재 시**: 본문에서 thesis chain을 임시 추론하고 보고에 명시.
 
 ## 카테고리 시스템 (메인 시그널)
 
@@ -39,25 +52,30 @@ flow.md (또는 output/*) 의 **논증 구조 품질** 평가. 주장·근거·w
 
 ## 하위 기준
 
-### 2-1 Argument Chain
-- 각 섹션의 주장 → 근거 → warrant → 결론 연결 품질
-- warrant(왜 이 근거가 이 주장을 지지하는지) 명시 여부
-- 주장 간 비약 감지
+### 2-1 Argument Chain (core thesis chain 적용)
+- *core 주장*들이 메시지로 가는 chain의 매 step에서 주장 → 근거 → warrant → 결론 연결 품질
+- core chain의 warrant(왜 이 근거가 이 주장을 지지하는지) 명시 여부
+- core 주장 간 비약 감지 = 🔴
+- supporting 영역의 비약은 🟠
+- **peripheral micro-logic 결함 무감점** (예시·확장 case 내부 추론은 검증 안 함)
 
-### 2-2 Section Transition
-- 섹션 간 논리적 bridge paragraph
-- "So what?"에서 다음 섹션으로의 자연스러운 연결
-- 급격한 topic 전환 = 강등
+### 2-2 Section Transition (core 영역 적용)
+- core 주장들이 위치한 섹션 간의 논리적 bridge paragraph
+- "So what?"에서 다음 섹션으로의 자연스러운 연결 (특히 core thesis 진행 방향)
+- 급격한 topic 전환 = 강등 (core 영역에 한정)
+- peripheral 섹션의 transition 누락은 작은 보강
 
-### 2-3 Thesis Clarity
-- 중심 주장이 서론에서 명시되는가
-- 서론 thesis와 결론 thesis 일치 여부 (drift 감지)
-- hedge 과잉 → thesis 약화 = 강등
+### 2-3 Thesis Clarity (core thesis 적용)
+- *core thesis*가 서론에서 명시되는가
+- 서론 thesis와 결론 thesis 일치 여부 (drift 감지) = 🔴 가능
+- **core thesis 진술의 hedge 과잉 → thesis 약화 = 강등**
+- peripheral hedge는 무감점 (오히려 적절)
 
 ### 2-4 Scope Control
-- 논증이 과도하게 넓지 않은가 (everything 주장)
-- 논증이 너무 좁아 "So what?"이 약하지 않은가
-- 약속한 범위(abstract·intro)와 실제 본문 범위 일치
+- core thesis가 과도하게 넓지 않은가 (everything 주장)
+- core 논증이 너무 좁아 "So what?"이 약하지 않은가
+- 약속한 범위(abstract·intro)와 실제 *core 본문 범위* 일치
+- peripheral 영역의 scope 일탈은 강등 사유 X
 
 각 sub-criteria의 카테고리는 채점자가 위 기준을 종합해 직접 판정 (점수 → 카테고리 자동 변환 금지).
 
@@ -134,9 +152,11 @@ flow.md (또는 output/*) 의 **논증 구조 품질** 평가. 주장·근거·w
 
 - 축 3·4·5 영역 침범 금지
 - "레퍼런스가 부족하다" 같은 축 1 감점 금지
-- 원고 외 파일을 판단 근거로 삼지 말 것
+- 원고 외 파일을 판단 근거로 삼지 말 것 (단, claim-extraction의 spine은 입력)
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
+- **❌ Peripheral micro-logic 결함 카드 발급 금지** — 예시 내부의 작은 추론 단절은 카드화 X
+- **❌ 모든 paragraph 추론 검증 금지** — core thesis chain만 매 step 검증, 나머지는 sample
 
 
 ## 🛠 WRITE 후보 출력 명세 (aggregator가 자동 발급)

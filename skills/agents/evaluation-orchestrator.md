@@ -89,21 +89,26 @@ python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|output|final}
 
 **Stage flow 선로드 대상**:
 - `flow/flow.md` — 6개 축 모두 필요
-- `flow/claim-extraction-flow.md` — axis1·3·4 필요
+- **`flow/claim-extraction-flow.md` (특히 `spine` 섹션)** — **6개 축 모두 필요** (tier-aware 채점). 1·3·4는 인용 매핑 + spine 둘 다, 2·5·6은 spine만.
 - `critical-questions.md` — axis6 필요 (존재 시)
 - `critical-commitments.md` — axis3·6 필요 (존재 시)
+- `.paper-metadata.json` `critique_budget` — axis3·6 (over-engagement penalty)
 
 **Stage output 선로드 대상**:
 - `output/*.md` 전체 concatenated — 6개 축 모두 필요
-- `output/claim-extraction-output.md` — axis1·3·4 필요
+- **`output/claim-extraction-output.md` (특히 `spine` 섹션)** — **6개 축 모두 필요**
 - `flow/claim-extraction-flow.md` — 보조 (axis1 seed 비교용)
 - `critical-questions.md`, `critical-commitments.md` — 있으면
+- `.paper-metadata.json` `critique_budget`
 
 **Stage final 선로드 대상**:
 - `final/complete-draft.md` — 6개 축 모두 필요 (단일 통합본)
-- `final/claim-extraction-final.md` — axis1·3·4 필요
+- **`final/claim-extraction-final.md` (특히 `spine` 섹션)** — **6개 축 모두 필요**
 - `output/claim-extraction-output.md` — 보조 (output stage와 비교용)
 - `critical-questions.md`, `critical-commitments.md` — 있으면
+- `.paper-metadata.json` `critique_budget`
+
+**Spine 부재 호환 (구버전)**: claim-extraction-{stage}.md에 `spine` 섹션이 없으면 axis들이 자체적으로 본문에서 임시 추론. 보고에 명시. 시스템은 동작 유지하되 tier-aware 정확도는 떨어짐 — 사용자에게 "claim-extraction 재생성 권장" 안내.
 
 **주입 형식** (각 Agent prompt 끝에 추가):
 ```
@@ -279,6 +284,9 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 7. **Final-stage holistic은 의무** — stage=final일 때 §5.7 holistic adjudication을 *반드시* 실행. 6축 결과만으로 work-plan을 사용자에게 노출하지 않음. Final 평가의 진짜 산출은 6축 + holistic-review.md 두 산출의 결합.
 8. **Holistic은 카드 발급 X** — adjudicator 역할만. 신규 카드 생성하지 않고 기존 WRITE 카드의 verdict 필드 + prefix 부여만. 발급 권한은 aggregator·axis-scorer·peer-reviewer에 남음.
 9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 카드 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
+10. **Tier-aware 채점이 모든 축의 default** — 각 axis는 `claim-extraction.spine`을 prior로 받아 core/supporting/peripheral 차등 채점. core 결함만 🔴, peripheral 결함은 무감점·카드 미발급. 균등 채점은 위반.
+11. **Spine 분류 정합성은 모든 평가의 quality gate** — claim-extractor의 spine이 잘못되면 모든 axis 결과가 잘못됨. 따라서 holistic Phase A에서 axis가 본 spine과 holistic의 자체 articulate가 *불일치*하면 그 자체가 결함 신호 — 사용자에게 spine 재검증 권고.
+12. **Over-defense penalty (axis3 3-5 + axis6 C-5)** — under-defense뿐 아니라 over-defense도 처벌. critique_budget 초과 시 감점.
 
 ## 출력
 

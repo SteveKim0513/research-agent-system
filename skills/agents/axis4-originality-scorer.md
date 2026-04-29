@@ -12,15 +12,28 @@ model: opus
 
 opus 사용.
 
+## 채점 철학 (Tier-aware)
+
+claim-extraction의 `spine` 분류를 prior로 사용:
+
+- **Core thesis의 독창성·기여도** = 평가 본질. 차별화 모호·기여 층위 미명시 = 🔴.
+- **Supporting 주장의 novelty** = 통상 *기존 분야 합의*면 충분. novel일 필요 X.
+- **Peripheral 영역** = 평가 대상 아님. 예시·확장의 originality는 묻지 않음.
+
+핵심: "이 글의 *core thesis*가 뭐가 새로운가"가 본질. 부수 주장의 originality는 글의 가치와 무관.
+
 ## 입력 (Selective)
 
-> **선로드 context 우선**: orchestrator가 prompt에 원고를 주입한 경우 **Read 다시 X**. `papers/analyzed/*` 는 직접 Read.
+> **선로드 context 우선**: orchestrator가 prompt에 원고/spine을 주입한 경우 **Read 다시 X**. `papers/analyzed/*` 는 직접 Read.
 
 1. `flow/flow.md` 또는 `output/*.md`
-2. `papers/analyzed/*.md` 중 **axis_tags에 "delta" 포함**한 것만 (5-8편 예상)
-3. `{stage}/history/{stage}/evaluations/{최신}/axis4-originality.md` — delta용
+2. **`{stage}/claim-extraction-{stage}.md`의 `spine` 섹션** — core thesis 식별
+3. `papers/analyzed/*.md` 중 **axis_tags에 "delta" 포함**한 것만 (5-8편 예상)
+4. `{stage}/history/{stage}/evaluations/{최신}/axis4-originality.md` — delta용
 
 **Delta tag**: paper-analyst가 "이 논문이 flow의 thesis와 이론적으로 경쟁/인접"이라고 판단한 것들.
+
+**Spine 부재 시**: 본문에서 core thesis 임시 추론.
 
 ## 카테고리 시스템 (메인 시그널)
 
@@ -44,24 +57,29 @@ opus 사용.
 
 ## 하위 기준
 
-### 4-1 "So What?"
-- 서론에 (a) 문제 미해결 시 분야 손실 (b) 본 논문이 채우는 지점 (c) 파급 경로 — 3요소 명시
+### 4-1 "So What?" (core thesis)
+- 서론에 *core thesis*에 대해 (a) 문제 미해결 시 분야 손실 (b) 본 논문이 채우는 지점 (c) 파급 경로 — 3요소 명시
 - 단순 "정리·비교" 수준이면 강등
+- 🔴: core thesis "So What?" 3요소 부재
+- supporting 주장에 So What 부재는 무감점
 
-### 4-2 Novelty Positioning / Delta Map
-- **Delta Map** 존재 (선행 | 이미 한 것 | 본 논문의 Delta 형식)
-- delta tag 논문 각각과 **구체적으로** 어떻게 다른지 명시
+### 4-2 Novelty Positioning / Delta Map (core 한정)
+- *core thesis*에 대한 **Delta Map** 존재 (선행 | 이미 한 것 | 본 논문의 Delta 형식)
+- delta tag 논문 각각과 **core thesis가 구체적으로** 어떻게 다른지 명시
 - 가장 가까운 경쟁 프레임과의 차별화
+- 🔴: core thesis의 Delta Map 부재 또는 모호 — "모호한 차별화" = 핵심 결함
+- peripheral·supporting 영역의 차별화는 평가 안 함
 
-### 4-3 Layer Clarity
-- 본 논문의 기여가 **어느 층위**인가 명시 (이론·개념·방법·경험·응용)
+### 4-3 Layer Clarity (core 기여)
+- *core thesis 기여*가 **어느 층위**인가 명시 (이론·개념·방법·경험·응용)
 - "모든 층위" 식 과잉 주장 = 강등
-- 기여 층위와 근거 일치
+- 기여 층위와 근거 일치 (core thesis 영역)
 
-### 4-4 Implications
-- **실천적·이론적 함의** 각각 구체 제시
+### 4-4 Implications (core thesis로부터)
+- *core thesis*로부터 도출되는 **실천적·이론적 함의** 각각 구체 제시
 - "후속 연구 방향" 3가지 이상 구체적
 - "X 분야에 도움이 될 것이다" 수준 = 강등
+- supporting 주장의 implications는 무관
 
 각 sub-criteria 카테고리는 위 기준 종합해 직접 판정.
 
@@ -141,6 +159,8 @@ opus 사용.
 - 논리 구조는 축 2 영역
 - **0-state에 잠정 만점 부여 금지**
 - **점수를 카테고리보다 강조 금지**
+- **❌ Peripheral·supporting 영역의 originality 평가 금지** — 그 영역의 novelty 부재는 무감점, WRITE 카드 발급 X
+- **❌ Core thesis 외 영역의 Delta Map 강요 금지** — 글의 차별화는 *core thesis* 한 곳에서만 측정
 
 
 ## 🛠 WRITE 후보 출력 명세 (aggregator가 자동 발급)

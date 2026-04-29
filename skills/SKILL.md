@@ -271,16 +271,18 @@ final/
 
 ## 5축 평가 기준
 
-flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 4개 sub-criteria로 구성.
+flow/원고를 top-tier 저널 심사 엄격도로 평가한다. 각 축은 4~5개 sub-criteria로 구성.
+
+**모든 축 tier-aware 채점 (2026-04-29~)**: claim-extractor가 본문 spine을 `core` / `supporting` / `peripheral`로 분류 → 각 axis는 spine map을 prior로 받아 *core 결함은 full rigor*, *supporting은 standard*, *peripheral은 무감점*. axis3·6에는 over-engagement penalty (sub-criteria 5번) 신설 — under-defense뿐 아니라 over-defense(반박 paragraph 도배·hedge 남용)도 처벌.
 
 | 축 | 이름 | 핵심 질문 | 전문 에이전트 |
 |---|------|----------|-------------|
-| **1** | 논문 레퍼런스 충실도 | Coverage + Accuracy + Authority + Balance | **axis1-reference-scorer** |
-| **2** | 논리 전개 완성도 | Argument chain + Transition + Thesis alignment + Scope closure | **axis2-logic-scorer** |
-| **3** | 반박/강화 논리 | Steelman + Falsifiability + Limitations + Reviewer attack surface | **axis3-defense-scorer** |
-| **4** | 독창성·기여도 | "So What?" + Novelty positioning + Contribution layer + Implications | **axis4-originality-scorer** |
-| **5** | 구성개념 정의 정밀도 | Definition + Operationalization + Boundary + Categorical/Dimensional | **axis5-concept-scorer** |
-| **6** | 비판 렌즈 (Critical Mode) | Paradigm Mapping + Fault-line + Bold Defense + Minority Recovery | **axis6-critical-scorer** |
+| **1** | 논문 레퍼런스 충실도 | Coverage(tier) + Accuracy + Authority(core) + Balance(core) | **axis1-reference-scorer** |
+| **2** | 논리 전개 완성도 | Argument chain(core) + Transition + Thesis(core) + Scope | **axis2-logic-scorer** |
+| **3** | 반박/강화 논리 | Steelman(core HIGH) + Falsifiability(core) + Limitations + Attack(core) + **Engagement Discipline (over-defense penalty)** | **axis3-defense-scorer** |
+| **4** | 독창성·기여도 | "So What?"(core) + Delta Map(core) + Layer Clarity + Implications | **axis4-originality-scorer** |
+| **5** | 구성개념 정의 정밀도 | Definition(core) + Operationalization(core) + Boundary(core) + Categorical(core) | **axis5-concept-scorer** |
+| **6** | 비판 렌즈 (Critical Mode) | Paradigm(core) + Fault-line(core) + Bold Defense(core) + Minority Recovery(core) + **Engagement Discipline (over-defense penalty)** | **axis6-critical-scorer** |
 
 ### 카테고리 시스템 (메인 시그널)
 
@@ -318,9 +320,13 @@ axis1+axis5는 "구조적 축" 가중 — 레퍼런스+개념 정의는 학술 �
 
 **Dispatch 규율**: orchestrator는 axis-scorer prompt에 사양 + 선로드 context만 주입. 평가 가이드·점수 힌트·사전 작성된 체크리스트 주입 금지 (채점자 독립성 보호).
 
+**Spine 의무 주입**: 모든 axis dispatch 시 `claim-extraction-{stage}.md`의 `spine` 섹션을 prompt에 인라인 주입. 누락 시 axis가 본문에서 임시 추론하지만 정확도 저하 — 사용자에게 claim-extraction 재생성 권고.
+
 ## 자동 재분석 규칙 (Stage-aware claim-extraction)
 
 claim-extractor는 *평가의 input*. 평가 명령 (`평가해줘`)에서만 자동 체이닝. **작성·수정 명령에서는 호출하지 않음** (평가에 무관).
+
+**산출물 핵심**: `claim-extraction-{stage}.md`는 두 가지를 동시에 산출 — (a) 인용 분류 (A~G) + RESEARCH 카드 후보, (b) **Spine map** (core/supporting/peripheral 3-tier 분류, 모든 axis가 tier-aware 채점에 prior로 사용).
 
 | 명령 | 자동 재분석 조건 | 대상 | 출력 |
 |------|----------------|-----|-----|
@@ -462,6 +468,13 @@ python3 scripts/migrate_project.py {PROJECT}
    - REJECT는 "결함은 있으나 적용 시 척추 net harm" → veto. REROUTE는 "결함이 thesis·구조 수준이라 final 본문 수정으로는 못 고침 → output/flow로 backtrack 필요" → 사용자 결정 사안.
    - 후속 명령(`Chapter X 수정해줘` 등)은 카드의 `holistic_verdict` 필드를 점검 후 적용. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
 
+6. **Tier-aware 채점 (모든 stage 적용)** — claim-extractor가 본문 spine을 `core` / `supporting` / `peripheral` 3-tier로 분류 (`claim-extraction-{stage}.md`의 `spine` 섹션). 6개 axis가 이를 prior로 받아:
+   - **Core 주장의 결함** = full rigor. 인용 누락·논리 단절·기여 모호·HIGH-threat 반박 미대응 = 🔴 발급 가능.
+   - **Supporting 결함** = standard rigor. 다수 누락 시 강등이지만 단발은 작은 보강.
+   - **Peripheral 결함** = 무감점, WRITE 카드 미발급. 예시·확장 case의 결함은 평가 대상 아님.
+   - **Over-engagement penalty (axis3 3-5 + axis6 C-5)** — 한 챕터에 반박 paragraph 다수 또는 hedge 도배 시 *감점*. `.paper-metadata.json`의 `critique_budget` 기준 (없으면 default depth=5/hedge=10).
+   - 사용자가 spine 분류 모호 항목 (claim-extraction의 ⚠️ 표기)을 검증해야 평가 정확도가 보장됨.
+
 4. **레퍼런스 vs 내용 분리**:
    - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
    - 내용 분석: 논리·반박·독창성·구성개념·비판. axis2~6만. **WRITE 카드 발급**.
@@ -524,7 +537,7 @@ python3 scripts/migrate_project.py {PROJECT}
 | **axis5-concept-scorer** | `skills/agents/axis5-concept-scorer.md` | 축 5 구성개념 정의 정밀도 (sonnet) | 자동 |
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
 | **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). work-plan WRITE 카드에 `holistic_verdict` 필드·prefix 부여 (opus) | 자동 (final stage orchestrator) |
-| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
+| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md/output/final 문장 주장 추출 + **spine 분류 (core/supporting/peripheral)** — 모든 axis 평가의 prerequisite | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
 | **paper-analyst** | `skills/agents/paper-analyst.md` | v3.2 — anchor (opus, 깊은) / non-anchor (sonnet, 가벼운) / Mode B 재분석 / Mode C critique_target. 정책 거부 fallback v3.2 (opus → sonnet 강등 정식 step), [X][D] 마커, index_fields, INDEX.md 자동 빌드 | `논문 처리해줘` 진입점 |
 | **thesis-developer** 🌱 | `skills/agents/thesis-developer.md` | "thesis 발전시켜줘" — implicit assumption·tension·extension·operationalization (generative phase) | 자동/수동 |

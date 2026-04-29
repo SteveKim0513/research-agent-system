@@ -49,7 +49,7 @@ REQUIRED_DIRS = [
     "papers/consensus-results.archive",
 ]
 
-CURRENT_VERSION = "1.2"
+CURRENT_VERSION = "1.3"
 
 
 class Reporter:
@@ -216,16 +216,41 @@ def step_update_metadata(proj: Path, r: Reporter) -> None:
         return
 
     current = data.get("version")
-    if current == CURRENT_VERSION:
-        r.skip(f".paper-metadata.json version 이미 {CURRENT_VERSION}")
+    changes = []
+
+    # v1.3: tier-aware 채점용 옵션 필드 (target_length, critique_budget) 추가 — 누락 시 default 채움
+    if "target_length" not in data:
+        data["target_length"] = {
+            "word_count": None,
+            "chapter_count": None,
+            "note": "선택 필드. null이면 axis가 본문에서 추정.",
+        }
+        changes.append("target_length 추가 (default null)")
+    if "critique_budget" not in data:
+        data["critique_budget"] = {
+            "depth_engage": 5,
+            "brief_hedge": 10,
+            "ignore_safe": "rest",
+            "note": "선택 필드. axis6 C-5 / axis3 3-5 over-engagement penalty 기준.",
+        }
+        changes.append("critique_budget 추가 (default depth=5/hedge=10)")
+
+    if current == CURRENT_VERSION and not changes:
+        r.skip(f".paper-metadata.json version 이미 {CURRENT_VERSION}, 모든 필드 완비")
         return
 
     data["version"] = CURRENT_VERSION
     if r.dry_run:
-        r.did(f"version {current!r} → {CURRENT_VERSION!r} 갱신 예정")
+        if changes:
+            r.did(f"version {current!r} → {CURRENT_VERSION!r} + {', '.join(changes)} 갱신 예정")
+        else:
+            r.did(f"version {current!r} → {CURRENT_VERSION!r} 갱신 예정")
     else:
         p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        r.did(f".paper-metadata.json version {current!r} → {CURRENT_VERSION!r}")
+        if changes:
+            r.did(f".paper-metadata.json version {current!r} → {CURRENT_VERSION!r} + {', '.join(changes)}")
+        else:
+            r.did(f".paper-metadata.json version {current!r} → {CURRENT_VERSION!r}")
 
 
 def step_cleanup_empty_evaluations(proj: Path, r: Reporter) -> None:
