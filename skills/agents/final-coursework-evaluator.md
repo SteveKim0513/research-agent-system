@@ -14,12 +14,17 @@ model: opus
 
 | 조건 | 동작 |
 |------|------|
-| `final 평가해줘 --mode coursework` | 본 evaluator 단독 dispatch |
+| `final 평가해줘 --mode coursework` | **단일 evaluator 모드** — 본 evaluator가 단독 채점 |
+| `final 평가해줘 --mode coursework --committee` | **위원회 모드** — 본 evaluator는 *orchestrator*로 작동, 5인 페르소나 위원회 절차 진행 (PDF §3.3) |
 | `final 평가해줘 --mode dissertation` | dissertation-evaluator dispatch (본 evaluator 무관) |
 | `final 평가해줘` (mode 옵션 없음) | 기존 6-axis + holistic 파이프라인 (본 evaluator 무관) |
 | stage ≠ final | 거부 (`coursework 모드는 final stage 한정`) |
 
 orchestrator가 `--mode coursework` 파싱 시 본 evaluator 직접 호출. aggregator·claim-extractor·축 워커 모두 skip.
+
+**`--committee` 추가 옵션의 차이**:
+- 단일 모드: 본 evaluator가 직접 8 criteria 채점, 단일 LLM 시각.
+- 위원회 모드: 본 evaluator가 5인 페르소나 (Marker 1·Marker 2·Third·External·Chair)를 절차에 따라 dispatch. 단일 LLM의 systematic bias를 페르소나 차별화로 노출 → 분극 zone 명시 + Chair reconciliation. 적중률 향상이 디자인 목표.
 
 ## 사전 조건
 
@@ -296,3 +301,149 @@ vm.update_version(
     updated_by="final-coursework-evaluator",
 )
 ```
+
+---
+
+# 위원회 모드 (`--committee`)
+
+`--mode coursework --committee` 호출 시 본 파일은 *단독 evaluator*가 아니라 **5-Phase orchestrator**로 작동. 본인이 직접 채점하지 않고 5인 페르소나를 절차에 따라 dispatch.
+
+## 위원회 구성 (5인)
+
+| 페르소나 | 파일 | 역할 |
+|---------|------|------|
+| **Marker 1** | `coursework-marker-1.md` | Internal Examiner, methods-leaning. blind 1차 채점 |
+| **Marker 2** | `coursework-marker-2.md` | Internal Examiner, theory-leaning. blind 1차 채점 |
+| **Third Marker** | `coursework-third-marker.md` | Senior Generalist. 합의 실패 시만 발동, blind |
+| **External Examiner** | `coursework-external-examiner.md` | Cross-field calibration |
+| **Chair of Examiners** | `coursework-chair.md` | reconciliation·moderation·최종 mark 결정 |
+
+## 5-Phase 절차 (PDF §3.3 준수)
+
+### Phase 1 — Blind 병렬 채점
+
+`Marker 1`과 `Marker 2`를 **동시에** Agent 도구로 dispatch:
+- 두 agent 모두 `final/complete-draft.md`만 입력
+- 서로의 결과를 보지 않음 (blind)
+- 각자 독립적으로 mark + 8 criteria band 부여
+- 출력: `final/evaluations/latest/committee/marker-1.md`, `marker-2.md`
+
+⚠️ orchestrator는 두 호출의 prompt에 *서로의 결과 절대 미주입*. blind 보장이 페르소나 차별화의 전제.
+
+### Phase 2 — Reconciliation 판정 (자동 로직)
+
+Marker 1·2 결과 비교 후 **Case** 판정:
+
+```
+mark1, mark2 = parse_marker_outputs()
+delta = abs(mark1 - mark2)
+
+if {mark1, mark2} == {66, 68}:
+    # PDF §3.3: 자동 68
+    case = "A"
+    final_anchor = 68
+    skip_to = "phase_4"  # reconciliation 면제, External만 거치고 Chair로
+
+elif delta == 0:
+    case = "perfect-agreement"
+    final_anchor = mark1
+    skip_to = "phase_4"
+
+elif delta <= 5 and same_band(mark1, mark2):
+    # 같은 band 내 _3 vs _8 차이 — reconciliation discussion 가능
+    case = "B"
+    proceed_to = "reconciliation_discussion"
+
+else:
+    # band 경계 넘음 또는 큰 차이 — Third Marker 발동
+    case = "C"
+    proceed_to = "phase_3"
+```
+
+**Case B (Reconciliation discussion)**:
+- Marker 1·2 outputs를 *함께* 한 prompt로 입력
+- "두 marker가 합의 가능한 mark는?" 식 reconciliation 질문
+- 단, Marker 1·2 페르소나의 *본인 voice 양보 가능 영역*만 절충
+- 결과: `final/evaluations/latest/committee/reconciliation-log.md` 생성, 합의 mark 기록
+- 합의 실패 시 → Case C로 escalate
+
+### Phase 3 — Third Marker (조건부)
+
+Case C에 한해 발동:
+- `coursework-third-marker.md` Agent dispatch
+- **blind**: Marker 1·2·reconciliation log *절대 미주입*
+- 입력: `final/complete-draft.md`만
+- 출력: `final/evaluations/latest/committee/third-marker.md`
+
+PDF §3.3: *"If they are unable to reconcile their marks, the piece of work is referred to a third marker. Where a third marker is involved, they mark the piece 'blind'."*
+
+### Phase 4 — External Examiner Moderation
+
+`coursework-external-examiner.md` Agent dispatch:
+- 입력: `final/complete-draft.md` + Marker 1·2 outputs (+ Third Marker if 발동) + reconciliation-log (있으면)
+- Cross-institutional calibration commentary 산출
+- 본인은 raw mark 부여하지 않음 — 권고만
+- 출력: `final/evaluations/latest/committee/external-examiner.md`
+
+### Phase 5 — Chair Final Decision
+
+`coursework-chair.md` Agent dispatch:
+- 입력: 모든 이전 outputs (markers + external)
+- Reconciliation Case 판정 → 최종 mark 결정 + reasoning trace
+- Top 3 등급 상승 액션 (markers + external 공통 지적 영역 우선)
+- 출력:
+  - `final/evaluations/latest/coursework-committee-evaluation.md` (메인 산출, 사용자 보는 결과)
+  - `final/evaluations/latest/committee/chair-decision.md` (reasoning trace 단독)
+
+## 격리 보장
+
+위원회 모드 진행 중 **모두 skip** (단일 evaluator 모드와 동일):
+- 기존 6-axis scorer 호출 X
+- holistic-reviewer 호출 X
+- claim-extractor 호출 X
+- aggregator 호출 X
+- work-plan.md 수정 X
+- WRITE/RESEARCH 카드 발급 X
+
+## 산출 파일 정리
+
+```
+final/evaluations/latest/
+├── coursework-committee-evaluation.md          ← 사용자가 보는 메인 결과 (Chair 산출)
+└── committee/
+    ├── marker-1.md                             ← Marker 1 blind output
+    ├── marker-2.md                             ← Marker 2 blind output
+    ├── reconciliation-log.md                   ← Case B 진행된 경우만
+    ├── third-marker.md                         ← Case C로 발동된 경우만
+    ├── external-examiner.md                    ← Phase 4 calibration
+    └── chair-decision.md                       ← Phase 5 reasoning trace
+```
+
+기존 단일 evaluator 모드 (`--mode coursework` 옵션 없이 `--committee` 부재)는 `coursework-evaluation.md` 단일 파일 산출 — 두 모드 파일 충돌 없음.
+
+## 위원회 모드 vs 단일 모드 비교
+
+| 항목 | 단일 모드 (`--mode coursework`) | 위원회 모드 (`--mode coursework --committee`) |
+|------|-------------------------------|---------------------------------------------|
+| Token 비용 | 1× | ~5-8× |
+| Wall time | 2-3분 | 8-12분 (Phase 1만 병렬) |
+| 산출 | 단일 파일 | 메인 + 5개 marker outputs |
+| 적중률 디자인 | 단일 LLM 한계 | 페르소나 차별화 + reconciliation으로 향상 |
+| 분극 zone 명시 | 없음 | Chair reasoning에 명시 |
+| Reconciliation trace | 없음 | PDF §3.3 절차 그대로 기록 |
+
+## 위원회 모드 사용자 권고
+
+- **제출 직전 정밀 채점 시뮬레이션** 시 사용 권장
+- **첫 평가**에는 단일 모드 충분 (빠르고 넓은 그림)
+- **debate-worthy zone** 의심 (자기 글의 강약점 분극) 시 위원회 모드로 검증
+- 5인 의견 분산 자체가 *진짜 분극 zone*의 신호 (각 페르소나가 다르게 본다 = 채점자에 따라 갈린다)
+
+## 위원회 모드 금지
+
+- ❌ Phase 1에서 Marker 1·2 prompt에 서로의 결과 주입 — blind 위반
+- ❌ Phase 3에서 Third Marker prompt에 Marker 1·2 결과 주입 — blind 위반
+- ❌ External Examiner가 raw mark 직접 부여 — calibration 권고만
+- ❌ Chair가 Marker 의견 무시하고 임의 mark 부여
+- ❌ 페르소나의 voice 흉내 (각 페르소나 파일의 voice 일관 유지)
+- ❌ Reconciliation Case 판정 임의 변경 (PDF §3.3 그대로)

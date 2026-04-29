@@ -32,7 +32,8 @@ model: opus
 | 옵션 | 동작 | 사용 evaluator |
 |------|------|---------------|
 | (옵션 없음) | 기존 6-axis 병렬 채점 + holistic-reviewer | `axis1~6-scorer` + `final-holistic-reviewer` |
-| `--mode coursework` | Oxford MSc Education **Coursework** rubric (8 criteria × 6-band) | `final-coursework-evaluator` 단독 |
+| `--mode coursework` | Oxford MSc Education **Coursework** rubric (8 criteria × 6-band), 단일 LLM 채점 | `final-coursework-evaluator` 단독 |
+| `--mode coursework --committee` | 위와 동일 rubric이지만 **5인 페르소나 위원회 절차** (PDF §3.3 준수) — Marker 1·2 blind → reconciliation → Third Marker → External → Chair | `final-coursework-evaluator` (orchestrator) + 5 personas |
 | `--mode dissertation` | Oxford MSc Education **Dissertation** rubric (10 criteria × 6-band) | `final-dissertation-evaluator` 단독 |
 
 **Mode 모드의 격리 원칙**:
@@ -42,8 +43,10 @@ model: opus
 
 **파싱 규칙**:
 - `final 평가해줘 --mode coursework` 또는 `final 평가해줘 --mode dissertation` 두 형태 인식
+- `--committee` 옵션은 `--mode coursework`와 *조합 가능* (`--mode coursework --committee`). 다른 mode와 조합 X.
 - 알 수 없는 mode 값 → 에러 (`--mode는 coursework 또는 dissertation`)
-- mode 옵션 위치: `--mode` 가 명령 어디에든 등장 가능 (자유 위치)
+- `--committee`만 있고 `--mode`가 없음 또는 `--mode coursework` 외 → 에러 (`--committee는 --mode coursework와 함께만 사용`)
+- mode 옵션 위치: `--mode` / `--committee` 가 명령 어디에든 등장 가능 (자유 위치)
 - flow/output stage에 `--mode` 붙으면 → 경고 후 옵션 무시 (`--mode는 final stage 한정`)
 
 ## 작동 순서
@@ -55,6 +58,7 @@ model: opus
 | 명령 | 분기 |
 |------|------|
 | `final 평가해줘 --mode coursework` | `final-coursework-evaluator` Agent 단독 호출 → `final/evaluations/latest/coursework-evaluation.md` 생성 후 종료 |
+| `final 평가해줘 --mode coursework --committee` | `final-coursework-evaluator`가 *orchestrator*로 작동. 5인 페르소나 위원회 절차 진행 (Marker 1·2 blind → reconciliation → Third → External → Chair) → `coursework-committee-evaluation.md` + `committee/*.md` 생성 후 종료 |
 | `final 평가해줘 --mode dissertation` | `final-dissertation-evaluator` Agent 단독 호출 → `final/evaluations/latest/dissertation-evaluation.md` 생성 후 종료 |
 | `final 평가해줘` (mode 없음) | §0.5 이후 정상 진행 (기존 파이프라인) |
 | `flow 평가해줘 --mode X` 또는 `output 평가해줘 --mode X` | 경고 출력 후 `--mode` 무시, 기존 파이프라인 진행 |
@@ -377,6 +381,41 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 
 📝 산출: final/evaluations/latest/coursework-evaluation.md
 ⏱ 소요: 2분 30초
+```
+
+### final stage `--mode coursework --committee` 예시
+
+```
+🎓 Coursework 위원회 평가 완료 (mode=coursework, committee=true, 5-Phase)
+
+기존 6-axis · holistic · claim-extractor 모두 skip.
+
+📋 위원회 의견 분포:
+| Marker | 페르소나 | Mark |
+| Marker 1 | Internal (methods-leaning) | 63 (🥉 High Pass) |
+| Marker 2 | Internal (theory-leaning) | 68 (🥈 Merit) |
+| Third Marker | Senior Generalist (blind) | 66 (🥈 Merit narrow) — 발동됨 |
+| External | Cross-field calibration | 65~66 권고 |
+
+⚖️ Reconciliation Case: C (합의 실패 → Third Marker 발동)
+🛡 Chair Final: 66 (🥈 Merit narrow)
+
+📊 Final Mark: 66 / 100 — Merit (Very good)
+
+🚀 Distinction(70+)으로 가는 Top 3 (위원회 공통 지적):
+  1. C-7 Theory: Bernstein engagement 추가 ⭐ 만장일치 약점 (~2h)
+  2. C-2 Argument: originality 표지 강화 (Marker 2 + External, ~1h)
+  3. C-6: §6 critical engagement 균일화 (Marker 2, ~30m)
+
+📝 산출:
+  - final/evaluations/latest/coursework-committee-evaluation.md (메인)
+  - final/evaluations/latest/committee/marker-1.md
+  - final/evaluations/latest/committee/marker-2.md
+  - final/evaluations/latest/committee/third-marker.md
+  - final/evaluations/latest/committee/external-examiner.md
+  - final/evaluations/latest/committee/chair-decision.md
+
+⏱ 소요: 9분 24초
 ```
 
 ### final stage `--mode dissertation` 예시

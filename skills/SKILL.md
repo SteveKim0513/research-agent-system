@@ -429,7 +429,8 @@ python3 scripts/migrate_project.py {PROJECT}
 | **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
 | **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md (통합본 부재 시 에러) | RESEARCH |
 | **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md + work-plan WRITE 카드에 holistic_verdict 부여 | WRITE (verdict 게이팅) |
-| **분석** | `"final 평가해줘 --mode coursework"` | Oxford MSc Education **Coursework** rubric (8 criteria × 6-band) — `final-coursework-evaluator` 단독 → final/evaluations/latest/coursework-evaluation.md. 기존 6-axis·holistic 미사용. | — (work-plan 미관여) |
+| **분석** | `"final 평가해줘 --mode coursework"` | Oxford Coursework rubric (8 criteria × 6-band) — `final-coursework-evaluator` 단독 LLM 채점 → coursework-evaluation.md. 빠름(~3분). | — |
+| **분석** | `"final 평가해줘 --mode coursework --committee"` | 위 rubric + **5인 페르소나 위원회 절차** (PDF §3.3): Marker 1·2 blind → reconciliation → Third Marker → External → Chair → coursework-committee-evaluation.md + committee/*.md. 적중률↑, 시간·토큰 ~5×. | — |
 | **분석** | `"final 평가해줘 --mode dissertation"` | Oxford MSc Education **Dissertation** rubric (10 criteria × 6-band, methodology stack 포함) — `final-dissertation-evaluator` 단독 → final/evaluations/latest/dissertation-evaluation.md. 기존 6-axis·holistic 미사용. | — (work-plan 미관여) |
 | **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
 | **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
@@ -472,6 +473,14 @@ python3 scripts/migrate_project.py {PROJECT}
    - mode evaluator는 `final/complete-draft.md`만 읽음. analyzed papers·flow·claim-extraction 일절 사용 X.
    - mode 옵션 없는 `final 평가해줘`는 기존 파이프라인 그대로 (6-axis + holistic). 두 모드는 완전 격리.
    - **언제 사용**: coursework essay·dissertation 제출 직전 채점 시뮬레이션. Distinction/Merit/Pass/Fail 등급 + actionable feedback이 목표일 때.
+
+7. **Coursework 위원회 모드 (`--mode coursework --committee`, opt-in)** — Oxford PDF §3.3 절차를 그대로 모델링한 5-Phase 채점:
+   - 5인 페르소나: **Marker 1** (Internal, methods-leaning) · **Marker 2** (Internal, theory-leaning) · **Third Marker** (Senior Generalist, blind 합의 실패 시 발동) · **External Examiner** (cross-field calibration) · **Chair of Examiners** (reconciliation·최종 결정)
+   - 강하게 차별화된 페르소나 — 단일 LLM의 systematic bias를 분극으로 노출 → 적중률 향상 디자인 (election prediction의 multi-source aggregation 원리와 동일)
+   - Phase 1 (blind 병렬) → Phase 2 (reconciliation 자동 판정 — 66/68 자동 / 같은 band discussion / 다른 band escalate) → Phase 3 (Third blind, 조건부) → Phase 4 (External calibration) → Phase 5 (Chair final)
+   - 산출: `coursework-committee-evaluation.md` (메인) + `committee/marker-{1,2}.md`, `third-marker.md`, `external-examiner.md`, `chair-decision.md`
+   - 비용: ~5× token, ~3-4× wall time vs 단일 모드. 제출 직전 정밀 채점 시뮬레이션 시 권장.
+   - 단일 모드 (`--committee` 부재)는 그대로 유지 — 두 모드 산출 파일 분리되어 충돌 없음.
 
 4. **레퍼런스 vs 내용 분리**:
    - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
@@ -535,7 +544,12 @@ python3 scripts/migrate_project.py {PROJECT}
 | **axis5-concept-scorer** | `skills/agents/axis5-concept-scorer.md` | 축 5 구성개념 정의 정밀도 (sonnet) | 자동 |
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
 | **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). work-plan WRITE 카드에 `holistic_verdict` 필드·prefix 부여 (opus) | 자동 (final stage orchestrator) |
-| **final-coursework-evaluator** 🎓 | `skills/agents/final-coursework-evaluator.md` | **`final 평가해줘 --mode coursework` 한정**. Oxford MSc Education Coursework rubric (8 criteria × 6-band, High Distinction/Distinction/Merit/High Pass/Low Pass/Fail) 적용. 통합본 단독 평가. 6-axis·holistic·claim-extractor 미사용 (opus) | 자동 (--mode coursework) |
+| **final-coursework-evaluator** 🎓 | `skills/agents/final-coursework-evaluator.md` | **`final 평가해줘 --mode coursework` 한정**. Oxford Coursework rubric (8 criteria × 6-band). `--committee` 없으면 단독 평가, 있으면 5-Phase orchestrator로 작동 (opus) | 자동 (--mode coursework) |
+| **coursework-marker-1** 👤 | `skills/agents/coursework-marker-1.md` | **위원회 모드 한정**. Internal Examiner, methods-leaning 페르소나. Phase 1 blind 채점. 구조·rigour·체계 strict (opus) | 자동 (위원회 Phase 1) |
+| **coursework-marker-2** 👤 | `skills/agents/coursework-marker-2.md` | **위원회 모드 한정**. Internal Examiner, theory-leaning 페르소나. Phase 1 blind 채점. 이론·비판·독창성 strict (opus) | 자동 (위원회 Phase 1) |
+| **coursework-third-marker** 👤 | `skills/agents/coursework-third-marker.md` | **위원회 모드 한정**. Senior Generalist 페르소나. Phase 3 blind tie-breaker (Marker 1·2 합의 실패 시만 발동) (opus) | 조건부 (위원회 Phase 3) |
+| **coursework-external-examiner** 👤 | `skills/agents/coursework-external-examiner.md` | **위원회 모드 한정**. External Examiner 페르소나. Phase 4 cross-field calibration. raw mark 미부여 (opus) | 자동 (위원회 Phase 4) |
+| **coursework-chair** 👤 | `skills/agents/coursework-chair.md` | **위원회 모드 한정**. Chair of Examiners. Phase 5 reconciliation·최종 mark 결정. PDF §3.3 절차 준수 (opus) | 자동 (위원회 Phase 5) |
 | **final-dissertation-evaluator** 🎓 | `skills/agents/final-dissertation-evaluator.md` | **`final 평가해줘 --mode dissertation` 한정**. Oxford MSc Education Dissertation rubric (10 criteria × 6-band, methodology stack 포함). 통합본 단독 평가. 6-axis·holistic·claim-extractor 미사용 (opus) | 자동 (--mode dissertation) |
 | **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
 | **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
