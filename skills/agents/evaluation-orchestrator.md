@@ -189,8 +189,22 @@ axis-scorer Agent prompt에 **다음만** 주입:
 - 사전 작성된 체크리스트·표 (채점자가 빈 표만 채우게 됨)
 - 채점자가 도달해야 할 결론 암시
 - 카테고리 사전 부여 ("이 축은 🟠일 듯")
+- **이전 conversation 내용 (다른 essay 평가 결과·prior mark·prior 진단)** ⚠️ 가장 흔한 contamination
+- **다른 essay와의 comparative reasoning 시드** ("이전 essay 대비 X점 위/아래" 식 prompt 주입)
 
 채점은 사양 + 입력만 보고 채점자가 **독립** 수행. orchestrator는 dispatcher 역할만.
+
+#### Blind Protocol Enforcement (의무)
+
+`skills/BLIND-PROTOCOL.md` 준수. sub-agent prompt 구성 규칙:
+1. 해당 axis-scorer / mode evaluator / 페르소나 사양 전문
+2. 선로드 context (해당 essay 본문 + 필요 시 papers·claim-extraction)
+3. 출력 파일 경로 + Stage·Mode 정보
+4. (위 셋 외 *추가 정보 없음*)
+
+특히 **multi-essay session**에서:
+- 사용자가 essay A 평가 후 essay B 평가 요청 시 → orchestrator가 essay A의 outputs/marks를 essay B sub-agent prompt에 *절대 미주입*
+- 사용자에게 명시 경고: "⚠️ 동일 session 다중 평가 — anchoring 위험. fresh session 권장"
 
 #### 카테고리 시스템 reference
 
@@ -326,6 +340,8 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 카드 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
 10. **Over-defense penalty (axis3 3-5 + axis6 C-5)** — under-defense뿐 아니라 over-defense도 처벌. 한 챕터에 반박 paragraph 도배·hedge 남용 시 감점.
 11. **Final `--mode` 옵션의 격리** — `--mode coursework`/`--mode dissertation` 호출 시 §0.5~§8 *전부* skip. mode evaluator가 통합본 단독 평가, 6-axis·holistic·aggregator·claim-extractor 어느 것도 호출 X. 산출은 단일 mode-evaluation.md 파일.
+12. **Blind Protocol — sub-agent dispatch 시 prior context 미주입 의무** — 모든 evaluator (axis · holistic · mode evaluators · 위원회 5인) dispatch 시 prompt에 *해당 essay text + rubric/spec + persona 정의*만 포함. 이전 conversation history·다른 essay 평가 결과·prior mark 절대 미주입. `skills/BLIND-PROTOCOL.md` 준수.
+13. **Multi-essay session 감지 → 사용자 경고** — 같은 conversation session에서 2번째 이상 essay 평가 호출 감지 시 (예: 동일 stage·mode로 다른 `complete-draft.md` 평가) → 진행 *전* 명시 경고: "⚠️ 이전 essay context가 prompt에 남아 있어 anchoring bias 위험. fresh conversation에서 평가 권장. 그래도 진행할지 확인 요망." 사용자 명시 confirm 후 진행.
 
 ## 출력
 

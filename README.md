@@ -48,6 +48,8 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 **평가 오케스트레이션 (8)**: evaluation-orchestrator + axis1-reference-scorer ~ axis6-critical-scorer + claim-extractor
 **Final stage 평가 (3)**: final-holistic-reviewer (통합본 척추 prior로 axis 카드 adjudicate) + final-coursework-evaluator (`--mode coursework`, Oxford rubric 8 criteria) + final-dissertation-evaluator (`--mode dissertation`, Oxford rubric 10 criteria — methodology stack 포함)
 **Coursework 위원회 페르소나 (5)** — `--committee` opt-in 시 활성: coursework-marker-1 (Internal, methods-leaning) + coursework-marker-2 (Internal, theory-leaning) + coursework-third-marker (Senior Generalist, blind tie-breaker) + coursework-external-examiner (cross-field calibration) + coursework-chair (reconciliation·final 결정)
+
+⛔ **Blind Protocol** (모든 평가에 적용): 한 conversation session = 한 essay 평가. 여러 essay는 각각 fresh conversation 권장 (이전 essay context 가 anchoring bias 유발). 자세히는 `skills/BLIND-PROTOCOL.md`.
 **논문 처리 통합 (1)**: paper-analyst (단순화 v3 — 정규화·markdown 캐시 → anchor 선언 → 분기 분석)
 **생성·수정 (5)**: paper-analyst (anchor opus / non-anchor sonnet / Mode B 재분석 / Mode C critique_target), writing-architect, output-editor, flow-refiner, citation-checker
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)

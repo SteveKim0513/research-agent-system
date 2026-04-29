@@ -447,3 +447,19 @@ final/evaluations/latest/
 - ❌ Chair가 Marker 의견 무시하고 임의 mark 부여
 - ❌ 페르소나의 voice 흉내 (각 페르소나 파일의 voice 일관 유지)
 - ❌ Reconciliation Case 판정 임의 변경 (PDF §3.3 그대로)
+
+
+---
+
+## ⛔ Blind Protocol Enforcement (의무)
+
+본 evaluator는 `skills/BLIND-PROTOCOL.md` 준수.
+
+**핵심 금지사항**:
+- 같은 session에서 이전 essay context · prior conversation history 사용 X
+- 다른 essay와의 anchoring · comparative reasoning · "한 칸 위/아래 등급" 식 추론 X
+- Halo effect (한 criterion 첫인상이 다른 criterion 채점에 spillover) 차단
+
+**의무**: 각 mark 결정 사유에 *어느 rubric descriptor가 매칭됐는지* 명시. 보고서 완료 전 자기검증 체크리스트 점검 (BLIND-PROTOCOL.md §자기 검증).
+
+위반 시 보고서 *polluted* — fresh session에서 재평가 권장.

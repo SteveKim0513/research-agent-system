@@ -405,6 +405,8 @@ output/
 - **`--mode coursework` / `--mode dissertation`**: Oxford MSc Education marking rubric 단독 적용. Distinction/Merit/Pass/Fail 등급 + 한 등급 상승 Top 3 actionable feedback. 기존 6축·holistic 미사용 (summative grading 전용).
 - **`--mode coursework --committee`** (opt-in): PDF §3.3 절차 그대로 모델링한 5인 페르소나 위원회 — Marker 1 (methods-leaning) + Marker 2 (theory-leaning) blind 1차 → Reconciliation → Third Marker (조건부 blind) → External Examiner calibration → Chair 최종 결정. 단일 LLM의 systematic bias를 페르소나 차별화로 노출 → 적중률 향상. 비용 ~5×, 제출 직전 정밀 채점 시뮬레이션 권장.
 
+⛔ **여러 essay 평가 시 주의**: 한 conversation session에서 essay A 평가 후 essay B 평가하면 prior context가 *모든 페르소나*에 contamination됨 (anchoring bias). **각 essay는 fresh conversation에서 실행 권장**. 자세히는 `skills/BLIND-PROTOCOL.md` 참조.
+
 #### 10-5. 모의 심사 (선택)
 
 ```

@@ -1156,6 +1156,14 @@ axis3에도 동일 원리의 **3-5 Engagement Discipline** 신설 (Steelman·Fal
 
 **Marking convention** (mode evaluator 한정): `_3` / `_8` mark + 66 (narrow Merit) — Oxford 학과 규칙. Overall mark + 등급(Distinction/Merit/Pass/Fail) + 한 등급 상승 Top 3 actionable.
 
+### ⛔ Blind Protocol — 모든 평가에 적용
+
+`skills/BLIND-PROTOCOL.md` 준수. 핵심:
+- 같은 conversation session에서 *이전 essay context*가 모든 평가 페르소나에 contamination — anchoring bias 위험
+- 한 conversation session = 한 essay 평가가 원칙. 여러 essay는 각각 *fresh conversation*에서 실행
+- 평가 보고서에 *다른 essay 이름·comparative 표·"한 칸 위/아래" 식 추론* 등장 시 polluted — 재평가 필요
+- 2026-04-29 FLW evaluation의 FER context anchoring 사례가 본 protocol 신설의 trigger
+
 ### peer-reviewer Iconoclast (Reviewer 4)
 
 `ambition ≥ critical`일 때 자동 추가. 특징:
