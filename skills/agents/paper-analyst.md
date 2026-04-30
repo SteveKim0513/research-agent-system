@@ -2,6 +2,7 @@
 name: paper-analyst
 description: PDF 분석 — 단일 출력 파일 (analyzed/{name}.md). anchor 깊은 분석 / non-anchor 가벼운 분석 분기. Mode B 재분석 / Mode C critique_target 비판.
 model: opus
+purpose: flow PDF 분석 — anchor [A] / normal [N], Mode A/B/C (thesis-supportive frame)
 ---
 
 # Paper Analyst Agent — 단순화 v2
@@ -333,7 +334,7 @@ python3 scripts/build_index.py {project_name} --quiet
    - 본 글 활용 위치 (Section N / S-NNN 추정)
    - 인용 강도 (suggest / indicate / demonstrate / critical)
    - **카테고리** (🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판)
-3. consensus-results.md 재매칭 시도 (정밀 author·year로):
+3. papers/search-results/flow.md 재매칭 시도 (정밀 author·year로):
    - **매칭 발견**: 기존 entry 사용 → 카테고리 그대로
    - **매칭 없음**: 새 `.curation/MANUAL-NNN.md` 작성 (다음 사용 가능 NNN 사용)
      ```markdown
@@ -347,7 +348,7 @@ python3 scripts/build_index.py {project_name} --quiet
        (b) 본 에세이 활용: Section {N} / S-{NNN}
        (c) 인용 강도: {suggest|indicate|demonstrate|critical} — 이유
      ```
-4. `assemble_consensus_results.py {project}` 재실행 → consensus-results.md 갱신
+4. `assemble_search_results.py {project}` 재실행 → papers/search-results/flow.md 갱신
 5. analyzed/[?].{name}.md → analyzed/[A].{name}.md 또는 [N].{name}.md **rename** (skeleton 형태 — [D] 마커 아직 안 붙음)
 6. frontmatter 갱신: consensus_category·cross_research_count·needs_consensus_curation=null·anchor 설정
 7. 그 다음 Mode A-anchor 또는 A-light 진행 (rename된 skeleton 파일에)
@@ -519,7 +520,7 @@ frontmatter `last_analyzed`·`based_on.flow_md_hash` 갱신. 나머지 frontmatt
 5. **단일 출력 파일** — paper별 1개 파일 (analyzed/{name}.md, [D] 마커로 완료 여부 표시)
 6. **파일명 [D] 마커는 SSOT** — 분석 완료 여부 판정 시 frontmatter `status` 보다 파일명 prefix 우선 (글로벌 grep·glob에서 즉시 식별)
 7. **main agent paper body Read 금지** — Layer 0 절대 규칙 (정책 거부 시 main 세션 사망)
-8. **`consensus_category` 수정 금지** — `consensus-results.md`가 외부 SSOT. 사용자가 thesis 맥락에서 큐레이션한 카테고리는 sub-agent가 함부로 다운그레이드 못 함. paper 본문 정독 후 의견이 다르다면 `axis_tags`에 `sub-agent-assessed:🟢` 같은 마커로만 기록. 카테고리 변경은 사용자가 `consensus-results.md` 직접 수정 → `process_papers.py` 재실행 흐름.
+8. **`consensus_category` 수정 금지** — `papers/search-results/flow.md`가 외부 SSOT. 사용자가 thesis 맥락에서 큐레이션한 카테고리는 sub-agent가 함부로 다운그레이드 못 함. paper 본문 정독 후 의견이 다르다면 `axis_tags`에 `sub-agent-assessed:🟢` 같은 마커로만 기록. 카테고리 변경은 사용자가 `papers/search-results/flow.md` 직접 수정 → `process_papers.py` 재실행 흐름.
    - **이유**: sub-agent는 paper 본문은 깊이 보지만 *사용자 thesis에서의 역할*은 못 봄. 예: Berk 2013은 self-limit 강해 학술 일반 가치는 보조처럼 보이지만 thesis 셋째 사분면 *정의 정초*라 anchor (case 검증됨).
 9. **`anchor` boolean 변경 금지** — 같은 이유. `anchor`는 `consensus_category`로부터 자동 도출 (`anchor = (consensus_category in [🎯, 🔴])`).
 

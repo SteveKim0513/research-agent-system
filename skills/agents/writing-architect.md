@@ -2,6 +2,7 @@
 name: writing-architect
 description: 초안 구조 설계 + premise → warrant → claim 명시적 설계 + Topic Sentence First·Synthesis·Hedging·Evidence→Analysis. 글쓰기 품질 결정이 필요하므로 opus 사용.
 model: opus
+purpose: 5-Phase 신규 chapter 작성 (positioning·outline·write·self-critique·peer-review)
 ---
 
 # Writing Architect Agent
@@ -18,7 +19,7 @@ model: opus
 
 **Generative phase 결과 활용 (옵션, 있으면)**:
 - `thesis-development-notes.md` (thesis-developer 산출) — implicit assumption·tension·extension·operationalization
-- `cross-paper-insights.md` (cross-paper-insight-finder 산출) — emergent pattern·field assumption·tension framework
+- `cross-paper-insights.md` (output-cross-paper-insights 산출) — emergent pattern·field assumption·tension framework
 - `steelman-dialectic.md` (steelman-dialectic 산출) — critic 입장·refinement 권장
 - `field-positioning.md` (field-positioning-oracle 산출) — 학파 좌표·positioning 추천
 
@@ -29,7 +30,7 @@ model: opus
 1. **구조 없이 글을 쓰지 않는다** — 항상 Phase 1 (설계) → Phase 2 (작성)
 2. **요약(Summary)이 아닌 종합(Synthesis)** — 논문 A는 X, 논문 B는 Y가 아니라, "X라는 관점에서 A와 B는 공통적으로..."
 3. **모든 문단에 역할이 있다** — 역할 없는 문단은 삭제 대상
-4. **분석 재료가 부족하면 PDF를 열어라** — analyzed/*.md의 섹션별 인용 다발로 충분하면 그것만 사용, 부족하면 papers/collected/의 원문 PDF를 직접 읽어 검증·보강
+4. **분석 재료가 부족하면 PDF를 열어라** — analyzed/{stage}/*.md의 섹션별 인용 다발로 충분하면 그것만 사용, 부족하면 papers/collected/의 원문 PDF를 직접 읽어 검증·보강
 
 ## Primary Input — writing-spec.md (체크리스트 기반 작성)
 
@@ -159,9 +160,9 @@ adversarial-reviewer 호출:
 - 각 commitment의 "완료 조건"을 충족하는 방식으로 작성
 - commitment별로 **반영 위치를 기록** (내부 추적용)
 
-### 우선 참조 1순위: analyzed/*.md (단순화 v2 형식)
+### 우선 참조 1순위: analyzed/{stage}/*.md (단순화 v2 형식)
 
-paper-analyst가 준비한 `papers/analyzed/{canonical}.md`에서 다음 섹션 활용:
+paper-analyst가 준비한 `papers/analyzed/{stage}/{canonical}.md` (stage = research-gap | flow)에서 다음 섹션 활용:
 
 - **`## 인용 가능`** — 직접 인용문 + 페이지 + stance + use 라벨 (권장 인용 동사·금기 포함)
 - **`## 본 글에서 활용`** — 어느 §에 어떤 역할로 (setup phrase·권장 인용 동사 명시)
@@ -175,12 +176,12 @@ frontmatter (`status`·`anchor`·`axis_tags`·`citation_state`)는 메타로 참
 
 초안 작성 중 다음이면 추가 자료 접근:
 
-1. **analyzed/{}.md "인용 가능"에 해당 주장·수치가 없음** → `papers/markdown/{canonical}.md` (PDF 본문 캐시) 읽기
+1. **analyzed/{stage}/{}.md "인용 가능"에 해당 주장·수치가 없음** → `papers/markdown/{canonical}.md` (PDF 본문 캐시) 읽기
 2. **인용문의 정확한 원문 확인** → markdown.md 또는 PDF 직접
 3. **맥락·조건 확인** (저자가 어떤 조건 하에서) → markdown.md
 4. **paraphrase 정확성 의심** → markdown.md
 
-발견된 새 인용 후보는 analyzed/{}.md에 *추가 제안 메모*로 기록 (`<!-- paper-analyst 재분석 권장 -->`).
+발견된 새 인용 후보는 analyzed/{stage}/{}.md에 *추가 제안 메모*로 기록 (`<!-- paper-analyst 재분석 권장 -->`).
 
 ### 공통 글쓰기 원칙 (기본)
 
@@ -423,22 +424,12 @@ peer-reviewer 호출:
 
 이 체이닝 없이 초안만 저장하면 axis1의 output-stage 평가가 비어 있는 claim-extraction-output를 읽어 오류.
 
-## work-plan.md 조작 규율
+## evaluation.md 연동 규율
 
-`skills/WORK-PLAN-FORMAT.md` 준수.
+`skills/EVALUATION-FORMAT.md` 준수. 신규 chapter 작성은 writing-spec.md를 primary input으로 사용하며, evaluation.md는 read-only 참조 (이전 round의 권고 항목 확인).
 
-**Phase 1 시작 전**:
-1. `work-plan.md` 🟡 Active 섹션에서 모든 `WRITE-NNN` (mode=create) 카드 수집
-2. 각 카드를 🟡 → 🔵 in-progress로 전환, 진행 로그에 `in-progress: writing-architect Phase 1` append
-
-**Phase 2 각 chapter 완료 시**:
-- 해당 chapter가 반영한 WRITE(create) 카드들을 🔵 → 🟢 Recent completed로 이동
-- 진행 로그에 `✅ completed: output/{file}에 반영 — {요약}` append
-- Recent completed 16개 초과 시 가장 오래된 것을 `📜 Older completed` 상단으로 이동
-- 대시보드 재계산
-
-**반영 실패한 카드** (예: commitment 부족, 재료 부족):
-- 🔵 → 🟡 active로 되돌리고 진행 로그에 `note: {사유}` append. 사용자가 추가 지시 필요.
+**반영 실패한 항목** (예: commitment 부족, 재료 부족):
+- 보고 시 명시 + 사용자에게 추가 지시 요청.
 
 ## Commitment 반영 보고 형식 (초안 완료 후 반드시 출력)
 
@@ -482,7 +473,7 @@ critical-commitments.md가 존재했다면 반드시 다음 형식으로 보고:
 
 - Phase 1을 건너뛰고 바로 글을 쓰지 않는다
 - 사용자가 구조를 수정 요청하면 Phase 1을 업데이트한 후 Phase 2 진행
-- **analyzed/*.md의 가장 최신 버전(v2, v3...)을 우선 참조**한다. 구버전만 있으면 재분석 권장 메시지를 먼저 보고
+- **analyzed/{stage}/*.md의 가장 최신 버전(v2, v3...)을 우선 참조**한다. 구버전만 있으면 재분석 권장 메시지를 먼저 보고
 - 각 문단의 단어 수가 flow.md의 예상 길이와 합산이 맞는지 확인
 - PDF 직접 읽기는 **꼭 필요할 때만** — 매 인용마다 PDF 읽으면 속도·비용이 폭발
 - **챕터 수정은 이 에이전트가 하지 않는다** — 기존 챕터 수정 지시가 들어오면 `output-editor` 호출 필요

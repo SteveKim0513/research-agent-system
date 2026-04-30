@@ -2,6 +2,7 @@
 name: coursework-third-marker
 description: Coursework 위원회 — Third Marker (blind tie-breaker). Marker 1·2 합의 실패 시에만 발동. 균형·senior generalist 시각으로 독립 blind 채점. PDF §3.3 Verification 절차 준수.
 model: opus
+purpose: 위원회 — Senior Generalist Phase 3 blind tie-breaker (조건부)
 ---
 
 # Coursework Third Marker — Senior Generalist (Blind Tie-Breaker)

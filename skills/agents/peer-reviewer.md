@@ -2,6 +2,7 @@
 name: peer-reviewer
 description: 심사자 페르소나 3인 시뮬레이션 (Reviewer 1·2·3) + Iconoclast 페르소나 (timidity 지적). 심사 엄격도 판단이 필요하므로 opus 사용.
 model: opus
+purpose: 저널 reviewer 채점 시뮬 + reviewer comment 답변 연습
 ---
 
 # Peer Reviewer Agent
@@ -226,40 +227,29 @@ model: opus
 - 리뷰어의 요구가 비합리적일 때도 감정적 대응 금지
 - 각 코멘트에 대해 "수용/부분수용/정중한 반박" 중 하나 권고
 
-## work-plan.md 조작 규율
+## evaluation.md 연동 규율
 
-`skills/WORK-PLAN-FORMAT.md` 준수.
+`skills/EVALUATION-FORMAT.md` 준수.
 
 **Mode A (심사 시뮬레이션) 완료 시**:
-각 Major issue마다 신규 **WRITE 카드 (mode=modify)**를 🟡 Active에 append:
+각 Major issue를 글 수정 권고 형태로 산출:
 - **mode**: modify
-- **대상 챕터**: `output/{파일명}.md` (리뷰어가 지적한 섹션)
-- **수정 내용**: 리뷰어 코멘트 요약 + 권고 대응
+- **대상**: `output/{파일명}.md` (리뷰어가 지적한 섹션)
+- **무엇 / 상세**: 리뷰어 코멘트 요약 + 권고 대응
 - **원인**: `peer-reviewer Mode A · Reviewer {1|2|3|Iconoclast}`
-- **담당 명령**: `"Chapter {X} 수정해줘: WRITE-{NNN}"`
 - **영향 축**: axis3 (Attack Surface Preparedness)
 
-Minor issue는 카드 생성하지 않고 리뷰 리포트에 요약만.
+Minor issue는 권고 생성하지 않고 리뷰 리포트에 요약만.
 
-**Mode B (리뷰 답변)** 시에는 work-plan 수정 없음 (답변 초안 생성만).
+**Mode B (리뷰 답변)** 시에는 evaluation.md 수정 없음 (답변 초안 생성만).
 
-**ID 발급 (필수 — self-grep 금지)**: `card_registry.py issue` CLI 호출.
-
-```bash
-NEW_ID=$(python3 scripts/card_registry.py issue {project} write modify \
-   --dedup-key "{대상 챕터 파일명}" "{리뷰어 코멘트 핵심 요지 한 줄}" \
-   --field "무엇={무엇 본문}" \
-   --field "대상 챕터={output/X.md}" \
-   --field "원인=peer-reviewer Mode A · Reviewer {N}")
-```
-
-CLI가 동일 dedup_key 기존 WRITE 카드를 발견하면 그 ID를 반환 + stderr `⏭ skip` 또는 `↻ reactivated`. 신규 ID (`✅ issued`)일 때만 work-plan 🟡 Active에 카드 append. citation-checker와 같은 수정 요구를 두 번 발급하는 race를 `output/.registry.json`이 차단함.
+권고는 다음 평가 round의 evaluation.md에 통합 기록되며, 사용자가 직접 chapter 수정 명령 실행.
 
 ## 📋 산출 파일 frontmatter 의무
 
 이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
 
-**대상 파일**: 화면 출력 + WRITE 카드 발급 (CLI)
+**대상 파일**: 화면 출력 + 글 수정 권고 (다음 평가 round의 evaluation.md에 통합)
 
 **의존 (based_on)**: output/*.md 본문
 

@@ -2,6 +2,7 @@
 name: axis4-originality-scorer
 description: Axis 4 (독창성·기여도) — So What·Novelty·Layer Clarity·Implications. 카테고리 메인 + 점수 보조.
 model: opus
+purpose: 축 4 — 독창성·기여도 (So What·Novelty·Contribution·Implications)
 ---
 
 # Axis 4 Scorer — 독창성·기여도
@@ -14,10 +15,10 @@ opus 사용.
 
 ## 입력 (Selective)
 
-> **선로드 context 우선**: orchestrator가 prompt에 원고를 주입한 경우 **Read 다시 X**. `papers/analyzed/*` 는 직접 Read.
+> **선로드 context 우선**: orchestrator가 prompt에 원고를 주입한 경우 **Read 다시 X**. `papers/analyzed/{stage}/*` (stage = research-gap | flow) 는 직접 Read.
 
 1. `flow/flow.md` 또는 `output/*.md`
-2. `papers/analyzed/*.md` 중 **axis_tags에 "delta" 포함**한 것만 (5-8편 예상)
+2. `papers/analyzed/{stage}/*.md` 중 **axis_tags에 "delta" 포함**한 것만 (5-8편 예상)
 3. `{stage}/history/{stage}/evaluations/{최신}/axis4-originality.md` — delta용
 
 **Delta tag**: paper-analyst가 "이 논문이 flow의 thesis와 이론적으로 경쟁/인접"이라고 판단한 것들.
@@ -143,20 +144,20 @@ opus 사용.
 - **점수를 카테고리보다 강조 금지**
 
 
-## 🛠 WRITE 후보 출력 명세 (aggregator가 자동 발급)
+## 🛠 글 수정 권고 출력 명세
 
 본 axis의 진단 결과 중 **글 자체에 수정·작성을 요구하는 항목**은 출력 끝에 다음 섹션으로 명시:
 
 ```markdown
-## 🛠 WRITE 후보
+## 🛠 글 수정 권고
 
-### W-01 [mode=modify]
+### 권고-01 [mode=modify]
 **대상**: {flow.md 또는 output/{파일명}.md}
 **무엇**: {1줄 요약}
 **상세**: {구체 수정 지시 1-3줄}
 **원인**: {axisN Critical Issue 번호 또는 sub-criterion 라벨}
 
-### W-02 [mode=create]
+### 권고-02 [mode=create]
 **대상**: {flow.md 또는 output/{파일명}.md}
 **위치**: {Section N · 문단 M}
 **무엇**: {1줄 요약 — 새로 작성할 블록}
@@ -170,18 +171,9 @@ opus 사용.
 - `대상`: stage 폴더 내 실제 파일명 (flow는 flow.md, output은 output/*.md 중 명시)
 - `원인`: 본 axis의 어느 진단에서 도출됐는지 명시 (back-reference)
 
-**자동 발급 흐름**:
-1. aggregator가 본 axis 파일의 `## 🛠 WRITE 후보` 섹션 파싱
-2. 각 W-NN 항목을 `card_registry.find_by_dedup_key`로 dedup 검사
-   - dedup_key (mode=modify): `(mode, 대상_filename, 무엇_norm)`
-   - dedup_key (mode=create): `(mode, 대상_filename, 위치_norm)`
-3. 신규: `WRITE-NNN` 발급 + work-plan 🟡 Active에 append
-4. 기존 활성: skip (안 발급)
-5. 기존 completed: reactivation
+평가 결과는 evaluation.md에 한 round 단위로 기록되며, 권고 항목은 사용자가 직접 확인 후 적용 여부 결정.
 
-**임시 ID `W-NN`은 본 axis 출력 내부 참조용**. 실제 work-plan 카드 ID(`WRITE-NNN`)는 aggregator가 발급. `claim-extraction`의 R-ID 패턴과 동일.
-
-**발급 대상이 없으면**: 섹션을 빈 채로 두지 말고 `## 🛠 WRITE 후보\n\n_(없음 — 본 axis는 신규 카드 발급 사유 없음)_` 형식으로 명시.
+**발급 대상이 없으면**: 섹션을 빈 채로 두지 말고 `## 🛠 글 수정 권고\n\n_(없음 — 본 axis는 권고 사유 없음)_` 형식으로 명시.
 
 
 ## 📋 산출 파일 frontmatter 의무

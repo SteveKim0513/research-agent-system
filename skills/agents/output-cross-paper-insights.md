@@ -1,7 +1,8 @@
 ---
-name: cross-paper-insight-finder
+name: output-cross-paper-insights
 description: N편 paper 결합 시 emergent pattern 발굴 — 학파 클러스터·cross-cluster 공통 가정·인용 네트워크 침묵·새 framework 가능성. 작성 전 generative phase.
 model: opus
+purpose: output 단계 N편 paper의 emergent pattern·implicit assumption 발견
 ---
 
 # Cross-Paper Insight Finder Agent
@@ -174,7 +175,7 @@ paper들이 *서로 인용하지 않는 패턴*을 본다. 학파 정치·의도
 **파일 구조**:
 ```markdown
 ---
-generated_by: cross-paper-insight-finder
+generated_by: output-cross-paper-insights
 generated_at: {ISO}
 based_on:
   analyzed_count_anchor: {N}

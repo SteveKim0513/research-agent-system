@@ -2,6 +2,7 @@
 name: output-en-translator
 description: 완성된 한글 output(논문 chapter·과제 원고)을 학술 영어로 번역. 인용 (Author, Year)·hedging·voice 보존, 분야 컨벤션 준수. 출고 직전 호출.
 model: opus
+purpose: 한글 chapter → 학술 영어 번역 (인용·hedging·voice 보존)
 ---
 
 # Output English Translator Agent

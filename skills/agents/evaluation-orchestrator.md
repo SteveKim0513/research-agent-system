@@ -1,14 +1,15 @@
 ---
 name: evaluation-orchestrator
-description: 병렬 평가 디스패처. Stage 감지 → claim-extractor 선행 → Delta stale 축만 병렬 실행 → aggregator 호출 → work-plan 갱신.
+description: 병렬 평가 디스패처. Stage 감지 → claim-extractor 선행 → Delta stale 축만 병렬 실행 → aggregator 호출 → evaluation.md 갱신.
 model: opus
+purpose: delta 감지 + 축별 병렬 디스패치 + aggregator 호출
 ---
 
 # Evaluation Orchestrator
 
 ## 역할
 
-평가 오케스트레이션만 담당. 채점 로직은 축별 워커(axis1~6-scorer)가 수행. 본인은 **stage 감지 + claim-extractor 선행 + dispatch + aggregate + work-plan 번호 발급**.
+평가 오케스트레이션만 담당. 채점 로직은 축별 워커(axis1~6-scorer)가 수행. 본인은 **stage 감지 + claim-extractor 선행 + dispatch + aggregate + evaluation.md 생성**.
 
 ## Stage (사용자 명시 prefix 강제)
 
@@ -38,7 +39,7 @@ model: opus
 
 **Mode 모드의 격리 원칙**:
 - `--mode coursework` / `--mode dissertation` 호출 시 **기존 6-axis · holistic · claim-extractor · aggregator 모두 skip**.
-- mode evaluator가 단독으로 통합본 읽고 산출물 한 개 생성. work-plan·카드 시스템 미관여.
+- mode evaluator가 단독으로 통합본 읽고 산출물 한 개 생성.
 - 산출 위치: `final/evaluations/latest/{coursework|dissertation}-evaluation.md` (기존 `evaluation.md` · `axis*.md` · `holistic-review.md`와 별개).
 
 **파싱 규칙**:
@@ -67,7 +68,7 @@ model: opus
 1. **사전 조건 점검**: `final/complete-draft.md` 존재 — 부재 시 거부 (`먼저 '최종 완성했어'로 통합본 생성`).
 2. **Archive 스냅샷** (해당 mode 한정): `final/evaluations/latest/{mode}-evaluation.md`가 있으면 `final/evaluations/history/{mode}/{NNN}-{date}/`로 이동.
 3. **선로드 + dispatch**: orchestrator가 `final/complete-draft.md`를 한 번 읽고 evaluator prompt에 인라인 주입 (Read 중복 방지).
-4. **다른 산출물 미생성**: aggregator·claim-extractor·축 워커·holistic 모두 skip. evaluation.md, axis*.md, holistic-review.md, work-plan.md 미수정.
+4. **다른 산출물 미생성**: aggregator·claim-extractor·축 워커·holistic 모두 skip. evaluation.md, axis*.md, holistic-review.md 미수정.
 5. **활동 로그**: `python3 scripts/activity_log.py append {PROJECT} "최종 평가" "stage=final" "mode={coursework|dissertation}" "agents=final-{mode}-evaluator"`
 
 mode 분기 종료 후 §0.5~§8 모두 skip.
@@ -78,14 +79,6 @@ mode 분기 종료 후 §0.5~§8 모두 skip.
 
 ```bash
 python3 scripts/sync_state.py snapshot-evaluation {PROJECT} {stage}
-```
-
-### 0.7 work-plan snapshot (변경 시에만)
-
-`work-plan.md`가 존재하고 마지막 스냅샷 이후 내용이 달라졌으면:
-
-```bash
-python3 scripts/sync_state.py snapshot-work-plan {PROJECT} {stage}
 ```
 
 ### 1. claim-extractor 선행 호출 (자동 재분석)
@@ -159,7 +152,7 @@ python3 scripts/evaluation_delta.py check {PROJECT} --stage={flow|output|final}
 --- context 끝 ---
 ```
 
-**선로드 제외**: `papers/analyzed/*.md` (수십 편), `{stage}/history/{stage}/evaluations/*` — 각 scorer가 축 태그로 filter하여 직접 Read.
+**선로드 제외**: `papers/analyzed/{stage}/*.md` (stage = research-gap | flow, 수십 편), `{stage}/history/{stage}/evaluations/*` — 각 scorer가 축 태그로 filter하여 직접 Read.
 
 ### 4. 병렬 디스패치
 
@@ -230,46 +223,26 @@ python3 scripts/evaluation_aggregator.py {PROJECT}
 
 수행:
 - `axis1~6-*.md`의 점수 섹션 파싱
-- `{stage}/evaluations/latest/evaluation.md` 생성 (요약 + delta 표 + 심사 판정)
-- `work-plan.md` 갱신 (루트 위치). 감점 사유 → 작업 항목 변환
+- `{stage}/evaluations/latest/evaluation.md` 생성 (요약 + delta 표 + 심사 판정 + 권고 항목 통합)
 
-### 5.5 R·RESEARCH·WRITE 번호 발급 (registry 단일 source)
+### 5.5 권고 항목 통합
 
-카드 시스템은 **2-type + mode** 구조:
-- **RESEARCH** (papers/.registry.json) · mode ∈ {search, reanalyze}
-- **WRITE**    (output/.registry.json) · mode ∈ {create, modify}
+각 axis-scorer의 `## 🛠 글 수정 권고` 섹션 + claim-extractor의 search/reanalyze 권고를 **evaluation.md에 한 round 단위로 통합 기록**. 별도 카드 시스템 없음 — evaluation.md가 SSOT.
 
-claim-extractor가 2층 구조로 제안:
-- **R-NN** (Research Target, claim-level fine-grained) — UNMATCHED 문장/클러스터별 fine-grained 근거 요구
-- **execution unit** (R들을 같은 쿼리로 커버 가능하게 병합) — JSON 요약의 `search[]` 배열이 RESEARCH mode=search 카드 후보
-
-orchestrator(aggregator 경유) 처리:
-
-1. **RESEARCH mode=search 발급**: aggregator가 `card_registry`(domain=research)로 claim-extraction의 `search[]` 처리:
-   - 동일 covers (정규화)가 registry에 이미 ready/in_progress → skip (기존 ID 재사용)
-   - completed에서 같은 covers 재제안 → reactivation (work-plan 재삽입)
-   - 신규 → registry.next_id 발급 + work-plan 🟡 Active에 RESEARCH 카드 append
-2. **RESEARCH mode=reanalyze 발급**: claim-extractor의 UNMATCHED-INTERNAL 섹션 또는 `paper_reanalysis_delta.py` 결과 → 동일 패턴으로 발급 (dedup_key = (pdf, angle))
-3. **WRITE 발급 (mode=create|modify)**: axis2~6 scorer · citation-checker · peer-reviewer 산출물에서 도출되면 `card_registry`(domain=write)로 발급. dedup_key = (target_chapter, passage_or_location)
-4. claim-extraction-flow.md (또는 -draft.md)의 `search[]` 내부 ID를 발급된 RESEARCH-NNN으로 치환
-5. 모든 도메인에 대해 `sync_from_work_plan` 실행 → 카드 위치(섹션) 기준으로 registry status 갱신 + completed 동기화 (RESEARCH mode=search만 work-plan에서 카드 제거, 나머지는 보존)
-
-R은 claim-extraction 내부 ID로 유지 (work-plan.md에 카드로 올라가지 않음 — RESEARCH의 `covers`로만 참조).
-
-이 흐름이 있어야 **work-plan의 카드 번호 ↔ registry ↔ claim-extraction의 ID가 절대 엇갈리지 않는다.**
+R-NN은 claim-extraction 파일 내부 ID로 유지. evaluation.md의 권고 섹션에서 R-NN을 back-reference로 인용. 사용자가 evaluation.md를 보고 search/reanalyze/글 수정 권고 적용 여부 직접 결정.
 
 ### 5.7 Final stage 한정 — Holistic Adjudication
 
 **stage=final일 때만 실행**. flow/output에서는 skip.
 
-aggregator가 WRITE 카드를 work-plan에 발급한 직후, `final-holistic-reviewer` Agent를 dispatch:
+aggregator가 evaluation.md를 생성한 직후, `final-holistic-reviewer` Agent를 dispatch:
 
 | 항목 | 값 |
 |------|----|
 | Agent | `final-holistic-reviewer` |
 | 모델 | opus |
-| 입력 (선로드 + 주입) | `final/complete-draft.md`, `final/evaluations/latest/evaluation.md`, `axis1~6-*.md`, `final/claim-extraction-final.md`, `output/claim-extraction-output.md`(보조), `critical-commitments.md`(있으면), `work-plan.md` |
-| 출력 | `final/evaluations/latest/holistic-review.md` + work-plan WRITE 카드 annotation |
+| 입력 (선로드 + 주입) | `final/complete-draft.md`, `final/evaluations/latest/evaluation.md`, `axis1~6-*.md`, `final/claim-extraction-final.md`, `output/claim-extraction-output.md`(보조), `critical-commitments.md`(있으면) |
+| 출력 | `final/evaluations/latest/holistic-review.md` (evaluation.md의 권고 항목에 verdict annotation) |
 
 **왜 final 한정인가**:
 - final = 사용자가 통합본 정합성을 *선언한* 상태 → 평가는 *coherence prior*로 와야 함
@@ -279,13 +252,12 @@ aggregator가 WRITE 카드를 work-plan에 발급한 직후, `final-holistic-rev
 **4-Phase 작동** (자세한 내용은 `skills/agents/final-holistic-reviewer.md`):
 - Phase A: 척추 articulation (axis 결과 보기 *전*, draft만)
 - Phase B: 통합 전용 검사 (누적 trajectory, 원거리 모순, 비중, 인지 부하, closing coherence, voice 일관성)
-- Phase C: 6축 카드 adjudication — 각 카드에 verdict (🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE · 🔴 REJECT)
+- Phase C: 6축 권고 adjudication — 각 권고에 verdict (🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE · 🔴 REJECT)
 - Phase D: protected revision plan (의존성 정렬)
 
-**work-plan.md 영향**:
-- 카드 본문에 `**holistic_verdict**: <verdict> — <사유>` + `**affected_spine**: <노드들>` 필드 추가
-- verdict가 APPLY/APPLY-SCOPED 외인 경우 카드 제목 prefix (`[🟠 DEFER]`, `[🔵 REROUTE-output]`, `[🔴 VETOED]`)
-- 🟡 Active 섹션 자체는 유지 (WORK-PLAN-FORMAT 호환). 후속 명령이 verdict 필드 보고 적용 결정.
+**evaluation.md 영향**:
+- 권고 항목에 `**holistic_verdict**: <verdict> — <사유>` + `**affected_spine**: <노드들>` 필드 추가
+- verdict가 APPLY/APPLY-SCOPED 외인 경우 권고 제목 prefix (`[🟠 DEFER]`, `[🔵 REROUTE-output]`, `[🔴 VETOED]`)
 
 **flow/output stage**: 이 단계는 skip. `final-holistic-reviewer` 호출 X. 출력 메시지에 "(holistic adjudication: stage≠final이므로 skip)" 표기.
 
@@ -316,28 +288,26 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 
 (`result={score}/500` 폐기 — 카테고리 카운트 + verdict 사용)
 
-## work-plan.md 조작 규율
+## evaluation.md 조작 규율
 
-평가는 **신규 task 발급이 주**. 기존 active/in-progress/blocked task는 건드리지 않음.
+평가는 **한 round 단위로 evaluation.md를 갱신**. 별도 카드 시스템 없음.
 
-- aggregator가 각 scorer의 감점 사유를 분석해 RESEARCH / WRITE 카드 생성 → 모든 발급은 **`card_registry` 경유** → 신규 ID만 🟡 Active에 append
-- claim-extractor의 `search[]` 배열 → 다음 RESEARCH-NNN 번호로 1:1 발급 (mode=search, `covers: R-XX` dedup) → claim-extraction-*.md의 ID 치환
-- 평가 외 시점(citation-checker 후속 등)의 단발 발급은 해당 에이전트가 `card_registry.py issue` CLI 호출. **self-grep `[TYPE-NNN]` max+1 금지** (race condition + dedup 우회).
-- flow-refiner는 **카드 발급하지 않음** — in-session interactive helper (사용자가 `flow.md` 수정 여부 직접 결정).
-- 대시보드 재계산 (Stage 진척도·상태 카운트·축별 잔여·다음 권장 명령)
-- 포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수. 카드 스키마·필드 순서·이모지 5종·섹션 구조 어김 금지.
+- aggregator가 각 scorer의 권고를 evaluation.md의 round 섹션에 통합 기록
+- claim-extractor의 `search[]` / `reanalyze[]` 권고는 evaluation.md에서 R-NN back-reference로 인용
+- flow-refiner는 in-session interactive helper (사용자가 `flow.md` 수정 여부 직접 결정).
+- 포맷 규율은 `skills/EVALUATION-FORMAT.md` 필수 준수.
 
 ## 중요 원칙
 
 1. **비동기 금지** — 축 워커 모두 결과 도착 후 aggregator 호출. 부분 완료로 aggregator 실행 금지.
 2. **claim-extractor는 반드시 선행** — axis1이 stale이면서 claim-extraction이 부재/구식이면 claim-extractor부터 실행. axis1 scorer가 직접 재생성하지 않음.
-3. **registry가 단일 ID 발급처** — claim-extractor·axis scorer·citation-checker·peer-reviewer는 모두 제안만. 번호는 `card_registry`(domain=research|write)가 발급. claim-extraction 파일은 번호 back-reference만. flow-refiner는 카드를 발급하지 않음 (interactive only).
+3. **claim-extractor·axis scorer·peer-reviewer는 모두 권고만** — claim-extraction 파일의 R-NN은 내부 ID, evaluation.md에서 back-reference. flow-refiner는 in-session interactive helper.
 4. **Critical Mode** — ambition ≥ critical이면 축 6 강제 실행.
 5. **에러 처리** — 한 축 실패 시 해당 축만 이전 결과 유지 + 경고 표기. 다른 축 계속.
 6. **호환성** — `evaluation.md`는 다운스트림 진입점. output-editor/citation-checker는 evaluation.md만 읽어도 되도록 aggregator가 요약 보존.
-7. **Final-stage holistic은 의무** — stage=final일 때 §5.7 holistic adjudication을 *반드시* 실행. 6축 결과만으로 work-plan을 사용자에게 노출하지 않음. Final 평가의 진짜 산출은 6축 + holistic-review.md 두 산출의 결합.
-8. **Holistic은 카드 발급 X** — adjudicator 역할만. 신규 카드 생성하지 않고 기존 WRITE 카드의 verdict 필드 + prefix 부여만. 발급 권한은 aggregator·axis-scorer·peer-reviewer에 남음.
-9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 카드 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
+7. **Final-stage holistic은 의무** — stage=final일 때 §5.7 holistic adjudication을 *반드시* 실행. Final 평가의 진짜 산출은 6축 + holistic-review.md 두 산출의 결합.
+8. **Holistic은 권고만 annotate** — adjudicator 역할만. 신규 권고 생성하지 않고 evaluation.md의 권고 항목에 verdict 필드 + prefix 부여만.
+9. **Holistic veto는 후속 agent가 존중** — output-editor·peer-reviewer 등 권고 적용 agent는 `holistic_verdict` 필드 점검. REJECT/DEFER/REROUTE 권고는 사용자 명시 override 없으면 skip.
 10. **Over-defense penalty (axis3 3-5 + axis6 C-5)** — under-defense뿐 아니라 over-defense도 처벌. 한 챕터에 반박 paragraph 도배·hedge 남용 시 감점.
 11. **Final `--mode` 옵션의 격리** — `--mode coursework`/`--mode dissertation` 호출 시 §0.5~§8 *전부* skip. mode evaluator가 통합본 단독 평가, 6-axis·holistic·aggregator·claim-extractor 어느 것도 호출 X. 산출은 단일 mode-evaluation.md 파일.
 12. **Blind Protocol — sub-agent dispatch 시 prior context 미주입 의무** — 모든 evaluator (axis · holistic · mode evaluators · 위원회 5인) dispatch 시 prompt에 *해당 essay text + rubric/spec + persona 정의*만 포함. 이전 conversation history·다른 essay 평가 결과·prior mark 절대 미주입. `skills/BLIND-PROTOCOL.md` 준수.
@@ -363,7 +333,7 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 스킵된 축: axis1, axis4, axis5 (delta fresh — 이전 카테고리 유지)
 
 📝 claim-extraction: output/claim-extraction-output.md 갱신 (3 새 문장)
-📝 work-plan.md: RESEARCH-024~026 (mode=search) 신규 발급
+📝 evaluation.md: search 권고 3건 신규 추가 (R-12, R-15, R-18)
 ℹ️ holistic adjudication: stage≠final이므로 skip
 
 ⏱ 소요: 2분 15초
@@ -470,17 +440,17 @@ python3 scripts/activity_log.py append {PROJECT} "평가 완료" \
 🛡 Holistic Adjudication 실행됨
   Phase A — 척추 노드 6개 명문화 (메시지: "...")
   Phase B — 통합 전용 검사: trajectory 🟡 / 원거리 모순 🟢 / 비중 🟠 / 인지 부하 🟢 / closing 🟡 / voice 🟢
-  Phase C — 카드 adjudication (총 12건):
+  Phase C — 권고 adjudication (총 12건):
     🟢 APPLY 5  ·  🟡 APPLY-SCOPED 3  ·  🟠 DEFER 2  ·  🔵 REROUTE 1  ·  🔴 REJECT 1
 
 ⚠️ 사용자 결정 필요 (REROUTE 1건):
-  WRITE-026 → §5 챕터 척추 결함. output 단계 backtrack 필요.
+  §5 챕터 척추 결함. output 단계 backtrack 필요.
   결정: `Chapter 5 수정해줘` (yes) / 결함 수용 (no)
 
 🛡 Coherence Verdict: 🟡 일부 영역 보강 권장 (척추는 견고)
 
 📝 holistic-review.md 생성: final/evaluations/latest/holistic-review.md
-📝 work-plan.md: 12 WRITE 카드에 holistic_verdict 부여 (REJECT/REROUTE/DEFER 카드는 prefix 표시)
+📝 evaluation.md: 12 권고 항목에 holistic_verdict 부여 (REJECT/REROUTE/DEFER 항목은 prefix 표시)
 
 ⏱ 소요: 4분 32초
 ```

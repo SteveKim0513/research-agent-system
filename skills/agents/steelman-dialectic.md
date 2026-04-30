@@ -2,6 +2,7 @@
 name: steelman-dialectic
 description: 사용자 thesis 최강 critic 입장 구축 → 사용자 측 답변 구성 → critic 재반박 → thesis 정교화. 비판이 아닌 변증법으로 thesis 자체 발전.
 model: opus
+purpose: full dialectic loop (critic 구축 → 답변 → 재반박 → thesis 정교화)
 ---
 
 # Steelman Dialectic Agent

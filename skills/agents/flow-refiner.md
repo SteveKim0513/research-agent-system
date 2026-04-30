@@ -2,6 +2,7 @@
 name: flow-refiner
 description: 새 논문 발견 시 flow.md 보강 제안 (4-2 Novelty Positioning, 3-1 Steelman). 글쓰기 판단이 필요하므로 opus 사용.
 model: opus
+purpose: flow.md diff 제안 (사용자 승인 후 반영)
 ---
 
 # Flow Refiner Agent
@@ -24,7 +25,7 @@ model: opus
 ## 입력
 
 - **필수**: `flow/flow.md` (현재 상태)
-- **필수**: 새로 확보된 `papers/analyzed/*.md` — `.sync-state.json`의 `analyzed_updated_at`을 기준으로 **flow 작성 시점 이후에 추가된** 논문만 식별
+- **필수**: 새로 확보된 `papers/analyzed/{stage}/*.md` (stage = research-gap | flow) — `.sync-state.json`의 `analyzed_updated_at`을 기준으로 **flow 작성 시점 이후에 추가된** 논문만 식별
 - **맥락**: `{stage}/evaluations/latest/evaluation.md` — 축 3·4 감점 사유 (보강 타겟)
 - **맥락**: `flow/claim-extraction-flow.md` — 새로 MATCHED된 문장·UNMATCHED에서 전환된 항목
 
@@ -87,7 +88,7 @@ model: opus
 > "...latent variable 접근이 전통적 대안이었으나 (Friedman & Miyake, 2017), 최근 Löffler et al. (2024)의 drift-diffusion 분석은 공통 요인이 정보 흡수 속도에 완전히 환원됨을 보여 이 접근의 구조적 한계를 드러냈다."
 
 **근거 논문**:
-- Löffler et al. (2024) — `analyzed/Loffler_2024-analysis.md` v1, Section 2 인용 다발
+- Löffler et al. (2024) — `analyzed/{stage}/Loffler_2024-analysis.md` v1, Section 2 인용 다발
 
 **변화 효과**:
 - 축 3-1 Steelman 강도: 약 → 강 (+12 예상)
@@ -133,15 +134,15 @@ model: opus
 
 반영 완료 후 사용자에게 **분석 명령 재실행 권장** (축 3·4가 의미 있게 움직였을 것).
 
-## work-plan.md와의 관계 — 카드 발급 없음
+## evaluation.md와의 관계 — 권고 발행 없음
 
-flow-refiner는 **in-session interactive helper**. work-plan.md에 카드를 발급하지 않는다.
+flow-refiner는 **in-session interactive helper**. evaluation.md에 권고를 발행하지 않는다.
 
 이유: `flow.md`는 **사용자의 계획 문서**. "이 문장 바꿔라"를 자동 큐잉하는 것은 월권이다. flow 수정은 사용자가 새 논문·평가 결과를 스스로 읽고 판단하는 인지 활동이지, 프로세스가 탐지하는 결함이 아님.
 
-flow-refiner의 제안 → 사용자 승인 → 즉시 `flow.md` 반영 → 완료. 중간 단계에 카드가 끼어들지 않음. 이 전체 흐름이 사용자가 `"flow 업데이트해줘"`를 명시 호출할 때만 일어난다.
+flow-refiner의 제안 → 사용자 승인 → 즉시 `flow.md` 반영 → 완료. 이 전체 흐름이 사용자가 `"flow 업데이트해줘"`를 명시 호출할 때만 일어난다.
 
-단, **반영 후에는 claim-extractor 재실행**이 자동 트리거돼, flow 변경으로 새로 발생한 UNMATCHED는 다음 평가 시 RESEARCH 카드로 발급된다 (aggregator가 처리). 그것은 flow 편집의 **결과물에 대한 리서치 follow-up**이지 flow 편집 자체에 대한 카드가 아님.
+단, **반영 후에는 claim-extractor 재실행**이 자동 트리거돼, flow 변경으로 새로 발생한 UNMATCHED는 다음 평가 시 evaluation.md의 search/reanalyze 권고로 통합된다. 그것은 flow 편집의 **결과물에 대한 리서치 follow-up**이지 flow 편집 자체에 대한 권고가 아님.
 
 ## 비파괴 원칙 (Non-Destructive)
 
@@ -167,7 +168,7 @@ flow-refiner의 제안 → 사용자 승인 → 즉시 `flow.md` 반영 → 완�
 ## 주의사항
 
 - **지나치게 많은 제안 금지**: 5-7개 이상의 제안은 사용자 피로를 유발. 가장 임팩트 큰 것 우선
-- **축 3·4에 집중**: 축 1은 RESEARCH에서 주로 해결됨. flow-refiner의 강점은 논증 구조 자체 보강
+- **축 3·4에 집중**: 축 1은 search/reanalyze 권고에서 주로 해결됨. flow-refiner의 강점은 논증 구조 자체 보강
 - **{stage}/evaluations/latest/evaluation.md의 감점 사유를 정확히 타겟** — 임의 개선 제안 금지
 - **이미 반영된 논문은 제외** — `.sync-state.json`의 chapters[*].papers_used 또는 기존 flow.md 스캔으로 중복 방지
 

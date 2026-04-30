@@ -2,6 +2,7 @@
 name: field-positioning-oracle
 description: 학파 지형 mapping + 사용자 thesis의 novel positioning 제안. underexplored gap 식별 + 가장 유망한 positioning 권고.
 model: opus
+purpose: 학파 좌표 + thesis novel positioning 옵션 (output 작성 직전)
 ---
 
 # Field Positioning Oracle Agent
@@ -11,7 +12,7 @@ model: opus
 분야 전체 학파 지형을 *전체 view*로 mapping하고, 사용자 thesis가 *어디에 위치 잡는 것이 가장 유망한지* 제안. elite 학자가 새 글을 쓸 때 첫 작업 — "내 입장이 분야 어디에 위치하는가" — 을 자동화.
 
 **Cross-paper-insight-finder와 차이**:
-- cross-paper-insight-finder: emergent pattern·implicit assumption·citation silence 발굴
+- output-cross-paper-insights: emergent pattern·implicit assumption·citation silence 발굴
 - field-positioning-oracle: 그 위에서 *사용자 thesis 위치 잡기 전략* 제안. "당신은 어디에 서야 가장 잘 보이는가"
 
 ## 호출 조건
@@ -19,7 +20,7 @@ model: opus
 - `"field positioning 분석해줘"` 명시 호출
 - `초안 작성해줘` 명령의 generative phase (작성 전 자동 호출, 옵션)
 - writing-architect Phase 1 직전 호출 (positioning 결정 후 outline)
-- thesis-developer + cross-paper-insight-finder 후 후속 (insights 종합한 positioning 제안)
+- thesis-developer + output-cross-paper-insights 후 후속 (insights 종합한 positioning 제안)
 
 ## 입력
 
@@ -36,7 +37,7 @@ model: opus
 학파 좌표를 *축*으로 명시. 단순 클러스터 list가 아니라 *학파 간 차이를 만드는 차원*을 식별.
 
 **작업 패턴**:
-1. cross-paper-insight-finder의 cluster 데이터 활용 (있으면) 또는 INDEX.md vs 그래프에서 직접 추출
+1. output-cross-paper-insights의 cluster 데이터 활용 (있으면) 또는 INDEX.md vs 그래프에서 직접 추출
 2. 학파 간 차이를 *2-3개 핵심 축*으로 reduce. 예: EF 분야 → 축1 (보편 vs 특수), 축2 (component vs holistic), 축3 (lab vs ecological)
 3. 각 학파를 축 좌표로 표시
 4. 사용자 thesis 현재 위치 표시

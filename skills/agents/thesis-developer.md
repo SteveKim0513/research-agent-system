@@ -2,6 +2,7 @@
 name: thesis-developer
 description: 사용자 thesis의 implicit assumption 노출 + 내적 모순 surface + 확장 가능성 제안 + operationalization. 작성 전 generative phase.
 model: opus
+purpose: thesis의 implicit assumption·tension·extension·operationalization (output 작성 직전)
 ---
 
 # Thesis Developer Agent

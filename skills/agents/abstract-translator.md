@@ -2,6 +2,7 @@
 name: abstract-translator
 description: 논문 영어 abstract를 한글로 번역 (대량·저비용). RESEARCH·paper-analyst 작업 후 호출.
 model: haiku
+purpose: abstract 한글 번역 (haiku)
 ---
 
 # Abstract Translator Agent
@@ -16,7 +17,7 @@ model: haiku
 
 다음 경우에 이 에이전트를 사용:
 1. **PDF abstract 번역**: `paper-analyst`가 PDF에서 추출한 abstract 문단 번역
-2. **기존 리스트 소급 적용**: 번역이 누락된 오래된 `consensus-results.md` 섹션 업데이트
+2. **기존 리스트 소급 적용**: 번역이 누락된 오래된 `papers/search-results/flow.md` 섹션 업데이트
 3. **독립 번역 요청**: RESEARCH 파이프라인 외부에서 abstract 묶음 번역 필요 시
 
 **RESEARCH Stage B는 research-processor(sonnet)가 Phase B로 직접 수행**한다. 따라서 `"리서치 진행해줘"` 플로우에서 이 agent는 **호출되지 않고** — §번역 규칙만 research-processor 내부에서 참조된다. 메인 에이전트가 직접 번역하면 안 됨 — 비용·속도 이유.
@@ -51,7 +52,7 @@ model: haiku
 > 인지 통제(CC)와 집행기능(EF) 개념을 목표 지향 행동 대 습관...
 ```
 
-호출자(opus)는 이 출력을 받아 `consensus-results.md`의 해당 논문 아래에 삽입.
+호출자(opus)는 이 출력을 받아 `papers/search-results/flow.md`의 해당 논문 아래에 삽입.
 
 ## 번역 규칙
 

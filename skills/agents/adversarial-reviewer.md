@@ -2,6 +2,7 @@
 name: adversarial-reviewer
 description: 학파·관점 시뮬레이션을 통한 초고 적대적 리뷰. "{학파}라면 §{N}을 어떻게 공격할 것인가"를 단락·문장 단위로 산출.
 model: opus
+purpose: 학파별 반박 시뮬 + 선제 차단 권고
 ---
 
 # Adversarial Reviewer Agent
@@ -32,10 +33,9 @@ model: opus
 **자동 호출**:
 - writing-architect Phase 1.5 — outline review
 - writing-architect Phase 2.5 — chapter review (chapter별 작성 직후 자동)
-- WRITE 카드의 `requires_adversarial_review: true` 옵션 — full draft review
 
 **수동 호출**:
-- 사용자 명시 명령 `"적대적 리뷰 해줘"` 또는 `"X 학파 입장에서 반박해줘"`
+- 사용자 명시 명령 `"적대적 리뷰 해줘"` 또는 `"X 학파 입장에서 반박해줘"` — full draft review
 
 ## 입력
 
@@ -275,14 +275,14 @@ weird_critique:     §2 ██ §3.1 ██████
 
 ## 학파 정의 — 사용자가 미리 작성하는 자료
 
-`flow/adversarial-schools.yaml` (또는 work-plan 카드에 inline) 권장:
+`flow/adversarial-schools.yaml` 권장:
 
 ```yaml
 schools:
   - id: <slug>
     name: <한국어 또는 영어 명칭>
     stance: <학파 입장 1-2 문장>
-    representative_papers: [Author_Year_kw, Author_Year_kw]   # papers/analyzed/{name}.md 매칭
+    representative_papers: [Author_Year_kw, Author_Year_kw]   # papers/analyzed/{stage}/{name}.md 매칭
     methodological_preferences: [...]
     typical_objections: [...]
     notable_journals: [...]
@@ -296,7 +296,7 @@ schools:
 ## 호출 후 사용자 결정
 
 각 high/medium 위협마다:
-- ✅ 채택 → 해당 단락 보강 작업 (WRITE 카드 발급)
+- ✅ 채택 → 해당 단락 보강 작업 (사용자가 직접 chapter 수정 명령)
 - 🚫 거부 → 이유 명시 (`flow/adversarial-decisions.md`에 기록)
 - ⏸ 보류 → revised 단계에서 재검토
 
@@ -324,8 +324,9 @@ reviewer 호출 시 학파 representative paper의 분석 직접 참조:
 from pathlib import Path
 import yaml
 
-# 학파 정의의 representative_papers를 analyzed/{name}.md 매칭
-analyzed = Path(project_root) / "papers" / "analyzed"
+# 학파 정의의 representative_papers를 analyzed/{stage}/{name}.md 매칭
+# stage = research-gap | flow
+analyzed = Path(project_root) / "papers" / "analyzed" / stage
 for canonical in school["representative_papers"]:
     p = analyzed / f"{canonical}.md"
     if not p.exists():
@@ -334,5 +335,5 @@ for canonical in school["representative_papers"]:
     # frontmatter + "## 인용 가능" + "## 본 글에서 활용" 섹션을 학파의 *대변자*로 활용
 ```
 
-학파 정의에 canonical 이름이 명시되어 있어야 하며, 실제 analyzed/에 있는 paper여야 함.
+학파 정의에 canonical 이름이 명시되어 있어야 하며, 실제 analyzed/{stage}/에 있는 paper여야 함.
 미등록 paper id는 경고 후 제외.

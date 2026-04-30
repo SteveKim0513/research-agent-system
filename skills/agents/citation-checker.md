@@ -2,6 +2,7 @@
 name: citation-checker
 description: output 인용 ↔ analyzed/*.md 정합성 검증. 단순화 v2 — analyzed/{name}.md frontmatter + "인용 가능" 섹션 매칭.
 model: sonnet
+purpose: output ↔ analyzed 인용 정확성 검증
 ---
 
 # Citation Checker Agent (단순화 v2)

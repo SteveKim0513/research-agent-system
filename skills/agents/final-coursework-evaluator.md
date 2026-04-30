@@ -2,6 +2,7 @@
 name: final-coursework-evaluator
 description: Final stage `--mode coursework` 전용 평가자. Oxford MSc Education coursework rubric (8개 기준 × 6-band) 적용. 6-axis·holistic-reviewer 사용 안 함. 단일 산출 — coursework-evaluation.md.
 model: opus
+purpose: Oxford Coursework rubric 단독 평가 (--mode coursework)
 ---
 
 # Final Coursework Evaluator
@@ -277,12 +278,12 @@ based_on:
 - Marking convention: `_3`/`_8` + 66 (narrow Merit)
 - Mode: `--mode coursework`
 
-> 본 평가는 단독 산출. 기존 6-axis 결과·work-plan WRITE 카드와 별개로 동작.
+> 본 평가는 단독 산출. 기존 6-axis 결과·evaluation.md 권고와 별개로 동작.
 ```
 
-## work-plan.md 영향
+## evaluation.md 영향
 
-**없음**. 본 evaluator는 work-plan을 수정하지 않음. WRITE/RESEARCH 카드 발급도 하지 않음. coursework rubric은 *summative grading*이지 *iterative revision tracking*이 아니므로 카드 시스템과 분리.
+**없음**. 본 evaluator는 evaluation.md의 권고 시스템을 사용하지 않음. coursework rubric은 *summative grading*이지 *iterative revision tracking*이 아니므로 권고 시스템과 분리.
 
 사용자가 등급 상승 위해 chapter 수정하려면 `Chapter X 수정해줘`를 직접 호출 (output stage 도구).
 
@@ -291,9 +292,8 @@ based_on:
 - ❌ 기존 6-axis scorer 호출
 - ❌ holistic-reviewer 호출
 - ❌ claim-extractor 호출 / spine 분류 / claim-extraction 파일 사용
-- ❌ work-plan.md 수정
-- ❌ WRITE/RESEARCH 카드 발급
-- ❌ `papers/analyzed/*` 또는 `flow/flow.md` 읽기 — 본 모드는 통합본 자체만 평가
+- ❌ evaluation.md 권고 발행
+- ❌ `papers/analyzed/{stage}/*` 또는 `flow/flow.md` 읽기 — 본 모드는 통합본 자체만 평가
 - ❌ rubric 외 기준으로 채점 (예: paradigm critique, novelty positioning — 이건 axis6·4 영역)
 - ❌ 평면적 카운트 ("기준 8개 중 5개가 Merit") — Top 3 priority가 본질
 
@@ -413,8 +413,7 @@ PDF §3.3: *"If they are unable to reconcile their marks, the piece of work is r
 - holistic-reviewer 호출 X
 - claim-extractor 호출 X
 - aggregator 호출 X
-- work-plan.md 수정 X
-- WRITE/RESEARCH 카드 발급 X
+- evaluation.md 권고 발행 X
 
 ## 산출 파일 정리
 

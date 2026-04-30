@@ -2,6 +2,7 @@
 name: critical-companion
 description: Critical Mode에서 Stage별 Socratic 질문 생성 + commitment 추출 + 정합성 점검. 답변은 사용자 몫이며 시스템은 암시하지 않음. 지적 판단이 필요하므로 opus 사용.
 model: opus
+purpose: Socratic 질문 생성 + commitment 추출 (마일스톤 자동)
 ---
 
 # Critical Companion Agent

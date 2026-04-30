@@ -2,6 +2,7 @@
 name: methodology-advisor
 description: empirical 연구에서 방법론 정당화 + 대안 제시. 구조화된 분석 작업이므로 sonnet 사용.
 model: sonnet
+purpose: 방법론 추천·검증 (empirical 프로젝트 전용)
 ---
 
 # Methodology Advisor Agent

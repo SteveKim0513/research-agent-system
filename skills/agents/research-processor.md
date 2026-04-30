@@ -2,6 +2,7 @@
 name: research-processor
 description: RESEARCH mode=search 카드의 Stage B(번역)+Stage C(curation)를 단일 컨텍스트에서 순차 수행. Stage A 파이프라인 병렬화의 핵심 worker. 단일 카드의 .research-raw/*.json → .translations/*.md → .curation/*.md 원자적 생성.
 model: sonnet
+purpose: Consensus 결과 번역 + 6 카테고리 curation (sonnet)
 ---
 
 # Research Processor Agent
@@ -12,11 +13,11 @@ model: sonnet
 
 ## 호출 조건
 
-`"리서치 진행해줘"` 실행 중 main이 `.research-raw/RESEARCH-NNN.json` 저장 직후 **즉시 `run_in_background=true`** 로 dispatch. main은 반환을 기다리지 않고 다음 카드의 Stage A로 진행.
+`"리서치 진행해줘"` 실행 중 main이 `.research-raw/R-NN.json` 저장 직후 **즉시 `run_in_background=true`** 로 dispatch. main은 반환을 기다리지 않고 다음 카드의 Stage A로 진행.
 
 ## 입력 (프롬프트에 명시)
 
-- `CARD_ID`: 예) `RESEARCH-007`
+- `CARD_ID`: 예) `R-07`
 - `PROJECT`: 예) `CDEA`
 - 스펙 경로: 이 파일 (`skills/agents/research-processor.md`)
 - 번역 규칙 참조: `skills/agents/abstract-translator.md` §번역 규칙
@@ -97,7 +98,7 @@ python3 -c "open('projects/{P}/papers/.translations/{CARD_ID}.md.tmp.$$','w').wr
 
 **중복 (이미 다른 RESEARCH 카드 등장 URL)**:
 ```
-⚠️ 중복 — RESEARCH-XXX #M 참조. 현 맥락 의의: 1줄.
+⚠️ 중복 — R-XX #M 참조. 현 맥락 의의: 1줄.
 ```
 
 **📌 액션 아이템 3+개** (체크박스):
@@ -130,7 +131,7 @@ python3 -c "open('projects/{P}/papers/.translations/{CARD_ID}.md.tmp.$$','w').wr
 ...
 
 ## 🔗 Cross-RESEARCH
-⚠️ 중복 — RESEARCH-001 #5 참조. ...
+⚠️ 중복 — R-01 #5 참조. ...
 
 ## 📌 액션 아이템
 - [ ] ...
@@ -173,15 +174,15 @@ OK: {CARD_ID} (translations={K} papers, curation={M} papers, cross_research_dup=
 
 ## Stage D assembly와의 계약
 
-main의 Stage D는 `.curation/RESEARCH-*.md`만 concat한다. 따라서 이 worker의 `.curation/*.md`가 Stage D의 단일 입력 contract. 6 카테고리 헤더·📌 섹션 누락 시 post-check(`scripts/research_postcheck.py`)가 실패시킨다.
+main의 Stage D는 `.curation/R-*.md`만 concat한다. 따라서 이 worker의 `.curation/*.md`가 Stage D의 단일 입력 contract. 6 카테고리 헤더·📌 섹션 누락 시 post-check(`scripts/research_postcheck.py`)가 실패시킨다.
 
 ## 📋 산출 파일 frontmatter 의무
 
 이 에이전트가 파일을 생성·갱신할 때 **반드시** YAML frontmatter를 포함해야 합니다 (`scripts/version_manager.py`가 자동 처리).
 
-**대상 파일**: papers/.translations/RESEARCH-NNN.md, papers/.curation/RESEARCH-NNN.md
+**대상 파일**: papers/.translations/R-NN.md, papers/.curation/R-NN.md
 
-**의존 (based_on)**: papers/.research-raw/RESEARCH-NNN.json (Stage A 산출물)
+**의존 (based_on)**: papers/.research-raw/R-NN.json (Stage A 산출물)
 
 **호출 방법** (출력 파일 저장 직후):
 

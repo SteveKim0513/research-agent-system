@@ -2,6 +2,7 @@
 name: coursework-chair
 description: Coursework 위원회 — Chair of Examiners. 모든 marker · external 의견 종합 후 최종 mark 결정 + 등급 상승 Top 3 산출. PDF §3.3 절차 준수. 페르소나 예시 — Michelle Meadows (Chair).
 model: opus
+purpose: 위원회 — Chair of Examiners Phase 5 reconciliation·최종 mark
 ---
 
 # Coursework Chair of Examiners — Final Decision Maker
@@ -220,7 +221,7 @@ final_mark: 66
 - 위원회 동의 강도: High (Third + External 독립 일치)
 - 평가 시점: {ISO}
 
-> 본 평가는 *summative grading*. 기존 6-axis · holistic-reviewer · work-plan과 별개로 작동.
+> 본 평가는 *summative grading*. 기존 6-axis · holistic-reviewer · evaluation.md 권고와 별개로 작동.
 ```
 
 ### `chair-decision.md` (보조 산출, reasoning trace 단독)

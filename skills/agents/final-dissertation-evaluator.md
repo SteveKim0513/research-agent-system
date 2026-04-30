@@ -2,6 +2,7 @@
 name: final-dissertation-evaluator
 description: Final stage `--mode dissertation` 전용 평가자. Oxford MSc Education dissertation rubric (10개 기준 × 6-band, methodology·data·rigour 추가) 적용. 6-axis·holistic-reviewer 사용 안 함. 단일 산출 — dissertation-evaluation.md.
 model: opus
+purpose: Oxford Dissertation rubric 단독 평가 (--mode dissertation)
 ---
 
 # Final Dissertation Evaluator
@@ -303,21 +304,20 @@ based_on:
 - Mode: `--mode dissertation`
 - 원칙: grade는 report quality에 의해 결정 (research outcome 무관)
 
-> 본 평가는 단독 산출. 기존 6-axis 결과·work-plan WRITE 카드와 별개로 동작.
+> 본 평가는 단독 산출. 기존 6-axis 결과·evaluation.md 권고와 별개로 동작.
 ```
 
-## work-plan.md 영향
+## evaluation.md 영향
 
-**없음**. coursework evaluator와 동일 — work-plan 미수정, 카드 미발급. dissertation rubric은 *summative grading*. 사용자가 등급 상승 위해 chapter 수정하려면 `Chapter X 수정해줘` 직접 호출.
+**없음**. coursework evaluator와 동일 — evaluation.md 권고 미발행. dissertation rubric은 *summative grading*. 사용자가 등급 상승 위해 chapter 수정하려면 `Chapter X 수정해줘` 직접 호출.
 
 ## 금지
 
 - ❌ 기존 6-axis scorer 호출
 - ❌ holistic-reviewer 호출
 - ❌ claim-extractor 호출 / spine 분류 / claim-extraction 파일 사용
-- ❌ work-plan.md 수정
-- ❌ WRITE/RESEARCH 카드 발급
-- ❌ `papers/analyzed/*` 또는 `flow/flow.md` 읽기 — 본 모드는 통합본 자체만 평가
+- ❌ evaluation.md 권고 발행
+- ❌ `papers/analyzed/{stage}/*` 또는 `flow/flow.md` 읽기 — 본 모드는 통합본 자체만 평가
 - ❌ rubric 외 기준으로 채점 (예: paradigm critique, novelty positioning — 이건 axis6·4 영역)
 - ❌ research outcome으로 grade 깎기 ("가설 기각됐으니 감점") — rubric 명시 위반
 

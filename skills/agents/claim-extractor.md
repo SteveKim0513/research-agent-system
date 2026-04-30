@@ -1,16 +1,17 @@
 ---
 name: claim-extractor
-description: flow 또는 chapters 원고를 문장 단위로 스캔해 주장 분류·인용 필요성 판정·RESEARCH 카드 후보 제안. 규칙 기반 분류라 sonnet 사용. Stage-aware (flow | draft).
+description: flow 또는 chapters 원고를 문장 단위로 스캔해 주장 분류·인용 필요성 판정·R-NN 권고 제안. 규칙 기반 분류라 sonnet 사용. Stage-aware (flow | draft).
 model: sonnet
+purpose: 줄글에서 주장 R-NN 추출 (thesis-supportive frame, axis1 입력)
 ---
 
-# claim-extractor — 문장 단위 주장 추출 + RESEARCH 카드 후보 제안
+# claim-extractor — 문장 단위 주장 추출 + R-NN 권고 제안
 
 ## 역할
 
 줄글(prose)로 작성된 **flow** 또는 **chapter 원고**를 문장 단위로 스캔하여:
 1. 각 문장이 레퍼런스가 필요한 주장인지 분류
-2. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 **RESEARCH 카드 후보**를 제안 (mode=search: 외부 검색 / mode=reanalyze: 보유 PDF 재스캔 — 최종 ID 발급은 `card_registry`에서)
+2. 필요한 경우 **검색 키워드 + 기대 논문 프로필**을 포함한 **R-NN 권고**를 제안 (mode=search: 외부 검색 / mode=reanalyze: 보유 PDF 재스캔)
 3. 전체 결과를 구조화된 테이블로 출력
 
 **철학**: "모든 문장이 레퍼런스를 필요로 하지는 않는다". 저자의 novel claim, 논리 연결어, 메타 문장은 인용하지 않는다. 그러나 **empirical/descriptive/background/borrowed-definition** 주장은 예외 없이 인용해야 한다.
@@ -35,10 +36,9 @@ model: sonnet
 - stage=output → `output/*.md` 전체 (파일명 순서대로 concatenate; claim-extraction-output.md는 제외)
 
 **맥락** (공통):
-- `papers/consensus-results.md` (확보한 논문 pool — 기존 논문으로 커버 가능한지 매칭)
-- `papers/analyzed/*.md` (각 논문이 뒷받침하는 주장)
-- `papers/collected/` 파일 목록
-- `work-plan.md` 루트 (기존 RESEARCH-NNN / WRITE-NNN 번호를 참조; 신규 UNMATCHED에 번호를 발급하지는 않음 — 제안만)
+- `papers/search-results/{stage}.md` (stage = research-gap | flow — 확보한 논문 pool, 기존 논문으로 커버 가능한지 매칭)
+- `papers/analyzed/{stage}/*.md` (stage = research-gap | flow — 각 논문이 뒷받침하는 주장. [A]·[N]·[R]·[R][D] prefix 유지)
+- `papers/candidates/{stage}/` 파일 목록 (stage = research-gap | flow)
 
 **output stage 추가 맥락**:
 - `flow/claim-extraction-flow.md` (seed)
@@ -105,29 +105,27 @@ model: sonnet
 
 ### Phase 3: 기존 논문 pool 매칭 (3-way 분류)
 
-`papers/consensus-results.md`, `papers/analyzed/*.md` (**모든 버전** v1/v2/...), `papers/collected/` 목록을 스캔하여 각 NEEDS_CITATION 문장을 3-way로 분류한다:
+`papers/search-results/{stage}.md`, `papers/analyzed/{stage}/*.md` (**모든 버전** v1/v2/...), `papers/candidates/{stage}/` 목록을 스캔하여 각 NEEDS_CITATION 문장을 3-way로 분류한다:
 
-- ✅ **MATCHED**: 기존 `analyzed/*.md`의 섹션별 인용 다발이 이 주장을 이미 명시적으로 뒷받침 → 인용 매핑만 필요
-- 🔄 **UNMATCHED-INTERNAL**: `papers/collected/`에 관련 PDF가 있으나 현재 analyzed/*.md는 이 각도를 커버하지 못함 → **RESEARCH 카드 mode=reanalyze 생성** (보유 PDF 재스캔)
-- ❌ **UNMATCHED-EXTERNAL**: 관련 논문 자체가 없음 → **RESEARCH 카드 mode=search 생성** (Consensus 외부 검색)
+- ✅ **MATCHED**: 기존 `analyzed/{stage}/*.md`의 섹션별 인용 다발이 이 주장을 이미 명시적으로 뒷받침 → 인용 매핑만 필요
+- 🔄 **UNMATCHED-INTERNAL**: `papers/candidates/{stage}/`에 관련 PDF가 있으나 현재 analyzed/{stage}/*.md는 이 각도를 커버하지 못함 → **mode=reanalyze 권고 생성** (보유 PDF 재스캔)
+- ❌ **UNMATCHED-EXTERNAL**: 관련 논문 자체가 없음 → **mode=search 권고 생성** (Consensus 외부 검색)
 
 ### UNMATCHED-INTERNAL 판별 휴리스틱
 
 다음 중 하나 이상이면 INTERNAL로 분류:
 
-1. **주제 키워드 매칭**: 해당 주장의 키워드가 `analyzed/*.md`의 제목·초록 요약에 등장하지만, 현재 섹션별 인용 다발에는 없음
+1. **주제 키워드 매칭**: 해당 주장의 키워드가 `analyzed/{stage}/*.md`의 제목·초록 요약에 등장하지만, 현재 섹션별 인용 다발에는 없음
 2. **관련성 점수 ≥ 3/5**: paper-analyst가 해당 논문을 flow의 인근 섹션에 활용 가능하다고 판정했으나 현재 flow 각도와 불일치
-3. **저자/논문 지명**: 사용자가 flow.md에서 특정 저자명을 언급했는데 해당 논문이 collected/에 있음
+3. **저자/논문 지명**: 사용자가 flow.md에서 특정 저자명을 언급했는데 해당 논문이 candidates/{stage}/에 있음
 
-### Phase 4-A: RESEARCH mode=reanalyze 후보 생성 (UNMATCHED-INTERNAL용)
+### Phase 4-A: mode=reanalyze 권고 생성 (UNMATCHED-INTERNAL용)
 
 각 UNMATCHED-INTERNAL 문장에 대해:
 1. **대상 PDF**: `papers/collected/{파일명}.pdf`
 2. **재분석 각도**: 이 주장을 뒷받침할 수 있는지 확인할 읽기 초점
 3. **예상 결과**: 새 섹션별 인용 다발 vNEW에 추가될 항목 예시
 4. **담당 에이전트**: paper-analyst (Mode B)
-
-→ aggregator가 `card_registry` domain=research, mode=reanalyze로 RESEARCH-NNN 발급 (dedup_key = (pdf, angle))
 
 ### Phase 4-B: Research Target (R-N) 생성 (UNMATCHED-EXTERNAL용)
 
@@ -142,9 +140,9 @@ model: sonnet
    - 인용 수 기대치
 3. **최소 필요 논문 수** (1편이면 충분한지, 3편 이상 triangulation 필요한지)
 
-### Phase 4-C: RESEARCH mode=search 후보 생성 (R 병합, execution unit)
+### Phase 4-C: mode=search 권고 생성 (R 병합, execution unit)
 
-여러 R이 같은 쿼리로 커버 가능하면 **하나의 RESEARCH mode=search 카드로 병합**. 1 카드 = 1 Consensus 쿼리 = 1 raw JSON 캐시 = 1 curation 블록 = work-plan.md의 1 카드.
+여러 R이 같은 쿼리로 커버 가능하면 **하나의 search 권고로 병합**. 1 unit = 1 Consensus 쿼리 = 1 raw JSON 캐시 = 1 curation 블록.
 
 병합 판정 기준:
 - 같은 핵심 인용 (Kroupin 2025 같은 landmark 한 편을 주요 타깃으로)
@@ -152,14 +150,14 @@ model: sonnet
 - 세미널 저자 계열 동일 (Kochanska 종단, Miyake unity/diversity 등)
 - 의미적으로 같은 근거 영역 (impurity problem + EF 분해)
 
-단일 R만 커버하는 카드도 가능 (독립적 주제).
+단일 R만 커버하는 unit도 가능 (독립적 주제).
 
 각 execution unit에 대해:
-1. **covers**: 커버하는 R 리스트 (R-01, R-02 등) — 이게 dedup_key의 실질 part
+1. **covers**: 커버하는 R 리스트 (R-01, R-02 등)
 2. **query**: Consensus에 투입할 통합 대표 쿼리 (단일 문자열)
 3. **기대 논문 프로필**: 포함된 R들의 프로필 합성
 
-**27 R → 18 RESEARCH(search) 카드** 식으로 수축 가능.
+**27 R → 18 search unit** 식으로 수축 가능.
 
 ## 출력 형식
 
@@ -200,8 +198,8 @@ Stage에 따라 다른 경로:
 | G. Connector/Meta | X | — | — | — |
 | **합계** | N | M | R | K |
 
-**🔄 RESEARCH mode=reanalyze 후보**: **R개** (기존 PDF 재분석)
-**❌ RESEARCH mode=search 후보**: **K개** (Consensus 신규 검색)
+**🔄 mode=reanalyze 권고**: **R개** (기존 PDF 재분석)
+**❌ mode=search 권고**: **K개** (Consensus 신규 검색)
 
 ---
 
@@ -223,7 +221,7 @@ Stage에 따라 다른 경로:
 
 ---
 
-## 🔄 재분석 후보 (UNMATCHED-INTERNAL — aggregator가 RESEARCH mode=reanalyze 카드로 발급)
+## 🔄 재분석 권고 (UNMATCHED-INTERNAL — paper-analyst Mode B 호출 권고)
 
 ### S023: "hot EF는 감정 조절 요구의 문화 보편성을 반영한다"
 
@@ -231,7 +229,7 @@ Stage에 따라 다른 경로:
 - **대상 PDF**: `papers/collected/Zelazo_2012_hot_cool_EF.pdf`
 - **현재 analyzed 버전**: v1 (Section 1 배경 각도만 커버)
 - **재분석 각도**: Section 4 hot EF 보편성 논증 — 감정 조절 요구가 문화 간 보편적이라는 증거 구체화
-- **예상 결과**: analyzed/Zelazo_2012-analysis.md에 `## [v2]` append — Section 4용 인용 다발 (hot EF 직접 인용 2-3개, 보편성 수치)
+- **예상 결과**: analyzed/{stage}/Zelazo_2012-analysis.md에 `## [v2]` append — Section 4용 인용 다발 (hot EF 직접 인용 2-3개, 보편성 수치)
 - **담당**: paper-analyst (Mode B)
 - **완료 조건**: analyzed_version v1 → v2로 증가, sync-state.json 갱신
 
@@ -275,9 +273,9 @@ Stage에 따라 다른 경로:
 
 ---
 
-## 🎯 Hunt 후보 (execution units — R들의 병합으로 생성, aggregator가 RESEARCH mode=search 카드로 발급)
+## 🎯 Hunt 후보 (execution units — R들의 병합으로 생성, search 권고)
 
-여러 R을 같은 Consensus 쿼리로 커버 가능하면 하나의 execution unit으로 병합. **1 unit = 1 카드 = 1 쿼리 = 1 실행**. 단일 R만 커버해도 OK.
+여러 R을 같은 Consensus 쿼리로 커버 가능하면 하나의 execution unit으로 병합. **1 unit = 1 쿼리 = 1 실행**. 단일 R만 커버해도 OK.
 
 ### Unit #1 — EF 측정 혼입 요인 + impurity problem
 
@@ -332,14 +330,14 @@ Stage에 따라 다른 경로:
   "reanalyze_proposals": U_INT,
   "research_targets": U_EXT,
   "search": [
-    {"id": "RESEARCH-001", "covers": ["R-01", "R-04"], "query": "executive function task impurity ...", "topic": "EF 측정 혼입 + impurity"},
-    {"id": "RESEARCH-002", "covers": ["R-02"], "query": "Kochanska conscience internalization ...", "topic": "Kochanska conscience"}
+    {"covers": ["R-01", "R-04"], "query": "executive function task impurity ...", "topic": "EF 측정 혼입 + impurity"},
+    {"covers": ["R-02"], "query": "Kochanska conscience internalization ...", "topic": "Kochanska conscience"}
   ],
   "reanalyze": [
-    {"id": "RESEARCH-XXX", "target_pdf": "papers/collected/Zelazo_2012_hot_cool_EF.pdf",
+    {"target_pdf": "papers/collected/Zelazo_2012_hot_cool_EF.pdf",
      "angle": "Section 4 hot EF 보편성 논증 — 감정 조절 요구가 문화 간 보편적이라는 증거 구체화",
      "topic": "S023 hot EF 보편성", "current_version": "v1"},
-    {"id": "RESEARCH-YYY", "target_pdf": "papers/collected/Doebel_2020.pdf",
+    {"target_pdf": "papers/collected/Doebel_2020.pdf",
      "angle": "Section 2 situated EF의 신경 메커니즘", "topic": "Doebel 2020 신경 기반"}
   ],
   "over_claim_flags": A,
@@ -349,22 +347,15 @@ Stage에 따라 다른 경로:
 ```
 
 **`research_targets`**: UNMATCHED-EXTERNAL 문장/클러스터 총 개수 (R-NN 개수와 동일).
-**`search`**: R들을 병합해 만든 execution unit 배열. aggregator가 이걸 1:1로 work-plan.md의 **RESEARCH mode=search 카드**로 발급 (dedup_key = covers 정규화).
-**`reanalyze`**: UNMATCHED-INTERNAL에서 도출된 보유 PDF 재분석 후보. aggregator가 1:1로 **RESEARCH mode=reanalyze 카드** 발급 (dedup_key = (pdf_filename, angle)). 임시 ID `XXX/YYY`는 본 출력 내부 참조용 — aggregator가 실제 ID 발급.
+**`search`**: R들을 병합해 만든 execution unit 배열. 사용자가 직접 검색 실행 권고.
+**`reanalyze`**: UNMATCHED-INTERNAL에서 도출된 보유 PDF 재분석 후보. paper-analyst Mode B 호출 권고.
 ```
 
-## work-plan.md 연동 프로토콜
+## evaluation.md 연동 프로토콜
 
-claim-extractor는 **work-plan.md를 직접 수정하지 않는다.** 읽기만 (기존 RESEARCH/WRITE 번호 확인 목적). 쓰기 책임은 `evaluation-orchestrator` + `evaluation_aggregator.py`에 있다.
+claim-extractor는 **evaluation.md를 직접 수정하지 않는다.** R-NN은 본 에이전트의 출력 파일 내부 ID로 유지되며, evaluation.md의 평가 결과에서 back-reference로 인용된다.
 
-**읽기 의무** (출력 생성 직전):
-1. `work-plan.md`에서 현재 존재하는 RESEARCH-NNN / WRITE-NNN ID 목록을 grep 추출
-2. UNMATCHED 주장이 기존 RESEARCH 카드의 `covers`에 이미 포함되면 `→ RESEARCH-NNN (work-plan.md 참조)` back-reference
-3. 신규 R 및 search execution unit은 임시 ID(`R-01`, `RESEARCH-001`)로 제안 — aggregator가 `card_registry`의 next 가용 RESEARCH-NNN으로 재매핑
-
-aggregator가 `search[]` 배열을 읽어 work-plan.md의 RESEARCH 카드(mode=search)를 1:1 발급 (`**covers**: R-NN` + dedup_key 정규화 covers) 후 🟡 Active에 등록한다.
-
-**포맷 규율**: `skills/WORK-PLAN-FORMAT.md` 참조 (RESEARCH 카드 mode=search|reanalyze의 필수 필드).
+R-NN은 claim-extraction 파일 안에서 fine-grained 식별자로 작동. 사용자가 출력을 보고 search/reanalyze 권고 적용 여부 결정.
 
 ## 품질 체크리스트 (에이전트 자체 검증)
 
