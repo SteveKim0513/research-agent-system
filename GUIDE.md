@@ -84,35 +84,28 @@ claude
 ## 🗺 글 한 편 쓰는 전체 과정
 
 ```
-   ① 프로젝트 만들기
+   ① 프로젝트 생성 (4 stage 폴더·빈 템플릿 모두 자동 마련)
         ↓
-   ⓪ (선택) research-gap 단계 ──┐
-        분야 anchor 탐색 ·       │ research-gap 단계
-        thesis 형성 전 갭 발견   │ (분야 지도 그리기)
-        ↓                       │
-   (thesis 잡혔으면 바로 ②부터)  │
-   ───────────────────────────  ┘
+   ⓪ research-gap (분야 anchor 탐색·갭 발견)  ←── 표준 시작점
         ↓
-   ② 줄거리(flow.md) 쓰기 ──┐
-        ↓                   │
-   ③ 줄거리 평가             │
-        ↓                   │ flow 단계
-   ④ 논문 검색               │ (계획 + 자료 수집)
-        ↓                   │
-   ⑤ PDF 다운로드            │
-        ↓                   │
-   ⑥ 논문 처리·분석 ─────────┤
-        ↓                   │
-   ⑦ 정독 + 메모 (선택) ─────┘
+   ② flow (줄거리 작성·평가)
         ↓
-   ⑧ 초안 작성 ──────────────┐
-        ↓                    │
-   ⑨ 평가 + 수정 (반복)        │ output 단계
-        ↓                    │ (글쓰기)
-   ⑩ 마무리 (검증·통합) ───────┘
+   ③ 논문 검색·다운로드·분석 (flow 단계 내)
+        ↓
+   ④ output (초안 작성·평가·수정)
+        ↓
+   ⑤ final (통합본·최종 평가)
         ↓
       🎉 완성
 ```
+
+**생략 가능 패턴** (사용자 상황에 따라 의식적으로):
+| 상황 | 시작 단계 | 생략하는 것 |
+|---|---|---|
+| 분야 anchor 탐색 필요 (가장 일반) | ⓪ research-gap | — |
+| thesis 이미 명확 | ② flow | research-gap (research-gap.md 비워두면 자동 skip) |
+| 외부에서 chapter 일부 가져옴 (드뭄) | ④ output | research-gap·flow |
+| 통합본만 채점 (가장 드뭄) | ⑤ final | research-gap·flow·output |
 
 💬 **GPT 대화창처럼 쓰세요**. 정확한 명령어를 외울 필요 없습니다 — 자연어로 의도를 말하면 시스템이 알아듣습니다 ("이 부분 보강하고 싶어", "근거 좀 더 찾아줘", "어디까지 왔지?" 등).
 
@@ -135,16 +128,18 @@ claude
 (my-essay 자리에 본인 글 이름 — 예: `gpt-and-academia`)
 
 **무엇이 생기나요?**
-- `projects/my-essay/` 폴더가 통째 생성
-- 안에 빈 `flow/flow.md` 파일
+- `projects/my-essay/` 폴더가 통째 생성 (4-stage 표준 구조)
+- `research-gap/research-gap.md` 빈 템플릿 (4 요소 안내 포함)
+- `flow/flow.md` 빈 템플릿
+- `papers/`, `output/`, `final/` 폴더 + 단계별 evaluations/
 
-**다음**:
-- thesis가 아직 안 잡혔으면 → ⓪ research-gap 단계 (선택)
-- thesis가 이미 명확하면 → ② flow.md 작성
+**다음** — 사용자 상황에 따라 시작점 선택:
+- **표준** (분야 anchor 탐색부터): `research-gap/research-gap.md`에 줄글 작성 → `"리서치 갭 분석해줘"`
+- **thesis 이미 명확** (생략): `research-gap/research-gap.md` 비워두기 → 바로 `flow/flow.md` 작성 → `"평가해줘"`
 
 ---
 
-### ⓪ (선택) research-gap 단계 — 분야 anchor 탐색
+### ⓪ research-gap 단계 — 분야 anchor 탐색 (표준 시작점)
 
 본인 주제에 대해 **"무엇이 빠져 있나"**를 먼저 조사하는 단계입니다. thesis가 아직 흐릿할 때, 또는 분야의 anchor(핵심 논문·논쟁 지점)를 모를 때 사용. thesis가 이미 잡혔다면 이 단계 **건너뛰고 ②로** 가도 됩니다.
 
@@ -528,7 +523,7 @@ evaluation.md의 작업 항목을 보고 직접 명령:
 ```
 projects/my-essay/
 │
-├── research-gap/                      ← ⓪ (선택) 분야 anchor 탐색 단계
+├── research-gap/                      ← ⓪ 분야 anchor 탐색 단계 (표준 시작점, 생략 가능)
 │   ├── research-gap.md                ← 본인이 작성 (분야·관심·아는 지형)
 │   ├── research-plan.md               ← gap-analyzer 산출 (H-NN 가설)
 │   └── gap-report.md                  ← gap-synthesizer 산출 (통합 갭)
@@ -665,7 +660,7 @@ PDF를 `candidates/flow/` (또는 `candidates/research-gap/`)에 떨어뜨리고
 | `"현재 상태"` / `"작업 추천해줘"` | 매일 시작·막혔을 때 |
 | `"final 평가해줘"` | 최종 통합 후 (holistic / coursework / dissertation) |
 
-### research-gap 단계 (선택)
+### research-gap 단계 (표준 시작점)
 
 | 명령 | 언제 |
 |------|------|
@@ -710,7 +705,7 @@ A. 아니요. `"리서치 시작해"`, `"논문 좀 찾아줘"`, `"이 글 어�
 A. `skills/FLOW-TEMPLATE.md` 가이드 참고. 또는 한 문단만 써놓고 `"flow 평가해줘"` → AI가 약점 알려주면 그 기반으로 보강. thesis가 흐릿하면 ⓪ research-gap 단계부터 시작해도 좋습니다.
 
 **Q. research-gap 단계는 꼭 거쳐야 하나요?**
-A. 아니요, **선택입니다.** thesis가 이미 명확하면 바로 ②부터 시작하세요. 분야 anchor를 잘 모르거나 thesis가 흐릿할 때만 ⓪ research-gap을 추천합니다.
+A. **research-gap은 표준 시작점**입니다. 분야 anchor 탐색·갭 발견을 통해 thesis를 다듬는 단계라 새 프로젝트는 일반적으로 여기부터 시작합니다. **단 thesis가 이미 명확하면 의식적으로 생략 가능** — `research-gap/research-gap.md`를 빈 템플릿 그대로 두고 바로 `flow/flow.md`부터 작성하세요. 시스템이 빈 research-gap을 자동 skip하고 flow부터 진행합니다.
 
 **Q. PDF가 분석 안 됩니다.**
 A. 빈 PDF·손상 PDF는 자동으로 격리됩니다. 다른 PDF로 다시 시도.

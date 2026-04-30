@@ -123,10 +123,10 @@ Claude에서:
 > "my-essay 프로젝트 만들어줘"
 ```
 
-**4 단계 흐름**: `research-gap (선택)` → `flow` → `output` → `final`. 분야 anchor 탐색이 필요하면 research-gap부터, thesis가 이미 잡혔으면 flow부터 시작.
+**4 단계 흐름** (표준): `research-gap` → `flow` → `output` → `final`. 모든 단계의 폴더·빈 템플릿이 프로젝트 생성 시 자동 마련됩니다. thesis가 이미 명확하면 research-gap을 비워두고 flow부터 시작 (의식적 생략, 시스템이 자동 skip).
 
 ```
-> "리서치 갭 분석해줘"   ← (선택) research-gap.md → research-plan.md (분야 anchor 탐색, H-NN 발급)
+> "리서치 갭 분석해줘"   ← research-gap.md → research-plan.md (분야 anchor 탐색, H-NN 발급)
 > "리서치 진행해줘"      ← 두 plan(research-gap·flow)의 미해결 H/R 모두 Consensus 검색
 > "논문 처리해줘"        ← papers/candidates/{research-gap,flow}/ PDF 자동 스캔 → collected/ + analyzed/{research-gap,flow}/
 > "갭 리포트 만들어줘"   ← (research-gap) analyzed/research-gap/[R][D].*.md → gap-report.md
@@ -195,7 +195,7 @@ research-agent/
 │   └── archive/               (일회성 migration: migrate_v2, backfill_axis_tags, rename_to_full_title)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
-│       ├── research-gap/      🆕 (선택) 분야 anchor 탐색 단계 — research-gap.md + research-plan.md + gap-report.md + history/
+│       ├── research-gap/      🆕 분야 anchor 탐색 단계 (표준 시작점) — research-gap.md + research-plan.md + gap-report.md + history/
 │       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + evaluation.md + history/)
 │       ├── output/            (0N-*.md + claim-extraction-output.md + evaluation.md + history/{chapter_id}/)
 │       ├── activity.log       (📓 모든 명령 자동 로그)

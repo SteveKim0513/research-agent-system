@@ -7,28 +7,48 @@ description: "Academic research project management with AI agents. Creates proje
 
 이 스킬은 research-agent 폴더 안의 projects/ 디렉토리에서 작동합니다.
 
-## 전체 작업 흐름 (5축 평가 기반)
+## 전체 작업 흐름 (4-stage 표준)
+
+모든 프로젝트는 **표준 4단계**를 따른다. 사용자 상황에 따라 *앞선 단계 1-2개를 의식적으로 생략*할 수 있다 (생략 = 해당 단계 폴더를 비워둠).
 
 ```
-[프로젝트 생성]
+[프로젝트 생성 — 4 stage 폴더·템플릿 모두 자동 생성]
    ↓
-[(opt-in) research-gap.md 작성 → 갭 탐색 → anchor 발견]
-   ↓
-[flow.md 작성]
-   ↓
-[🎯 flow 평가해줘] ← 5축 냉정 평가 (핵심 진입점)
-   ↓
-┌──────────┬──────────┬──────────┬──────────┐
-│ 📚 리서치 │ ✍️ 1차작성 │ 🔧 수정   │ ✅ 최종  │
-│ flow      │ output    │ output   │ final    │
-└──────────┴──────────┴──────────┴──────────┘
-   ↑ 각 단계 완료 후 [🎯 {stage} 평가해줘] 재실행하여 진척 확인
+┌─────────────────────────────────────────────────────────────────┐
+│   ① research-gap         ② flow              ③ output       ④ final  │
+│   분야 anchor 탐색         논증 구조·thesis      chapter 작성    통합본    │
+│   갭 발견                  outline                                       │
+│   ↓                       ↓                   ↓               ↓         │
+│   gap-report.md            evaluation.md       evaluation.md   evaluation.md │
+└─────────────────────────────────────────────────────────────────┘
+   ↑ 각 단계 완료 후 "{stage} 평가해줘"로 재진단
 ```
 
-**핵심 원칙**:
-1. (선택) research-gap 단계 — thesis가 아직 형성 중일 때 분야 anchor 탐색 + 갭 발견. 이미 thesis가 명확하면 건너뜀.
-2. flow.md 완성 → `flow 평가해줘` 실행 → `evaluation.md`가 다음 액션을 안내 (work-plan.md는 폐기됨, evaluation.md가 단일 진입 파일).
-3. **폴더 = 진실의 원천(SSOT)**. stage flag 없음. main agent는 매번 폴더를 스캔해 무엇이 있는지 보고 분기.
+**표준 진입점 = research-gap**. 새 프로젝트는 일반적으로 이 단계부터 시작 (분야 anchor 탐색 + 갭 발견 → thesis 형성 → flow 작성).
+
+### 생략 가능 패턴 (사용자 상황에 따라)
+
+| 상황 | 시작 stage | 생략하는 것 |
+|---|---|---|
+| 분야 anchor 탐색 필요 (가장 일반) | **research-gap** | — |
+| thesis 이미 명확 (사용자 의식적 결정) | **flow** | research-gap 생략 |
+| 이미 chapter 일부 작성 (드뭄 — 외부에서 가져옴) | **output** | research-gap·flow 생략 |
+| 이미 통합본 보유 (가장 드뭄 — coursework 채점만 필요) | **final** | research-gap·flow·output 생략 |
+
+생략 = **해당 폴더(research-gap/, flow/, output/)를 비워두기만 하면 됨**. 별도 flag·설정 불필요. 폴더가 비어있으면 main agent가 그 단계 자동 skip.
+
+### 생략 후 다시 진입
+
+생략한 단계로 *나중에* 진입 가능:
+- output 작성 중 "다시 thesis 다듬고 싶다" → flow로 회귀 (단, 단방향 원칙상 명시적 사용자 결정 필요. SKILL의 "단방향 진행 원칙" 참조)
+- thesis 정해졌는데 anchor 부족 발견 → research-gap.md 작성하면 그 단계 활성화
+
+### 핵심 원칙
+
+1. **research-gap = 표준 시작점**. 생략은 사용자가 의식적으로 결정 (시스템이 강제 X)
+2. **폴더가 SSOT** — stage flag 추적 X. 폴더 비어있음 = 그 단계 미진행 OR 의식적 생략
+3. flow.md / output / final 완성 → `"{stage} 평가해줘"` → `evaluation.md`가 다음 액션 안내 (work-plan.md 폐기, evaluation.md 단일 진입)
+4. main agent는 매 응답 시 폴더 스캔 → 자동 추론 + 모호 시 conversational confirmation
 
 ## 🧱 Sub-agent 운영 규율
 
@@ -91,12 +111,39 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 👉 다음 권장: "최종 완성했어" — 통합본 머지 후 final 평가 가능
 ```
 
-**진척 라인 산출 규칙** (main agent 매 응답 시):
-1. `research-gap/research-gap.md` 존재? → research-gap ✓ / 없음
-2. `flow/flow.md` 100자 이상 + `flow/evaluations/latest/evaluation.md` 존재? → flow 평가 ✓ + 최저 axis 상태 / 미실행
-3. `output/0N-*.md` 1개 이상? + output 평가? → output 진척 표시
-4. `final/complete-draft.md` 존재? → final 표시
-5. **다음 권장 우선순위**:
+**진척 라인 산출 규칙** (main agent 매 응답 시) — 4-stage 표준 + 생략 패턴 인식:
+
+**stage 상태 판정** (각 stage마다 4 상태):
+- `research-gap`:
+  - 폴더 부재 → "미초기화" (드뭄, 옛 프로젝트)
+  - research-gap.md 비어있음 (메타데이터 골격만) → "건너뜀" (사용자 의식적 생략)
+  - research-gap.md 작성됨 + research-plan.md 미생성 → "작성 중"
+  - research-plan.md 있고 검색·분석 진행 중 → "진행 중 (H-NN 검색·분석 일부)"
+  - gap-report.md 있음 → "✓ 완료"
+- `flow`:
+  - flow.md 100자 미만 → "미작성"
+  - 100자 이상 + 평가 없음 → "작성 중"
+  - 평가 있음 → "평가 ✓ (최저 axis 표시)"
+- `output`:
+  - 0N-*.md 0개 → "미진입"
+  - 1개 이상 + 평가 없음 → "작성 중 (N chapter)"
+  - 평가 있음 → "평가 ✓ (verdict 표시)"
+- `final`:
+  - complete-draft.md 부재 → "미진입"
+  - 있음 + 평가 없음 → "통합본 ✓"
+  - 평가 있음 → "평가 ✓ (verdict)"
+
+**생략 패턴 자동 인식**:
+- research-gap.md가 빈 템플릿 그대로 (사용자 입력 없음) + flow.md 작성됨 → research-gap "건너뜀" 표시 (생략 정상)
+- 동일 패턴이 다른 stage에도 적용
+
+**예시 (생략 케이스)**:
+```
+📍 research-gap (건너뜀) · flow 평가 ✓ (🟡) · output 미진입 · final 미진입
+👉 다음 권장: "리서치 진행해줘" — 미해결 R-NN 3건
+```
+
+**다음 권장 우선순위**:
    - 미해결 R-NN/H-NN 있음 → "리서치 진행해줘"
    - candidates에 PDF 있음 → "논문 처리해줘"
    - evaluation에 🔴/🟠 있음 → 해당 축 보강 (자연어 힌트)
@@ -297,7 +344,7 @@ final/
 
 | 단계 | 산출 위치 |
 |------|---------|
-| research-gap (opt-in) | `research-gap/research-gap.md`, `research-gap/research-plan.md`, `research-gap/gap-report.md`, `papers/candidates/research-gap/`, `papers/analyzed/research-gap/[R]\|[R][D].*.md`, `papers/search-results/research-gap.md` |
+| research-gap (표준 시작점) | `research-gap/research-gap.md`, `research-gap/research-plan.md`, `research-gap/gap-report.md`, `papers/candidates/research-gap/`, `papers/analyzed/research-gap/[R]\|[R][D].*.md`, `papers/search-results/research-gap.md` |
 | flow 단계 | `flow/flow.md`, `flow/claim-extraction-flow.md`, `flow/critical/critical-questions.md`, `flow/critical/archive/{date}-{trigger}/`, `papers/candidates/flow/`, `papers/analyzed/flow/[A]\|[N].*.md`, `papers/search-results/flow.md` |
 | output 단계 | `output/0N-{section}.md`, `output/00-positioning.md`, `output/generative/{agent}.md` (internal), `output/outline-critique.md`, `output/chapter-critique-0N.md`, `output/peer-review-simulation.md`, `output/claim-extraction-output.md`, `output/critical/critical-questions.md`, `output/critical/archive/{date}-{trigger}/` |
 | Cross-stage | `critical-commitments.md` (프로젝트 루트, 양 단계에서 누적), `papers/collected/{Author_Year}.pdf` (모든 단계 공유 PDF), `activity.log` |
@@ -519,7 +566,7 @@ python3 scripts/migrate_project.py {PROJECT}
 
 | 카테고리 | 명령어 | 동작 |
 |---------|-------|------|
-| **research-gap (opt-in)** | `"리서치 갭 분석해줘"` | research-gap.md → gap-analyzer → research-plan.md (가설 H-NN별 anchor 검색 계획) |
+| **research-gap (표준 시작점)** | `"리서치 갭 분석해줘"` | research-gap.md → gap-analyzer → research-plan.md (가설 H-NN별 anchor 검색 계획) |
 | **research-gap** | `"갭 리포트 만들어줘"` | analyzed/research-gap/[R][D].*.md 통합 → gap-synthesizer → gap-report.md |
 | **분석** | `"flow 평가해줘"` | flow/flow.md 통합 평가 (claim-extractor + axis1~6 병렬 + aggregator) → flow/evaluations/latest/evaluation.md |
 | **분석** | `"output 평가해줘"` | output/*.md 통합 평가 → output/evaluations/latest/evaluation.md |
@@ -845,7 +892,7 @@ mkdir -p projects/{PROJECT_NAME}/final/evaluations/latest
 ```
 
 **경로 규약**:
-- **`research-gap/`** (opt-in): research-gap.md, research-plan.md, gap-report.md, history/
+- **`research-gap/`** (표준 시작점): research-gap.md, research-plan.md, gap-report.md, history/
 - **`flow/`**: flow.md, FLOW-TEMPLATE.md, claim-extraction-flow.md, evaluations/, history/
 - **`output/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-output.md, evaluations/, history/{chapter_id}/
 - **`final/`**: complete-draft.md, evaluations/, .docx (최종)
@@ -884,12 +931,12 @@ projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/f
    작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "flow 평가해줘" 입력.)
   ```
 
-#### 3b. research-gap 단계용 (opt-in, 사용자 요청 시만)
+#### 3b. research-gap 단계용 (표준 — 모든 프로젝트에서 자동 생성)
 
-사용자가 `"research-gap 시작"` 또는 `"리서치 갭 분석 단계로 시작"` 명령을 줄 때만 생성:
+`projects/{P}/research-gap/RESEARCH-GAP-TEMPLATE.md`와 `projects/{P}/research-gap/research-gap.md` 두 파일을 자동 생성하세요.
 
 - **RESEARCH-GAP-TEMPLATE.md**: `skills/RESEARCH-GAP-TEMPLATE.md` 내용 복사 (참고용)
-- **research-gap.md**: 빈 파일 + 메타데이터 골격:
+- **research-gap.md**: 빈 파일 + 메타데이터 골격 + 4 요소 안내:
   ```markdown
   # [주제명]
 
@@ -899,9 +946,21 @@ projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/f
 
   ---
 
-  (여기에 줄글로 자유롭게 작성. 문제의식·잠정 thesis·확인하고 싶은 것·본인 가정을 자연스럽게.
-   작성법은 RESEARCH-GAP-TEMPLATE.md 참고. 완료 후 "리서치 갭 분석해줘" 입력.)
+  (여기에 줄글로 자유롭게 작성. 작성 가이드는 RESEARCH-GAP-TEMPLATE.md 참고.
+
+  자연스럽게 담을 4 요소:
+  1. **문제의식**: 어떤 영역이 궁금한가? 왜?
+  2. **잠정 thesis** (provisional, 거칠어도 OK)
+  3. **확인하고 싶은 것**: 선행 연구가 무엇을 다뤘는지 알고 싶은 항목
+  4. **본인 가정·전제**
+
+  작성 완료 후 "리서치 갭 분석해줘" 입력 → research-plan.md 자동 발급.
+
+  ❗ 이미 thesis가 명확해서 research-gap 단계 건너뛰려면 이 파일을 비워두고
+     바로 flow/flow.md부터 작성하면 됩니다.)
   ```
+
+**모든 프로젝트에서 자동 생성**. research-gap.md는 표준 시작점이지만, 사용자가 의식적으로 비워두면 그 단계 자동 skip (폴더가 SSOT). thesis 이미 명확해서 건너뛸 사용자는 그냥 flow.md부터 작성하면 됨 — 시스템이 강제하지 않음.
 
 **작성 방식**: 사용자가 자유 줄글(prose)로 작성하면 시스템이 가설 H-NN(research-gap) 또는 R-NN(flow) 단위로 자동 분석합니다. 구조적 템플릿을 강요하지 않습니다.
 
@@ -955,8 +1014,8 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    research-agent/
    └── projects/
        └── {PROJECT_NAME}/
-           ├── research-gap/                    (opt-in, "리서치 갭 분석해줘" 명령으로 진입)
-           │   ├── research-gap.md              (사용자 줄글)
+           ├── research-gap/                    (표준 시작점 — 모든 프로젝트 기본)
+           │   ├── research-gap.md              (사용자 줄글, 빈 템플릿 자동 생성)
            │   ├── RESEARCH-GAP-TEMPLATE.md     (가이드 — 수정 금지)
            │   ├── research-plan.md             (gap-analyzer 산출 H-NN별 검색 계획)
            │   ├── gap-report.md                (gap-synthesizer 통합 리포트)
@@ -1000,25 +1059,27 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
            └── history/                          (단계 변경·snapshot 보관)
 
 👉 다음 단계:
-   - 옵션 A (thesis 명확): 바로 flow.md로
-     1. projects/{PROJECT_NAME}/flow/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
-        - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
-        - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
-        - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
-     2. "flow 평가해줘" 입력 → claim-extractor + 6축 평가 → flow/evaluations/latest/evaluation.md
-     3. "리서치 진행해줘" → 미해결 R-NN로 Consensus 자동 검색 → papers/search-results/flow.md
-     4. "논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
-     5. "flow 평가해줘" 재실행 → 진척 확인 후 "초안 작성해줘"
+   표준 4단계 흐름: research-gap → flow → output → final
+   research-gap·flow 빈 템플릿이 자동 생성되었습니다. 사용자 상황에 따라
+   research-gap·flow 중 어디서 시작할지 선택하세요.
 
-   - 옵션 B (thesis 형성 중): research-gap 단계 먼저
-     1. "리서치 갭 시작해줘" → research-gap/research-gap.md 빈 파일 생성
-     2. research-gap.md를 자유 줄글로 작성 (문제의식·잠정 thesis·확인하고 싶은 것)
-     3. "리서치 갭 분석해줘" → research-plan.md (H-NN별 anchor 검색 계획)
-     4. "리서치 진행해줘" → papers/search-results/research-gap.md (anchor 후보)
-     5. PDF 다운로드 → papers/candidates/research-gap/ 에 떨어뜨림
-     6. "논문 처리해줘" → papers/analyzed/research-gap/[R][D].*.md
-     7. "갭 리포트 만들어줘" → research-gap/gap-report.md (한눈에 보는 갭)
-     8. flow.md 작성 시작 → 옵션 A 흐름으로
+   📌 표준 (분야 anchor 탐색부터):
+     1. projects/{PROJECT_NAME}/research-gap/research-gap.md 작성 (줄글, 4 요소 안내 포함)
+     2. "리서치 갭 분석해줘" → research-plan.md (H-NN별 anchor 검색 계획)
+     3. "리서치 진행해줘" → papers/search-results/research-gap.md (anchor 후보)
+     4. PDF 다운로드 → papers/candidates/research-gap/ 에 떨어뜨림
+     5. "논문 처리해줘" → papers/analyzed/research-gap/[R][D].*.md
+     6. "갭 리포트 만들어줘" → research-gap/gap-report.md (한눈에 보는 갭)
+     7. flow.md 작성 (잠정 thesis 다듬어 정식 outline) → 다음 단계로
+
+   ⏩ thesis 이미 명확하면 (research-gap 의식적 생략):
+     1. research-gap/research-gap.md는 **그대로 비워두기** (시스템이 자동 skip)
+     2. projects/{PROJECT_NAME}/flow/flow.md 작성 (RQ + Thesis 1문장씩 명시)
+     3. "평가해줘" → flow 평가
+     4. 이후 "리서치 진행해줘" → "논문 처리해줘" → "초안 작성해줘"
+
+   필요하면 시스템이 자연어로 도와줍니다 — 정확한 명령어 외울 필요 없습니다.
+   ("어디까지 왔지?", "이거 어떻게 보강해야 할까?", "근거 좀 더 찾아줘" 등)
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)

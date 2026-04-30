@@ -511,7 +511,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 **해결**: thesis 형성 *전*의 분야 anchor 탐색 단계를 별도 폴더로 분리.
 
 ```
-research-gap/                       (선택, opt-in)
+research-gap/                       (표준 시작점)
 ├── research-gap.md                 — 사용자 작성 (분야·관심·아는 지형)
 ├── research-plan.md                — gap-analyzer 산출 (H-NN 가설)
 └── gap-report.md                   — gap-synthesizer 산출 (통합 갭)
@@ -524,7 +524,9 @@ research-gap/                       (선택, opt-in)
 
 **격상 메커니즘**: research-gap에서 분석한 핵심 논문을 flow 단계 anchor로 사용하고 싶을 때 `"이 논문 flow anchor로 분석해줘 X"` — PDF 재다운로드 없이 frame만 새로 분석.
 
-**왜 opt-in인가**: 모든 사용자가 thesis 흐릿한 상태로 시작하지는 않는다. thesis가 명확한 사용자에게 research-gap을 강제하면 불필요한 작업. 사용자가 자기 상태에 맞게 선택.
+**왜 표준 시작점인가**: 학술 글쓰기 표준 워크플로 (분야 anchor 탐색 → thesis 형성 → 작성)에 가장 정합. 단 모든 사용자가 thesis 흐릿한 상태로 시작하지는 않으므로, 의식적 생략을 허용 — research-gap.md를 비워두면 시스템이 자동 skip. 시스템이 강제하지 않고 사용자 결정 존중.
+
+**생략 가능 패턴**: thesis 명확 → research-gap 생략 (가장 흔함) / 외부에서 chapter 일부 가져옴 → research-gap·flow 생략 / 통합본만 보유 (coursework 채점 목적) → research-gap·flow·output 모두 생략. 폴더가 비어있음 = 그 단계 skip 신호 (별도 flag 불필요, 폴더가 SSOT).
 
 ### 6. Prose over Template
 
@@ -793,7 +795,7 @@ archive를 통해 과거 상태 **조회**는 가능하되 **자동 복원**은 
 2. **평가 층 (`{stage}/evaluation.md`)**: 이 기준들을 어떻게 측정하고 작업 항목으로 환원하는가 (work-plan 별도 파일 폐기, evaluation.md 내 통합)
 3. **실행 층 (서브에이전트 + sync 시스템)**: 이 지시를 어떻게 안전하게 반복·개선하는가
 
-**4 단계 흐름**: `research-gap (선택)` → `flow` → `output` → `final`. 각 단계는 자체 폴더가 SSOT — 별도 stage flag·status 추적 없음.
+**4 단계 흐름** (표준): `research-gap` → `flow` → `output` → `final`. 각 단계는 자체 폴더가 SSOT — 별도 stage flag·status 추적 없음. 앞선 단계 생략 = 해당 폴더 비워두기 (시스템이 자동 skip).
 
 사용자가 시스템을 의심할 때 — "왜 이 에이전트가 이걸 지적하지?", "왜 이 순서로 해야 하지?" — 답은 대부분 이 문서 안에 있습니다. 이 시스템을 잘 쓰는 유일한 방법은 **top-tier 저널 심사자처럼 생각하는 것**이며, 이 문서는 그 사고의 지도입니다.
 
