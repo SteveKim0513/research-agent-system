@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 """
-process_papers.py — v3.1: PDF 단일 패스 + consensus 매핑 + 분류 + 파일명 prefix.
+process_papers.py — v4: stage-aware (research-gap | flow) 분기 처리.
 
-이전 v3.0은 추출만 수행하고 anchor_picker.py가 별도 단계로 분류했음.
-v3.1에서는 1단계에서 consensus lookup + 분류 + frontmatter 채움까지 통합.
+v3.1 → v4:
+  - papers/candidates/{stage}/ 양쪽 스캔 → analyzed/{stage}/ 출력
+  - research-gap stage: [R][D] prefix, gap-paper-analyst 호출 신호
+  - flow stage:         [A]/[N] prefix, paper-analyst 호출 (기존)
+  - papers/collected/ 는 단일 hub (단계 무관, 그대로 유지)
+  - papers/consensus-results.md → papers/search-results/flow.md (rename + 경로 변경)
 
-산출물:
-- collected/{Author_Year_kw}.pdf       (prefix 없음 — 외부 도구 호환)
-- markdown/{Author_Year_kw}.md         (PDF 본문 캐시, prefix 없음)
-- analyzed/[X].{Author_Year_kw}.md     (분석 skeleton + frontmatter)
-   X ∈ {A, N, ?}:
-     [A] = anchor (consensus 🎯 최우선 OR 🔴 Steelman)
-     [N] = non-anchor (그 외 카테고리)
-     [?] = consensus 매칭 없음 (사용자 직접 추가 — MANUAL curation 대기)
-- .quarantine/empty/, .quarantine/corrupt/
-
-→ paper-analyst는 파일명 prefix [A]/[N]/[?]를 읽고 즉시 분석 깊이 분기.
-   [?] paper는 먼저 MANUAL curation (LLM이 (a)(b)(c) 주석 + 카테고리 생성)
-   → consensus-results.md 재조립 → 그 후 prefix 갱신 + 분석.
+산출물 (stage별):
+  collected/{Author_Year_kw}.pdf                  단일 hub (단계 무관, prefix 없음)
+  markdown/{Author_Year_kw}.md                    PDF 본문 캐시 (단계 무관, prefix 없음)
+  analyzed/{stage}/[X].{Author_Year_kw}.md        분석 skeleton + frontmatter
+     stage=flow:         X ∈ {A, N, ?}
+        [A] = anchor (search-results 🎯 최우선 OR 🔴 Steelman)
+        [N] = non-anchor (그 외 카테고리)
+        [?] = 매칭 없음 (MANUAL curation 대기)
+     stage=research-gap: X ∈ {R, D, ?}
+        [R] = research-gap candidate
+        [D] = deep-dive
+  .quarantine/empty/, .quarantine/corrupt/        단계 무관
 
 CLI:
-    python3 scripts/process_papers.py <project> [--workers=N] [--dry-run] [--limit=N]
+    python3 scripts/process_papers.py <project> [--stage flow|research-gap]
+                                                 [--workers=N] [--dry-run] [--limit=N]
+    --stage 생략 시: 양쪽 stage 모두 처리.
 """
 from __future__ import annotations
 
@@ -54,6 +59,17 @@ except ImportError:
 
 DEFAULT_WORKERS = 8
 
+# 지원 stage. 각 stage마다 candidates/{stage}/, analyzed/{stage}/ 분리 폴더.
+STAGES = ("flow", "research-gap")
+
+# stage별 prefix 매핑.
+# flow: 기존 [A]/[N] 유지 (anchor / non-anchor)
+# research-gap: [R]/[D] (research-gap candidate / deep-dive)
+STAGE_TIER_LETTERS = {
+    "flow": {"anchor": "A", "non_anchor": "N"},
+    "research-gap": {"anchor": "R", "non_anchor": "D"},
+}
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Path helpers
@@ -63,28 +79,45 @@ def papers_root(project_root: Path) -> Path:
     return project_root / "papers"
 
 
-def candidates_dir(project_root: Path) -> Path:
-    return papers_root(project_root) / "candidates"
+def candidates_dir(project_root: Path, stage: str | None = None) -> Path:
+    base = papers_root(project_root) / "candidates"
+    return base / stage if stage else base
 
 
 def collected_dir(project_root: Path) -> Path:
+    """단일 hub (단계 무관)."""
     return papers_root(project_root) / "collected"
 
 
 def markdown_dir(project_root: Path) -> Path:
+    """단일 hub (단계 무관)."""
     return papers_root(project_root) / "markdown"
 
 
-def analyzed_dir(project_root: Path) -> Path:
-    return papers_root(project_root) / "analyzed"
+def analyzed_dir(project_root: Path, stage: str | None = None) -> Path:
+    base = papers_root(project_root) / "analyzed"
+    return base / stage if stage else base
 
 
 def quarantine_dir(project_root: Path, kind: str) -> Path:
     return papers_root(project_root) / ".quarantine" / kind
 
 
+def search_results_path(project_root: Path, stage: str = "flow") -> Path:
+    """papers/search-results/{stage}.md (legacy: consensus-results.md)."""
+    new_path = papers_root(project_root) / "search-results" / f"{stage}.md"
+    if new_path.exists():
+        return new_path
+    # legacy fallback
+    legacy = papers_root(project_root) / "consensus-results.md"
+    if legacy.exists() and stage == "flow":
+        return legacy
+    return new_path  # 신규 경로 (없으면 빈 매핑)
+
+
+# legacy alias — 다른 코드에서 import할 수 있어 유지
 def consensus_path(project_root: Path) -> Path:
-    return papers_root(project_root) / "consensus-results.md"
+    return search_results_path(project_root, "flow")
 
 
 def translations_dir(project_root: Path) -> Path:
@@ -305,8 +338,15 @@ def _author_year_from_canonical(canonical: str) -> tuple[str, str]:
     return parts[0].lower(), parts[1]
 
 
-def _entry_to_letter(entry: dict) -> str:
-    return "A" if entry.get("category") in _ANCHOR_CATEGORIES else "N"
+def _entry_to_letter(entry: dict, stage: str = "flow") -> str:
+    """Map consensus entry → tier prefix letter (stage별 다름).
+
+    flow: anchor=A, non-anchor=N
+    research-gap: anchor=R, non-anchor=D
+    """
+    letters = STAGE_TIER_LETTERS.get(stage, STAGE_TIER_LETTERS["flow"])
+    is_anchor = entry.get("category") in _ANCHOR_CATEGORIES
+    return letters["anchor"] if is_anchor else letters["non_anchor"]
 
 
 def classify_paper(
@@ -317,8 +357,13 @@ def classify_paper(
     page_text: str = "",
     abstracts: dict | None = None,
     title_jaccard_threshold: float = 0.5,
+    stage: str = "flow",
 ) -> tuple[str, dict | None, str]:
-    """canonical + extracted title → ('A' | 'N' | '?', consensus_entry, match_method).
+    """canonical + extracted title → (tier_letter, consensus_entry, match_method).
+
+    tier_letter는 stage 의존:
+      flow:         'A' (anchor) | 'N' (non-anchor) | '?'
+      research-gap: 'R' (research-gap) | 'D' (deep-dive) | '?'
 
     매칭 우선순위:
     1. (author_normalized, year) 정확 매칭
@@ -335,7 +380,7 @@ def classify_paper(
     if author and year:
         entry = consensus_entries.get((author, year))
         if entry is not None:
-            return _entry_to_letter(entry), entry, "author_year"
+            return _entry_to_letter(entry, stage), entry, "author_year"
 
     # 1.5순위: author substring + year 일치
     # canonical author가 footnote/firstname 합쳐진 경우 (e.g. 'allanwigfield1' ⊃ 'wigfield')
@@ -347,10 +392,10 @@ def classify_paper(
                 continue
             # e_author가 candidate author에 포함되면 매칭 (consensus가 더 짧은 surname)
             if e_author in author or e_author in author_nodigit:
-                return _entry_to_letter(entry), entry, "author_substring"
+                return _entry_to_letter(entry, stage), entry, "author_substring"
             # 또는 candidate가 더 짧을 때 (드물지만)
             if author in e_author and len(author) >= 5:
-                return _entry_to_letter(entry), entry, "author_substring"
+                return _entry_to_letter(entry, stage), entry, "author_substring"
 
     # 2순위: abstract coverage 매칭 (가장 robust — paper specific 키워드 풍부)
     # consensus abstract의 토큰이 PDF 본문(첫 8000자) 안에 얼마나 등장하는지를 본다.
@@ -391,7 +436,7 @@ def classify_paper(
                         best_entry = matched_entry
             if best_entry is not None:
                 method = "abstract_year" if best_year_match else "abstract_only"
-                return _entry_to_letter(best_entry), best_entry, method
+                return _entry_to_letter(best_entry, stage), best_entry, method
 
     # 3순위: title fuzzy match
     cand_tokens = _norm_title_tokens(extracted_title)
@@ -411,7 +456,7 @@ def classify_paper(
                 best_entry = entry
                 best_method = "title_year" if e_year == year else "title_only"
         if best_entry is not None:
-            return _entry_to_letter(best_entry), best_entry, best_method
+            return _entry_to_letter(best_entry, stage), best_entry, best_method
 
     # 3순위: PDF 첫 페이지 raw text에 consensus title token + author surname 등장
     # title 추출 실패해도 본문 자체로 매칭 가능.
@@ -441,7 +486,7 @@ def classify_paper(
                     best_coverage = coverage
                     best_entry = entry
             if best_entry is not None:
-                return _entry_to_letter(best_entry), best_entry, "page_text"
+                return _entry_to_letter(best_entry, stage), best_entry, "page_text"
 
     return "?", None, "none"
 
@@ -450,9 +495,19 @@ def build_analyzed_skeleton(
     canonical: str,
     tier_letter: str,
     consensus_entry: dict | None,
+    stage: str = "flow",
 ) -> str:
-    """analyzed/[X].{name}.md 초기 본문 생성 (frontmatter + placeholder)."""
-    anchor = (tier_letter == "A")
+    """analyzed/{stage}/[X].{name}.md 초기 본문 생성 (frontmatter + placeholder).
+
+    anchor 판정은 stage에 따라 prefix가 다름:
+      flow: 'A' anchor, 'N' non-anchor
+      research-gap: 'R' anchor (research-gap candidate), 'D' non-anchor (deep-dive)
+    """
+    if stage in STAGE_TIER_LETTERS:
+        anchor_letter = STAGE_TIER_LETTERS[stage]["anchor"]
+    else:
+        anchor_letter = "A"
+    anchor = (tier_letter == anchor_letter)
     needs_curation = (tier_letter == "?")
 
     fm_lines = ["---"]
@@ -947,30 +1002,40 @@ def _move_to_quarantine(pdf_path: Path, project_root: Path, kind: str, reason: s
 def collect(
     project_root: Path,
     *,
+    stage: str = "flow",
     workers: int = DEFAULT_WORKERS,
     dry_run: bool = False,
     limit: int | None = None,
 ) -> dict:
-    cdir = candidates_dir(project_root)
+    """단일 stage 처리. candidates/{stage}/ → analyzed/{stage}/ + collected/ (단일 hub)."""
+    if stage not in STAGES:
+        return {"error": f"unsupported stage: {stage!r} (지원: {STAGES})"}
+
+    cdir = candidates_dir(project_root, stage)
+    # legacy fallback: candidates/ 단일 폴더가 있으면 stage=flow일 때 그걸 사용
     if not cdir.exists():
-        return {"error": f"candidates/ 없음: {cdir}"}
+        legacy = candidates_dir(project_root)  # candidates/
+        if stage == "flow" and legacy.exists() and any(legacy.glob("*.pdf")):
+            cdir = legacy
+        else:
+            return {"error": f"candidates/{stage}/ 없음: {cdir}", "stage": stage}
 
     pdfs = sorted(cdir.glob("*.pdf"))
     if limit:
         pdfs = pdfs[:limit]
     total = len(pdfs)
-    print(f"📂 candidates/: {total}편")
+    print(f"📂 candidates/{stage}/: {total}편")
     if dry_run:
         print("🧪 DRY-RUN 모드 (파일 이동·작성 안 함)")
 
     if total == 0:
-        return {"total": 0, "counters": {}}
+        return {"total": 0, "counters": {}, "stage": stage}
 
     # 폴더 미리 생성
     if not dry_run:
         collected_dir(project_root).mkdir(parents=True, exist_ok=True)
         markdown_dir(project_root).mkdir(parents=True, exist_ok=True)
-        analyzed_dir(project_root).mkdir(parents=True, exist_ok=True)
+        analyzed_dir(project_root, stage).mkdir(parents=True, exist_ok=True)
 
     # 1단계: 병렬 추출 (worker는 파일 이동 안 함)
     print(f"🔧 Worker {workers}개 병렬 추출 시작...")
@@ -981,12 +1046,16 @@ def collect(
     else:
         results = [_process_pdf_worker(a) for a in args_list]
 
-    # 2단계: main 프로세스에서 consensus 로드 후 파일 시스템 변경
-    print(f"📚 consensus-results.md 로드...")
-    consensus_entries = parse_consensus(consensus_path(project_root))
+    # 2단계: main 프로세스에서 search-results 로드 후 파일 시스템 변경
+    sr_path = search_results_path(project_root, stage)
+    print(f"📚 search-results 로드: {sr_path.name if sr_path.exists() else '(없음)'}")
+    consensus_entries = parse_consensus(sr_path)
     print(f"   {len(consensus_entries)}개 paper entry 매핑됨")
     abstracts = parse_translations_abstracts(translations_dir(project_root))
     print(f"   {len(abstracts)}개 abstract 번역 로드됨 (.translations/)")
+
+    anchor_letter = STAGE_TIER_LETTERS[stage]["anchor"]
+    non_anchor_letter = STAGE_TIER_LETTERS[stage]["non_anchor"]
 
     counters = {
         "registered_anchor": 0,
@@ -999,7 +1068,7 @@ def collect(
     }
     by_source: dict[str, int] = {}
     by_match_method: dict[str, int] = {}
-    classification_dist = {"A": 0, "N": 0, "?": 0}
+    classification_dist = {anchor_letter: 0, non_anchor_letter: 0, "?": 0}
     needs_curation_list: list[str] = []
     failures: list[str] = []
 
@@ -1032,41 +1101,40 @@ def collect(
                     counters["dedup_removed"] += 1
                     continue
 
-                # consensus 분류 + tier prefix 결정 (author+year + title fuzzy fallback)
+                # consensus 분류 + tier prefix 결정 (stage-aware)
                 tier_letter, entry, match_method = classify_paper(
                     canonical,
                     consensus_entries,
                     extracted_title=r.get("extracted_title", ""),
                     page_text=r.get("page_text", ""),
                     abstracts=abstracts,
+                    stage=stage,
                 )
-                classification_dist[tier_letter] += 1
+                classification_dist[tier_letter] = classification_dist.get(tier_letter, 0) + 1
                 by_match_method[match_method] = by_match_method.get(match_method, 0) + 1
                 if tier_letter == "?":
                     needs_curation_list.append(canonical)
 
                 # 파일 이동·작성
                 if not dry_run:
-                    # PDF: collected/{canonical}.pdf (prefix 없음)
+                    # PDF: collected/{canonical}.pdf (단일 hub, prefix 없음)
                     shutil.move(str(pdf), str(target_pdf))
-                    # markdown: markdown/{canonical}.md (prefix 없음)
+                    # markdown: markdown/{canonical}.md (단일 hub, prefix 없음)
                     md_path = markdown_dir(project_root) / f"{canonical}.md"
                     md_path.write_text(r["markdown_body"], encoding="utf-8")
-                    # analyzed: analyzed/[X].{canonical}.md (tier prefix)
-                    # 이미 어떤 형태로든 ([A], [A][D], [N], [N][D], [?]) 존재하면 skeleton 재생성 안 함
-                    # → 이미 분석 완료된 [X][D] 파일을 덮어쓰지 않음
-                    existing_analyzed = list(
-                        analyzed_dir(project_root).glob(f"*.{canonical}.md")
-                    )
+                    # analyzed: analyzed/{stage}/[X].{canonical}.md (tier prefix)
+                    # 이미 어떤 형태로든 존재하면 skeleton 재생성 안 함
+                    a_dir = analyzed_dir(project_root, stage)
+                    existing_analyzed = list(a_dir.glob(f"*.{canonical}.md"))
                     if not existing_analyzed:
                         analyzed_filename = f"[{tier_letter}].{canonical}.md"
-                        analyzed_path = analyzed_dir(project_root) / analyzed_filename
-                        skeleton = build_analyzed_skeleton(canonical, tier_letter, entry)
+                        analyzed_path = a_dir / analyzed_filename
+                        skeleton = build_analyzed_skeleton(canonical, tier_letter, entry, stage=stage)
                         analyzed_path.write_text(skeleton, encoding="utf-8")
 
-                if tier_letter == "A":
+                if tier_letter == anchor_letter:
                     counters["registered_anchor"] += 1
-                elif tier_letter == "N":
+                elif tier_letter == non_anchor_letter:
                     counters["registered_non_anchor"] += 1
                 else:
                     counters["registered_needs_curation"] += 1
@@ -1080,6 +1148,7 @@ def collect(
             traceback.print_exc(file=sys.stderr)
 
     return {
+        "stage": stage,
         "total": total,
         "counters": counters,
         "classification": classification_dist,
@@ -1087,6 +1156,7 @@ def collect(
         "by_source": by_source,
         "by_match_method": by_match_method,
         "failures": failures,
+        "tier_letters": (anchor_letter, non_anchor_letter),
     }
 
 
@@ -1098,18 +1168,21 @@ def print_summary(summary: dict) -> None:
     if "error" in summary:
         print(f"❌ {summary['error']}")
         return
-    if summary["total"] == 0:
-        print("📂 candidates/ 비어 있음")
+    if summary.get("total", 0) == 0:
+        stg = summary.get("stage", "?")
+        print(f"📂 candidates/{stg}/ 비어 있음")
         return
 
     c = summary["counters"]
     cls = summary.get("classification", {})
+    stage = summary.get("stage", "flow")
+    anchor_letter, non_anchor_letter = summary.get("tier_letters", ("A", "N"))
     print()
     print("=" * 60)
-    print(f"📊 process_papers 결과 (총 {summary['total']}편)")
+    print(f"📊 process_papers 결과 (stage={stage}, 총 {summary['total']}편)")
     print("=" * 60)
-    print(f"  ⭐ Anchor [A]            : {c.get('registered_anchor', 0)}")
-    print(f"  📚 Non-anchor [N]        : {c.get('registered_non_anchor', 0)}")
+    print(f"  ⭐ Anchor [{anchor_letter}]            : {c.get('registered_anchor', 0)}")
+    print(f"  📚 Non-anchor [{non_anchor_letter}]        : {c.get('registered_non_anchor', 0)}")
     print(f"  ❓ Curation 대기 [?]     : {c.get('registered_needs_curation', 0)}  (consensus 매칭 없음)")
     print(f"  🔁 dedup 제거            : {c.get('dedup_removed', 0)}")
     print(f"  📦 빈 파일 격리          : {c.get('quarantine_empty', 0)}")
@@ -1147,6 +1220,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project")
+    parser.add_argument("--stage", choices=list(STAGES) + ["all"], default="all",
+                        help="처리할 stage. 'all' (기본) = 양쪽 stage 순차 처리.")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
                         help=f"병렬 worker 수 (기본 {DEFAULT_WORKERS})")
     parser.add_argument("--dry-run", action="store_true")
@@ -1159,12 +1234,28 @@ def main(argv: list[str]) -> int:
         print(f"❌ 프로젝트 없음: {project_root}")
         return 1
 
-    summary = collect(project_root, workers=args.workers,
-                      dry_run=args.dry_run, limit=args.limit)
-    print_summary(summary)
+    if args.stage == "all":
+        target_stages = list(STAGES)
+    else:
+        target_stages = [args.stage]
+
+    overall_failures = []
+    overall_total = 0
+    for st in target_stages:
+        # candidates/{stage}/ 가 없으면 skip (legacy fallback은 collect 안에서 처리)
+        cdir = candidates_dir(project_root, st)
+        legacy_cdir = candidates_dir(project_root)
+        if not cdir.exists() and not (st == "flow" and legacy_cdir.exists() and any(legacy_cdir.glob("*.pdf"))):
+            print(f"ℹ️  candidates/{st}/ 없음 — skip")
+            continue
+        summary = collect(project_root, stage=st, workers=args.workers,
+                          dry_run=args.dry_run, limit=args.limit)
+        print_summary(summary)
+        overall_total += summary.get("total", 0)
+        overall_failures.extend(summary.get("failures") or [])
 
     # INDEX.md 자동 갱신 (skeleton 생성·dedup 후 상태 반영)
-    if not args.dry_run and summary.get("total", 0) > 0:
+    if not args.dry_run and overall_total > 0:
         try:
             import build_index  # noqa
             out = build_index.build_index(args.project, repo=repo)
@@ -1172,7 +1263,7 @@ def main(argv: list[str]) -> int:
         except Exception as e:
             print(f"⚠ INDEX 갱신 실패 (무시): {e}", file=sys.stderr)
 
-    return 0 if not summary.get("failures") else 1
+    return 0 if not overall_failures else 1
 
 
 if __name__ == "__main__":

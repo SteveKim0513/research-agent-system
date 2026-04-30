@@ -35,18 +35,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED_DIRS = [
+    "research-gap",
     "flow",
     "output",
+    "final",
     "history",
     "flow/evaluations/latest",
     "output/evaluations/latest",
+    "final/evaluations/latest",
     "papers/collected",
-    "papers/candidates",
-    "papers/analyzed",
+    "papers/candidates/research-gap",
+    "papers/candidates/flow",
+    "papers/analyzed/research-gap",
+    "papers/analyzed/flow",
+    "papers/search-results",
     "papers/.research-raw",
     "papers/.translations",
     "papers/.curation",
-    "papers/consensus-results.archive",
 ]
 
 CURRENT_VERSION = "1.2"

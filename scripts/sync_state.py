@@ -7,11 +7,11 @@ v2 폴더 구조를 기준으로 동작한다:
     projects/{NAME}/output/*.md + output/claim-extraction-output.md
     projects/{NAME}/{flow,output}/evaluations/      ← 최신만 (history는 통합 폴더로 이동)
     projects/{NAME}/{flow,output}/critical/         ← 최신만
-    projects/{NAME}/work-plan.md
     projects/{NAME}/history/                        ← 모든 history 통합
         ├── flow/{body,evaluations,claim-extraction,critical}/
-        ├── output/{body,evaluations,claim-extraction,critical}/
-        └── work-plan/
+        └── output/{body,evaluations,claim-extraction,critical}/
+
+(work-plan.md는 폐기됨 — 다음 액션은 evaluation.md로 통합)
 
 사용법:
     python scripts/sync_state.py init <project_name>
@@ -30,8 +30,6 @@ Snapshot commands (before-overwrite 보존):
         단일 output 파일 + claim-extraction-output.md를 history/output/body/{file_id}/{NNN}-{date}-{trigger}/로
     python scripts/sync_state.py snapshot-chapters <project_name> <trigger>
         전체 챕터 일괄 (각 챕터에 개별 NNN 생성) + draft 분석 쌍
-    python scripts/sync_state.py snapshot-work-plan <project_name> <trigger>
-        work-plan.md를 history/work-plan/{NNN}-{date}-{trigger}.md로
     python scripts/sync_state.py snapshot-evaluation <project_name> <trigger>
         {stage}/evaluations/를 history/{stage}/evaluations/{NNN}-{date}-{trigger}/로 (증분 — manifest.json 포함)
     python scripts/sync_state.py snapshot-critical-questions <project_name> <trigger>
@@ -82,11 +80,6 @@ def claim_extraction_output_path(root: Path) -> Path:
 
 # legacy alias
 claim_extraction_draft_path = claim_extraction_output_path
-
-
-def work_plan_path(root: Path) -> Path:
-    """work-plan.md 경로 (루트)."""
-    return root / "work-plan.md"
 
 
 def output_files(root: Path) -> list:
@@ -396,23 +389,6 @@ def cmd_snapshot_outputs(project_name: str, trigger: str, output_filename: str =
 
 # legacy alias
 cmd_snapshot_chapters = cmd_snapshot_outputs
-
-
-def cmd_snapshot_work_plan(project_name: str, trigger: str) -> int:
-    """work-plan.md를 history/work-plan/{NNN}-{date}-{trigger}.md로."""
-    root = project_root(project_name)
-    src = root / "work-plan.md"
-    if not src.exists():
-        print(f"ℹ️  work-plan.md 없음 — 스냅샷 스킵")
-        return 0
-
-    hist_dir = root / "history" / "work-plan"
-    hist_dir.mkdir(parents=True, exist_ok=True)
-    seq = next_sequence(hist_dir, dirs_only=False)
-    dest = hist_dir / f"{seq:03d}-{today_tag()}-{trigger}.md"
-    dest.write_bytes(src.read_bytes())
-    print(f"✅ work-plan 스냅샷: {dest.relative_to(root)}")
-    return 0
 
 
 def cmd_snapshot_evaluation(project_name: str, trigger: str, stage: str = "flow") -> int:
@@ -852,8 +828,6 @@ def main(argv: list) -> int:
         if cmd == "snapshot-chapters" and 2 <= len(args) <= 3:
             chapter_fn = args[2] if len(args) == 3 else None
             return cmd_snapshot_chapters(args[0], args[1], chapter_fn)
-        if cmd == "snapshot-work-plan" and len(args) == 2:
-            return cmd_snapshot_work_plan(args[0], args[1])
         if cmd == "snapshot-evaluation" and len(args) == 2:
             return cmd_snapshot_evaluation(args[0], args[1])
         if cmd == "snapshot-critical-questions" and len(args) == 2:

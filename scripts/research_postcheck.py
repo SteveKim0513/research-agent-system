@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 """
-RESEARCH post-condition verifier (v3).
+RESEARCH post-condition verifier (v4 — R-NN/H-NN 기반).
 
-Verifies 4-stage pipeline invariants for RESEARCH mode=search cards in project {P}:
+Verifies 4-stage pipeline invariants for the search pipeline in project {P}:
 
-  Stage A (.research-raw/RESEARCH-NNN.json)     — MCP raw cache
-  Stage B (.translations/RESEARCH-NNN.md)       — Korean abstract translations
-  Stage C (.curation/RESEARCH-NNN.md)           — curated 6-category block per card
-  Stage D (consensus-results.md)                — assembled from .curation/*.md
+  Stage A (.research-raw/{HUNT-XXX or H-NN}.json)   — MCP raw cache
+  Stage B (.translations/{HUNT-XXX or H-NN}.md)     — Korean abstract translations
+  Stage C (.curation/{HUNT-XXX or H-NN}.md)         — curated 6-category block per hunt
+  Stage D (papers/search-results/{stage}.md)        — assembled from .curation/*.md
 
-Plus work-plan.md RESEARCH cards (mode=search) must be 1:1 with each stage's files.
+work-plan.md는 폐기됨. 대신 검증 기준은:
+  1. claim-extraction-{stage}.md / search-results/{stage}.md 에서 H-NN (또는 legacy HUNT-NNN) 추출
+  2. 각 H-NN이 raw / translations / curation 에 모두 있어야 함
+  3. search-results/{stage}.md 에 모두 assemble 되어 있어야 함
 
-Fails fast (exit 1) with clear diagnostic so orchestrator cannot report success
-while any invariant is broken.
+Fails fast (exit 1) with clear diagnostic.
 
 Usage:
-    python3 scripts/research_postcheck.py {PROJECT_NAME}
+    python3 scripts/research_postcheck.py {PROJECT_NAME} [--stage flow|research-gap]
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -37,52 +40,57 @@ REQUIRED_CATEGORIES = [
 
 ACTION_ITEMS_MIN = 3
 
+# 카드 ID 패턴: 신규 H-NN, R-NN + legacy HUNT-NNN, RESEARCH-NNN 모두 허용
+HUNT_ID_PAT = re.compile(r"\b(H-\d+|HUNT-\d+|R-\d+|RESEARCH-\d+)\b")
+
 
 def fail(msg: str) -> None:
     print(f"❌ {msg}", file=sys.stderr)
     sys.exit(1)
 
 
-def card_ids_in_work_plan(wp_path: Path) -> set[str]:
-    """Collect RESEARCH card IDs whose body carries `**mode**: search`."""
-    if not wp_path.exists():
+def hunt_ids_in_search_results(path: Path) -> set[str]:
+    """search-results/{stage}.md 또는 legacy consensus-results.md에서 H-NN/HUNT-NNN/R-NN/RESEARCH-NNN 추출."""
+    if not path.exists():
         return set()
-    text = wp_path.read_text(encoding="utf-8")
-    ids = set()
-    for m in re.finditer(r"###\s+\[(RESEARCH-\d+)\](.*?)(?=\n### \[|\Z)", text, re.DOTALL):
-        cid, body = m.group(1), m.group(2)
-        mode_m = re.search(r"\*\*mode\*\*:\s*(\w+)", body)
-        mode = mode_m.group(1).strip() if mode_m else "search"
-        if mode == "search":
-            ids.add(cid)
-    return ids
+    text = path.read_text(encoding="utf-8")
+    return set(HUNT_ID_PAT.findall(text))
 
 
-def card_ids_from_files(dir_path: Path, suffix: str) -> set[str]:
+def hunt_ids_in_claim_extraction(path: Path) -> set[str]:
+    """claim-extraction-{stage}.md에서 H-NN/R-NN 추출 (search 큐 + R 항목)."""
+    if not path.exists():
+        return set()
+    text = path.read_text(encoding="utf-8")
+    return set(HUNT_ID_PAT.findall(text))
+
+
+def hunt_ids_from_files(dir_path: Path, suffix: str) -> set[str]:
+    """파일명 prefix로 H-NN/HUNT-NNN 추출 (예: H-01.json, HUNT-001.md)."""
     if not dir_path.exists():
         return set()
     ids = set()
     for p in dir_path.iterdir():
         if not p.name.endswith(suffix):
             continue
-        m = re.match(r"(RESEARCH-\d+)", p.name)
+        m = HUNT_ID_PAT.match(p.name)
         if m:
             ids.add(m.group(1))
     return ids
 
 
-def check_curation_block(md_text: str, card_id: str) -> list[str]:
+def check_curation_block(md_text: str, hunt_id: str) -> list[str]:
     diag = []
     for cat in REQUIRED_CATEGORIES:
         if cat not in md_text:
-            diag.append(f"  {card_id}: missing category header '{cat}'")
+            diag.append(f"  {hunt_id}: missing category header '{cat}'")
     action_lines = re.findall(r"^\s*-\s*\[[ x]\]\s+", md_text, flags=re.MULTILINE)
     if len(action_lines) < ACTION_ITEMS_MIN:
         diag.append(
-            f"  {card_id}: action items {len(action_lines)} < {ACTION_ITEMS_MIN} required"
+            f"  {hunt_id}: action items {len(action_lines)} < {ACTION_ITEMS_MIN} required"
         )
     if "번역 대기" in md_text:
-        diag.append(f"  {card_id}: contains `번역 대기` placeholder")
+        diag.append(f"  {hunt_id}: contains `번역 대기` placeholder")
     return diag
 
 
@@ -91,8 +99,8 @@ def check_raw_cache(json_path: Path) -> str | None:
         data = json.loads(json_path.read_text(encoding="utf-8"))
     except Exception as exc:
         return f"  {json_path.name}: JSON parse fail — {exc}"
-    if not data.get("card_id"):
-        return f"  {json_path.name}: missing card_id field"
+    if not (data.get("hunt_id") or data.get("card_id")):
+        return f"  {json_path.name}: missing hunt_id/card_id field"
     papers = data.get("papers") or []
     if not papers:
         return f"  {json_path.name}: empty papers[]"
@@ -112,10 +120,14 @@ def check_translation(md_path: Path) -> str | None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        fail("usage: research_postcheck.py {PROJECT_NAME}")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("project")
+    parser.add_argument("--stage", default="flow",
+                        help="단계명 (flow | research-gap). 기본 flow.")
+    args = parser.parse_args()
 
-    project = sys.argv[1]
+    project = args.project
+    stage = args.stage
     proj = ROOT / "projects" / project
     if not proj.exists():
         fail(f"project dir not found: {proj}")
@@ -124,20 +136,35 @@ def main() -> None:
     raw_dir = papers / ".research-raw"
     trans_dir = papers / ".translations"
     curation_dir = papers / ".curation"
-    results_md = papers / "consensus-results.md"
-    wp_md = proj / "work-plan.md"
 
-    wp_cards = card_ids_in_work_plan(wp_md)
-    raw_cards = card_ids_from_files(raw_dir, ".json")
-    trans_cards = card_ids_from_files(trans_dir, ".md")
-    cur_cards = card_ids_from_files(curation_dir, ".md")
+    # search-results/{stage}.md (신규) → 없으면 legacy consensus-results.md fallback
+    results_md = papers / "search-results" / f"{stage}.md"
+    if not results_md.exists():
+        legacy = papers / "consensus-results.md"
+        if legacy.exists():
+            results_md = legacy
 
-    if not wp_cards:
-        fail("work-plan.md에 RESEARCH mode=search 카드가 없음")
+    # claim-extraction-{stage}.md 에서 expected H-NN 추출 (work-plan 대체 SSOT)
+    ce_path = proj / stage / f"claim-extraction-{stage}.md"
+    expected_ids = hunt_ids_in_claim_extraction(ce_path)
+    # search-results/{stage}.md 에 assemble된 ID와 union하여 SSOT 구성
+    if results_md.exists():
+        expected_ids = expected_ids | hunt_ids_in_search_results(results_md)
 
-    missing_raw = wp_cards - raw_cards
-    missing_trans = wp_cards - trans_cards
-    missing_cur = wp_cards - cur_cards
+    raw_ids = hunt_ids_from_files(raw_dir, ".json")
+    trans_ids = hunt_ids_from_files(trans_dir, ".md")
+    cur_ids = hunt_ids_from_files(curation_dir, ".md")
+
+    if not expected_ids and not raw_ids:
+        fail(f"H-NN/HUNT-NNN/R-NN 카드를 찾을 수 없음 "
+             f"(claim-extraction-{stage}.md / search-results/{stage}.md / .research-raw/ 모두 비어 있음)")
+
+    # expected가 비어있으면 raw_ids를 SSOT로 사용 (early-stage)
+    ssot = expected_ids if expected_ids else raw_ids
+
+    missing_raw = ssot - raw_ids
+    missing_trans = ssot - trans_ids
+    missing_cur = ssot - cur_ids
 
     if missing_raw:
         fail(
@@ -156,7 +183,9 @@ def main() -> None:
         )
 
     raw_errors = []
-    for p in sorted(raw_dir.glob("RESEARCH-*.json")):
+    for p in sorted(raw_dir.glob("*.json")):
+        if not HUNT_ID_PAT.match(p.name):
+            continue
         err = check_raw_cache(p)
         if err:
             raw_errors.append(err)
@@ -167,7 +196,9 @@ def main() -> None:
         sys.exit(1)
 
     trans_errors = []
-    for p in sorted(trans_dir.glob("RESEARCH-*.md")):
+    for p in sorted(trans_dir.glob("*.md")):
+        if not HUNT_ID_PAT.match(p.name):
+            continue
         err = check_translation(p)
         if err:
             trans_errors.append(err)
@@ -178,9 +209,11 @@ def main() -> None:
         sys.exit(1)
 
     cur_errors = []
-    for p in sorted(curation_dir.glob("RESEARCH-*.md")):
-        card_id = re.match(r"(RESEARCH-\d+)", p.name).group(1)
-        diag = check_curation_block(p.read_text(encoding="utf-8"), card_id)
+    for p in sorted(curation_dir.glob("*.md")):
+        m = HUNT_ID_PAT.match(p.name)
+        if not m:
+            continue
+        diag = check_curation_block(p.read_text(encoding="utf-8"), m.group(1))
         cur_errors.extend(diag)
     if cur_errors:
         print(f"❌ Stage C curation 문제 {len(cur_errors)}건:", file=sys.stderr)
@@ -189,30 +222,30 @@ def main() -> None:
         sys.exit(1)
 
     if not results_md.exists():
-        fail(f"{results_md.name} 없음 (Stage D 미수행)")
+        fail(f"search-results/{stage}.md (또는 legacy consensus-results.md) 없음 (Stage D 미수행)")
     md_text = results_md.read_text(encoding="utf-8")
     if "번역 대기" in md_text:
         fail(f"{results_md.name}에 `번역 대기` 잔존")
-    assembled = set(re.findall(r"^## \[(RESEARCH-\d+)\]", md_text, re.MULTILINE))
-    missing_assembled = cur_cards - assembled
+    assembled = hunt_ids_in_search_results(results_md)
+    missing_assembled = cur_ids - assembled
     if missing_assembled:
         fail(
             f"Stage D assembly 누락 {len(missing_assembled)}건 "
-            "(.curation 있으나 consensus-results.md에 안 들어감): "
+            f"(.curation 있으나 {results_md.name}에 안 들어감): "
             + ", ".join(sorted(missing_assembled)[:10])
         )
 
     if "🏆" not in md_text or "PDF 다운로드 우선순위" not in md_text:
         fail(
-            "consensus-results.md 끝에 누적 요약 섹션(🏆 최중요 발견 / 📥 PDF 우선순위) 누락"
+            f"{results_md.name} 끝에 누적 요약 섹션(🏆 최중요 발견 / 📥 PDF 우선순위) 누락"
         )
 
     print(
-        f"✅ RESEARCH post-check 통과\n"
-        f"   work-plan RESEARCH(search): {len(wp_cards)} · "
-        f".research-raw: {len(raw_cards)} · "
-        f".translations: {len(trans_cards)} · "
-        f".curation: {len(cur_cards)} · "
+        f"✅ RESEARCH post-check 통과 (stage={stage})\n"
+        f"   expected: {len(ssot)} · "
+        f".research-raw: {len(raw_ids)} · "
+        f".translations: {len(trans_ids)} · "
+        f".curation: {len(cur_ids)} · "
         f"assembled: {len(assembled)}"
     )
 

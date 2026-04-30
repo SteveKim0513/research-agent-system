@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """
-evaluation_aggregator.py — axis reports → evaluation.md + work-plan.md live task board.
+evaluation_aggregator.py — axis reports → evaluation.md (단일 산출).
 
-책임:
-1. axis1~6-*.md 점수 파싱 → evaluations/latest/evaluation.md 생성
-2. work-plan.md v2 skeleton 보장 (v1 감지 시 history/work-plan/000-legacy-v1.md로 자동 이동)
-3. claim-extraction-*.md의 JSON 요약 `search[]` 배열 → work-plan.md RESEARCH-NNN (mode=search) 카드 1:1 발급 (covers dedup) + claim-extraction back-reference
-4. research/write registry (papers/.registry.json, output/.registry.json) sync
-5. work-plan.md 대시보드 재계산 (WORK-PLAN-FORMAT.md §5 스펙)
-6. 기존 카드 (Active / In-progress / Blocked / Completed / Deferred)는 그대로 보존
+책임 (v2 — work-plan.md, card_registry 폐기):
+1. axis1~6-*.md 카테고리·진단 파싱 → evaluations/latest/evaluation.md 생성
+2. evaluation.md에 다음 섹션 포함 (EVALUATION-FORMAT.md 스펙):
+   - 🧭 다음 액션 (사용자가 지금 할 것)
+   - 📊 축별 상태 요약
+   - 🎯 Verdict
+   - ⚠️ Critical Issues
+   - 🟠 보강 필요
+   - 📚 RESEARCH 항목 (claim-extractor가 식별한 미해결 R-NN)
+   - ✏️ WRITE 권고 (axis*.md의 🛠 WRITE 후보)
+3. RESEARCH-NNN/WRITE-NNN 카드 발급·등록 코드 제거 — R-NN은 claim-extractor 산출물에 그대로
+4. work-plan.md 갱신·읽기·쓰기 코드 모두 제거
+5. card_registry import 제거 (papers/.registry.json, output/.registry.json 미사용)
 
 Usage:
-    python3 scripts/evaluation_aggregator.py <project_name>
+    python3 scripts/evaluation_aggregator.py <project> <action> <stage>
+      action : reference | content | status   (기본: reference)
+      stage  : flow | output | final          (필수 — 사용자 명시 prefix)
 """
 import json
 import re
@@ -21,7 +29,6 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent))
-import card_registry
 import version_manager
 import paper_reanalysis_delta
 
@@ -34,39 +41,6 @@ AXIS_FILES = {
     "axis5": ("axis5-concept.md", "구성개념 정의 정밀도"),
     "axis6": ("axis6-critical.md", "비판적 시각"),
 }
-
-TASK_TYPES = ["RESEARCH", "WRITE"]
-
-BRIEFING_HEADER = "## 🧭 현재 당신이 해야 할 일"
-
-# 섹션 헤더 → 내부 키 매핑
-SECTION_HEADERS = {
-    BRIEFING_HEADER: "briefing",
-    "## 📊 대시보드": "dashboard",
-    "## 🟡 Active": "active",
-    "## 🔵 In-progress": "in_progress",
-    "## 🔴 Blocked": "blocked",
-    "## ⚪ Deferred": "deferred",
-    "## 📜 Older completed": "completed_older",
-}
-# Recent completed는 "(최근 N개)" suffix가 붙음 → prefix 매칭
-RECENT_COMPLETED_PREFIX = "## 🟢 Recent completed"
-
-SECTION_ORDER = [
-    "briefing",
-    "dashboard",
-    "active",
-    "in_progress",
-    "blocked",
-    "completed_recent",
-    "deferred",
-    "completed_older",
-]
-
-CARD_HEADER_RE = re.compile(
-    r"^### \[(RESEARCH|WRITE)-(\d+)\](.*?)$",
-    re.MULTILINE,
-)
 
 
 # ──────────────────────────────────────────────────────────
@@ -93,10 +67,6 @@ def archive_dir(project: str, stage: str = "flow") -> Path:
 
 def flow_md_path(project: str) -> Path:
     return project_root(project) / "flow" / "flow.md"
-
-
-def work_plan_path(project: str) -> Path:
-    return project_root(project) / "work-plan.md"
 
 
 def output_dir(project: str) -> Path:
@@ -146,7 +116,7 @@ CATEGORY_BY_EMOJI = {
 EMOJI_BY_KEY = {v[0]: k for k, v in CATEGORY_BY_EMOJI.items()}
 LABEL_BY_KEY = {v[0]: v[1] for v in CATEGORY_BY_EMOJI.values()}
 
-# worst → best 순서. render_briefing 에서 worst-axis 정렬용.
+# worst → best 순서. evaluation.md WRITE 권고 정렬용.
 CATEGORY_PRIORITY = ["critical_gap", "cannot_assess", "needs_work", "adequate", "strong"]
 
 
@@ -360,7 +330,160 @@ def validate_axis_consistency(project: str, axis_data: dict) -> list:
 # evaluation.md 생성
 # ──────────────────────────────────────────────────────────
 
-def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list, ambition: str, critical_mode: bool):
+def _build_next_actions(
+    axis_data: dict,
+    research_search_items: list,
+    research_reanalyze_items: list,
+    write_proposals: list,
+    stage: str,
+) -> list[str]:
+    """다음 액션 1–3개 생성 (자연어 명령 + 1줄 사유). EVALUATION-FORMAT.md §3.1 스펙."""
+    actions: list[str] = []
+
+    # 1. 미해결 RESEARCH search 항목 — `"리서치 진행해줘"`
+    if research_search_items:
+        ids_preview = ", ".join(h.get("id", "?") for h in research_search_items[:5])
+        more = "" if len(research_search_items) <= 5 else f" 외 {len(research_search_items) - 5}건"
+        actions.append(
+            f'`"리서치 진행해줘"` — 미해결 RESEARCH {ids_preview}{more} '
+            f"({len(research_search_items)}건). axis 1·3 보강에 필요."
+        )
+
+    # 2. reanalyze 항목 — `"논문 재분석해줘"`
+    if research_reanalyze_items:
+        actions.append(
+            f'`"논문 재분석해줘"` — 보유 PDF {len(research_reanalyze_items)}건 재스캔 (flow 변경 반영).'
+        )
+
+    # 3. WRITE 권고가 있으면 가장 시급한 1건 자연어로 노출
+    if write_proposals and len(actions) < 3:
+        # 가장 시급한 axis 우선 (critical_gap > needs_work)
+        def axis_priority(p):
+            ax = p.get("axis", "")
+            ax_key = re.match(r"axis\d+", ax).group(0) if re.match(r"axis\d+", ax) else ""
+            cat = axis_data.get(ax_key, {}).get("category", "adequate")
+            return CATEGORY_PRIORITY.index(cat) if cat in CATEGORY_PRIORITY else 99
+        sorted_w = sorted(write_proposals, key=axis_priority)
+        first = sorted_w[0]
+        target = first.get("target") or "(대상 미명시)"
+        what = first.get("what") or "수정 필요"
+        actions.append(
+            f'`"{Path(target).name} 수정해줘: {what[:30]}{"..." if len(what) > 30 else ""}"` '
+            f"— {first.get('cause', '본문 보강 필요')}"
+        )
+
+    # fallback: 모든 축 🟢/🟡 — 다음 stage 권고
+    if not actions:
+        all_ok = axis_data and all(
+            d.get("category") in ("strong", "adequate") for d in axis_data.values()
+        )
+        if all_ok:
+            next_cmd = {
+                "flow": '"초안 작성해줘"',
+                "output": '"최종 통합해줘"',
+                "final": '"적대적 리뷰 해줘"',
+            }.get(stage, '"평가해줘"')
+            actions.append(f"_(권장 명령 없음 — 모든 축 🟢/🟡. 다음 단계 권고: `{next_cmd}`)_")
+        else:
+            actions.append("_(권장 명령 없음 — axis 보고 확인 필요)_")
+
+    return actions[:3]
+
+
+def _render_research_section(items: list, kind: str = "search") -> list[str]:
+    """미해결 R-NN/H-NN 또는 reanalyze 항목을 evaluation.md 섹션 본문으로 렌더."""
+    out: list[str] = []
+    if not items:
+        return out
+    if kind == "search":
+        for h in items:
+            out.append(f"### {h.get('id', '?')} — {h.get('topic', '(미명시)')}")
+            covers = h.get("covers") or []
+            if covers:
+                out.append(f"- covers: {', '.join(covers)}")
+            if h.get("query"):
+                out.append(f"- 검색 쿼리: `{h['query']}`")
+            if h.get("source_file"):
+                out.append(f"- 출처: `{h['source_file']}`")
+            out.append("")
+    else:  # reanalyze
+        for r in items:
+            out.append(f"### {r.get('id') or r.get('paper', '?')} — {r.get('topic', '(미명시)')}")
+            if r.get("target_pdf"):
+                out.append(f"- 대상 PDF: `{r['target_pdf']}`")
+            if r.get("angle"):
+                out.append(f"- 재분석 각도: {r['angle']}")
+            out.append("")
+    return out
+
+
+def _render_write_section(write_proposals: list, axis_data: dict) -> list[str]:
+    """WRITE 권고를 axis 시급도 순으로 정렬해 자연어 권고로 렌더 (카드 ID 노출 금지)."""
+    out: list[str] = []
+    if not write_proposals:
+        return out
+
+    def axis_priority(p):
+        ax = p.get("axis", "")
+        m = re.match(r"axis\d+", ax)
+        ax_key = m.group(0) if m else ""
+        cat = axis_data.get(ax_key, {}).get("category", "adequate")
+        return CATEGORY_PRIORITY.index(cat) if cat in CATEGORY_PRIORITY else 99
+
+    for prop in sorted(write_proposals, key=axis_priority):
+        ax = prop.get("axis", "?")
+        m = re.match(r"axis(\d+)", ax)
+        ax_n = m.group(1) if m else "?"
+        cat = axis_data.get(f"axis{ax_n}", {}).get("category")
+        cat_emoji = category_emoji(cat) if cat else ""
+        target = prop.get("target") or "(대상 미명시)"
+        what = prop.get("what") or "(내용 미명시)"
+        mode = prop.get("mode", "modify")
+        cause = prop.get("cause") or ax
+
+        out.append(f"### {Path(target).name if target else '(대상 미명시)'} (axis {ax_n} {cat_emoji}) — {what}")
+        out.append(f"- mode: {mode}")
+        if mode == "modify":
+            detail = prop.get("detail") or ""
+            if detail:
+                out.append(f"- 상세: {detail}")
+        else:
+            loc = prop.get("location") or ""
+            if loc:
+                out.append(f"- 위치: {loc}")
+            req = prop.get("content_req") or ""
+            if req:
+                out.append(f"- 내용 요구: {req}")
+        out.append(f"- 원인: {cause}")
+        verb = "수정" if mode == "modify" else "작성"
+        out.append(f'- → `"{Path(target).name} {verb}해줘: {what[:40]}"` 또는 직접 편집')
+        out.append("")
+    return out
+
+
+def write_evaluation_md(
+    project: str,
+    stage: str,
+    axis_data: dict,
+    missing: list,
+    ambition: str,
+    critical_mode: bool,
+    *,
+    research_search_items: list | None = None,
+    research_reanalyze_items: list | None = None,
+    write_proposals: list | None = None,
+):
+    """evaluation.md 생성 (EVALUATION-FORMAT.md §2 스펙).
+
+    work-plan.md 폐기로 다음 섹션이 evaluation.md로 통합됨:
+      - 🧭 다음 액션 (사용자가 지금 할 것) — 1–3개
+      - 📚 RESEARCH 항목 (미해결 R-NN/H-NN) — claim-extractor 산출물 그대로
+      - ✏️ WRITE 권고 — axis*.md WRITE 후보 자연어로 (카드 ID 노출 금지)
+    """
+    research_search_items = research_search_items or []
+    research_reanalyze_items = research_reanalyze_items or []
+    write_proposals = write_proposals or []
+
     lat = latest_dir(project, stage)
     lat.mkdir(parents=True, exist_ok=True)
 
@@ -384,52 +507,46 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
     if stage == "final":
         pipeline_desc += " → final-holistic-reviewer (adjudication)"
 
-    out = [
-        f"# 평가 진단 — {project}",
+    # frontmatter (EVALUATION-FORMAT.md §4)
+    fm_lines = [
+        "---",
+        f"generated_at: {datetime.now().isoformat(timespec='seconds')}",
+        "generated_by: evaluation_aggregator.py",
+        f"stage: {stage}",
+        "prev_eval: null",  # archive 추적은 선택 — 호출자가 관리
+        f"intellectual_ambition: {ambition}",
+        f"critical_mode: {'true' if critical_mode else 'false'}",
+        "---",
         "",
-        f"**대상**: `projects/{project}/flow/flow.md`",
-        f"**평가일**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"**intellectual_ambition**: **{ambition}**" + (" 🎭" if critical_mode else ""),
-        f"**파이프라인**: {pipeline_desc}",
+    ]
+
+    out = list(fm_lines)
+    out.extend([
+        f"# Evaluation — {project} ({stage})",
+        "",
+        f"> 📅 생성: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"> 단계: {stage}",
+        f"> intellectual_ambition: {ambition}" + (" 🎭" if critical_mode else ""),
+        f"> 파이프라인: {pipeline_desc}",
         "",
         "> 신뢰 가능 (메인): 카테고리·진단·Critical Issues·RESEARCH.  보조 (trend only): 점수.",
         "",
         "---",
         "",
-        "## 🩺 종합 판정",
+        "## 🧭 다음 액션 (사용자가 지금 할 것)",
         "",
-        f"### {verdict_emoji} **{verdict_label}**",
-        "",
-        f"**근거**: {verdict_reason}",
-        "",
-    ]
-
-    # Final stage 한정 — holistic banner
-    if stage == "final":
-        holistic_path = lat / "holistic-review.md"
-        if holistic_path.exists():
-            holistic_status = f"✅ 함께 생성됨: [`holistic-review.md`]({holistic_path.name}) — 통합 관점 adjudication 결과 참조."
-        else:
-            holistic_status = "⏳ `holistic-review.md` 미생성 — orchestrator가 `final-holistic-reviewer` 를 dispatch해야 work-plan 카드가 actionable."
-        out.extend([
-            "> 🛡 **Final stage 통합 평가 의무**",
-            "> 위 6축 verdict는 *국소 진단*. 통합본은 사용자가 정합성을 선언한 상태이므로 *척추 보호 adjudication*이 별도 필요.",
-            f"> {holistic_status}",
-            "> work-plan WRITE 카드 적용 전 카드의 `holistic_verdict` 필드를 반드시 점검 (REJECT/DEFER/REROUTE는 skip).",
-            "",
-        ])
-
-    # Sanity 위반 알림 (있으면)
-    if issues:
-        out.append("**⚠️ Sanity check**:")
-        for iss in issues:
-            out.append(f"- {iss}")
-        out.append("")
-
+    ])
+    next_actions = _build_next_actions(
+        axis_data, research_search_items, research_reanalyze_items,
+        write_proposals, stage,
+    )
+    for i, act in enumerate(next_actions, 1):
+        out.append(f"{i}. {act}")
     out.extend([
+        "",
         "---",
         "",
-        "## 📋 축별 상태",
+        "## 📊 축별 상태 요약",
         "",
         "| 축 | 이름 | 상태 | 이전 → 현재 | 핵심 진단 |",
         "|---|------|------|------|----------|",
@@ -439,30 +556,125 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
         cat = d.get("category")
         emoji = category_emoji(cat) if cat else "❔"
         label = category_label(cat) if cat else "(파싱 실패)"
-        # 카테고리 변화 (이전 카테고리 vs 현재) — 현 구조에서 이전 카테고리는 archive 파싱 필요. 단순화: 점수 기반 hint.
         if d.get("prev") is not None and d.get("score") is not None:
             arrow = f"점수 {d['prev']}→{d['score']}"
         else:
             arrow = "(첫 평가)"
         diag_short = (d.get("diagnosis") or "—").split("\n")[0][:80]
         out.append(f"| {n} | {d['title']} | {emoji} {label} | {arrow} | {diag_short} |")
+    out.extend([
+        "",
+        "> 상세는 axis{N}-*.md 참조",
+        "",
+        "---",
+        "",
+        "## 🎯 Verdict",
+        "",
+        f"### {verdict_emoji} **{verdict_label}**",
+        "",
+        f"**근거**: {verdict_reason}",
+        "",
+    ])
 
-    out.append("")
-    out.append("---")
-    out.append("")
-    out.append("## 🚨 Critical Issues (이번 평가에서 가장 시급)")
-    out.append("")
+    # Final stage 한정 — holistic banner
+    if stage == "final":
+        holistic_path = lat / "holistic-review.md"
+        if holistic_path.exists():
+            holistic_status = f"✅ 함께 생성됨: [`holistic-review.md`]({holistic_path.name}) — 통합 관점 adjudication 결과 참조."
+        else:
+            holistic_status = "⏳ `holistic-review.md` 미생성 — orchestrator가 `final-holistic-reviewer` 를 dispatch해야 합니다."
+        out.extend([
+            "> 🛡 **Final stage 통합 평가 의무**",
+            "> 위 6축 verdict는 *국소 진단*. 통합본은 사용자가 정합성을 선언한 상태이므로 *척추 보호 adjudication*이 별도 필요.",
+            f"> {holistic_status}",
+            "",
+        ])
+
+    # Sanity 위반 알림 (있으면)
+    if issues:
+        out.extend(["**⚠️ Sanity check**:"])
+        for iss in issues:
+            out.append(f"- {iss}")
+        out.append("")
+
+    # ⚠️ Critical Issues
+    out.extend([
+        "---",
+        "",
+        "## ⚠️ Critical Issues (🔴 구조적 결함)",
+        "",
+    ])
     crit_lines = []
     for axis, d in axis_data.items():
+        if d.get("category") != "critical_gap":
+            continue
         for ci in d.get("critical_issues", []):
             crit_lines.append(f"- **[축 {axis[-1]}]** {ci}")
     if crit_lines:
         out.extend(crit_lines)
     else:
-        out.append("- _(축별 보고에서 Critical Issues 미추출)_")
+        out.append("_(없음)_")
 
+    # 🟠 보강 필요
     out.extend([
         "",
+        "---",
+        "",
+        "## 🟠 보강 필요 (Needs Work)",
+        "",
+    ])
+    needs_lines = []
+    for axis, d in axis_data.items():
+        if d.get("category") != "needs_work":
+            continue
+        n = axis[-1]
+        diag = (d.get("diagnosis") or "").split("\n")[0]
+        needs_lines.append(f"### 축 {n} — {d['title']} (🟠)")
+        if diag:
+            needs_lines.append(f"- 진단: {diag}")
+        for ci in d.get("critical_issues", []):
+            needs_lines.append(f"- {ci}")
+        needs_lines.append("")
+    if needs_lines:
+        out.extend(needs_lines)
+    else:
+        out.append("_(없음)_")
+        out.append("")
+
+    # 📚 RESEARCH 항목
+    out.extend([
+        "---",
+        "",
+        "## 📚 RESEARCH 항목 (미해결)",
+        "",
+    ])
+    if research_search_items:
+        out.append('다음 R-NN/H-NN은 `"리서치 진행해줘"` 한 번으로 일괄 검색됩니다.')
+        out.append("")
+        out.extend(_render_research_section(research_search_items, kind="search"))
+    if research_reanalyze_items:
+        out.append("### 재분석 항목 (보유 PDF)")
+        out.append("")
+        out.extend(_render_research_section(research_reanalyze_items, kind="reanalyze"))
+    if not research_search_items and not research_reanalyze_items:
+        out.append("_(미해결 RESEARCH 없음)_")
+        out.append("")
+
+    # ✏️ WRITE 권고
+    out.extend([
+        "---",
+        "",
+        "## ✏️ WRITE 권고 (수정·작성 필요)",
+        "",
+    ])
+    if write_proposals:
+        out.extend(_render_write_section(write_proposals, axis_data))
+    else:
+        out.append("_(WRITE 후보 없음)_")
+        out.append("")
+
+    # 📂 축별 상세 리포트
+    out.extend([
         "---",
         "",
         "## 📂 축별 상세 리포트",
@@ -478,7 +690,7 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
             "",
             "---",
             "",
-            f"⚠️ **누락된 축**: {', '.join(missing)} — 해당 scorer를 다시 실행하거나 work-plan을 확인하세요.",
+            f"⚠️ **누락된 축**: {', '.join(missing)} — 해당 scorer를 다시 실행하세요.",
         ])
 
     # 점수 추세 (보조 — <details>로 demote)
@@ -538,160 +750,15 @@ def write_evaluation_md(project: str, stage: str, axis_data: dict, missing: list
 
 
 # ──────────────────────────────────────────────────────────
-# work-plan.md — skeleton, section parsing, dashboard render
-# ──────────────────────────────────────────────────────────
-
-def is_v2_format(text: str) -> bool:
-    required = ["## 📊 대시보드", "## 🟡 Active", "## 🔵 In-progress", "## 🟢 Recent completed"]
-    return all(h in text for h in required)
-
-
-def archive_legacy(project: str, legacy_text: str) -> Path:
-    """기존 v1 work-plan.md를 history/work-plan/000-legacy-v1.md로 이동."""
-    archive_dir = project_root(project) / "history" / "work-plan"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    dest = archive_dir / f"000-{datetime.now().strftime('%Y-%m-%d')}-legacy-v1.md"
-    dest.write_text(legacy_text, encoding="utf-8")
-    return dest
-
-
-SKELETON_TEMPLATE = """# work-plan.md
-
-> 📅 마지막 갱신: {timestamp} ({trigger})
-> Stage: {stage}
-> intellectual_ambition: {ambition}
-
----
-
-## 🧭 현재 당신이 해야 할 일
-
-{briefing}
-
----
-
-## 📊 대시보드
-
-{dashboard}
-
----
-
-## 🟡 Active
-
-_(없음)_
-
----
-
-## 🔵 In-progress
-
-_(없음)_
-
----
-
-## 🔴 Blocked
-
-_(없음)_
-
----
-
-## 🟢 Recent completed (최근 15개)
-
-_(없음)_
-
----
-
-## ⚪ Deferred
-
-_(없음)_
-
----
-
-## 📜 Older completed
-
-_(없음)_
-"""
-
-
-def make_skeleton(stage: str, ambition: str, dashboard_block: str, briefing_block: str = "_(평가 후 자동 갱신)_", trigger: str = "initial") -> str:
-    return SKELETON_TEMPLATE.format(
-        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
-        trigger=trigger,
-        stage=stage,
-        ambition=ambition,
-        briefing=briefing_block.strip(),
-        dashboard=dashboard_block.strip(),
-    )
-
-
-def split_sections(text: str) -> dict:
-    """v2 work-plan을 섹션별로 split. 반환: dict section_name -> body (trimmed)."""
-    sections = {name: "" for name in SECTION_ORDER}
-
-    lines = text.split("\n")
-    current = None
-    buffers = {name: [] for name in SECTION_ORDER}
-
-    for line in lines:
-        stripped = line.rstrip()
-        matched_key = None
-        if stripped in SECTION_HEADERS:
-            matched_key = SECTION_HEADERS[stripped]
-        elif stripped.startswith(RECENT_COMPLETED_PREFIX):
-            matched_key = "completed_recent"
-
-        if matched_key:
-            current = matched_key
-            continue
-
-        if current and stripped == "---":
-            current = None
-            continue
-
-        if current:
-            buffers[current].append(line)
-
-    for name in SECTION_ORDER:
-        sections[name] = "\n".join(buffers[name]).strip()
-    return sections
-
-
-def extract_header_block(text: str) -> str:
-    """파일 상단의 제목 + metadata 블록만 추출 (첫 '---' 전까지)."""
-    parts = text.split("\n---\n", 1)
-    return parts[0]
-
-
-def count_cards(section_text: str) -> int:
-    return len(CARD_HEADER_RE.findall(section_text))
-
-
-def iter_cards(section_text: str):
-    """섹션 내 task 카드를 순회. 각 카드는 {type, num, header_line, body}."""
-    lines = section_text.split("\n")
-    cur = None
-    for line in lines:
-        m = CARD_HEADER_RE.match(line.rstrip())
-        if m:
-            if cur is not None:
-                yield cur
-            cur = {
-                "type": m.group(1),
-                "num": int(m.group(2)),
-                "suffix": m.group(3).strip(),
-                "header": line.rstrip(),
-                "body_lines": [],
-            }
-        elif cur is not None:
-            cur["body_lines"].append(line)
-    if cur is not None:
-        yield cur
-
-
-# ──────────────────────────────────────────────────────────
-# RESEARCH mode=search processing (from claim-extraction search[] → work-plan cards)
+# claim-extraction 파싱 (R-NN, search[] / reanalyze[])
 # ──────────────────────────────────────────────────────────
 
 # claim-extraction의 ```json ... ``` 요약 블록 추출 (nested [] 안전)
 JSON_BLOCK_RE = re.compile(r"```json\s*\n(\{.*?\n\})\s*\n```", re.DOTALL)
+
+
+# claim-extraction-{stage}.md 안의 R-NN 섹션 헤더 추출용
+R_HEADER_RE = re.compile(r"^###\s+(R-\d+)\s*[—\-]?\s*(.*?)$", re.MULTILINE)
 
 
 def extract_search_proposals_from_claim_extraction(ce_paths: list) -> list:
@@ -769,236 +836,9 @@ def extract_reanalyze_proposals_from_claim_extraction(ce_paths: list) -> list:
     return collected
 
 
-def process_reanalyze_proposals(project: str, work_plan_text: str):
-    """claim-extraction의 reanalyze[] → RESEARCH mode=reanalyze 카드 1:1 발급.
-
-    dedup_key = (mode=reanalyze, pdf_filename, angle).
-    동일 dedup_key가 이미 활성이면 skip, completed면 reactivation.
-
-    Returns: (new_cards, replacement_map, reactivated_ids)
-    """
-    ce_paths = claim_extraction_paths(project)
-    if not ce_paths:
-        return [], {}, []
-
-    proposed = extract_reanalyze_proposals_from_claim_extraction(ce_paths)
-    if not proposed:
-        return [], {}, []
-
-    root = project_root(project)
-    registry = card_registry.load(root, "research")
-    # bootstrap은 process_research_proposals에서 이미 처리됨
-
-    replacement_map = {}
-    new_cards = []
-    reactivated_cards = []
-    reactivated_ids = []
-    skipped_active = []
-
-    for r in proposed:
-        dedup_raw = [r["target_pdf"], r["angle"]]
-        existing_cid = card_registry.find_by_dedup_key(registry, "reanalyze", dedup_raw)
-        if existing_cid:
-            status = registry["cards"][existing_cid]["status"]
-            replacement_map[r["id"]] = existing_cid
-            if status == "completed":
-                card_registry.reactivate(registry, existing_cid,
-                                          reason=f"동일 (pdf, angle) 재제안 (from {r['id']})")
-                meta = registry["cards"][existing_cid]
-                card_meta = {
-                    "topic": meta.get("metadata", {}).get("무엇") or r["topic"],
-                    "대상 PDF": r["target_pdf"],
-                    "재분석 각도": r["angle"],
-                    "source_file": r["source_file"],
-                }
-                reactivated_cards.append(build_research_card(existing_cid, "reanalyze", card_meta, note="reactivated"))
-                reactivated_ids.append(existing_cid)
-            else:
-                skipped_active.append((r["id"], existing_cid, status))
-            continue
-
-        new_id = card_registry.next_id(registry)
-        replacement_map[r["id"]] = new_id
-        new_cards.append(build_research_card(new_id, "reanalyze", {
-            "topic": r["topic"],
-            "대상 PDF": r["target_pdf"],
-            "재분석 각도": r["angle"],
-            "source_file": r["source_file"],
-        }))
-        card_registry.add_new(registry, new_id, "reanalyze", dedup_raw, {
-            "무엇": r["topic"],
-            "대상 PDF": r["target_pdf"],
-            "재분석 각도": r["angle"],
-            "source_file": r["source_file"],
-        })
-
-    card_registry.save(root, registry)
-
-    if skipped_active:
-        print(f"   ↪︎ 이미 활성 RESEARCH(reanalyze) 스킵 ({len(skipped_active)}건)")
-    if reactivated_ids:
-        print(f"   🔄 reanalyze reactivation: {len(reactivated_ids)}건")
-    if new_cards:
-        n_new = len(new_cards) - len(reactivated_ids)
-        if n_new > 0:
-            print(f"   🆕 신규 RESEARCH(reanalyze) 발급: {n_new}건")
-
-    return new_cards + reactivated_cards, replacement_map, reactivated_ids
-
-
-def process_research_proposals(project: str, work_plan_text: str):
-    """claim-extraction의 search[] → work-plan.md RESEARCH-NNN (mode=search) 카드 1:1 발급.
-
-    Single source of truth: `papers/.registry.json` (card_registry, domain=research).
-    중복 발급 방지 2-layer:
-    1. Primary (dedup_key match): 정규화된 covers가 기존 RESEARCH mode=search와 일치 시:
-       - active 상태 → skip (이미 활성)
-       - completed → reactivation (ready + work-plan 재삽입)
-    2. Secondary: registry가 비어있고 work-plan에 RESEARCH 카드가 있으면 bootstrap.
-
-    Returns: (new_cards: list[str], updated_ce_texts: dict[Path, str], reactivated_ids: list[str])
-    """
-    ce_paths = claim_extraction_paths(project)
-    if not ce_paths:
-        return [], {}, []
-
-    proposed = extract_search_proposals_from_claim_extraction(ce_paths)
-    if not proposed:
-        return [], {}, []
-
-    root = project_root(project)
-    registry = card_registry.load(root, "research")
-
-    if not registry["cards"] and work_plan_text:
-        added = card_registry.bootstrap_from_work_plan(registry, work_plan_text)
-        if added:
-            print(f"   🔧 research registry bootstrap: {added}건 역복원 (papers/.registry.json)")
-
-    replacement_map = {}
-    new_cards = []
-    reactivated_cards = []
-    reactivated_ids = []
-    skipped_active = []
-
-    for h in proposed:
-        covers = h.get("covers") or []
-        existing_cid = card_registry.find_by_dedup_key(registry, "search", covers)
-        if existing_cid:
-            status = registry["cards"][existing_cid]["status"]
-            replacement_map[h["id"]] = existing_cid
-            if status == "completed":
-                card_registry.reactivate(
-                    registry, existing_cid,
-                    reason=f"동일 covers 재제안 (from {h['id']})"
-                )
-                meta = registry["cards"][existing_cid]
-                card_meta = {
-                    "covers": covers,
-                    "query": meta.get("metadata", {}).get("query") or h.get("query", ""),
-                    "topic": meta.get("metadata", {}).get("무엇") or h.get("topic", ""),
-                    "source_file": h.get("source_file") or meta.get("metadata", {}).get("source_file", ""),
-                }
-                reactivated_cards.append(build_research_card(existing_cid, "search", card_meta, note="reactivated"))
-                reactivated_ids.append(existing_cid)
-            else:
-                skipped_active.append((h["id"], existing_cid, status))
-            continue
-
-        new_id = card_registry.next_id(registry)
-        replacement_map[h["id"]] = new_id
-        new_cards.append(build_research_card(new_id, "search", h))
-        card_registry.add_new(
-            registry, new_id, "search", covers,
-            {
-                "무엇": h.get("topic", ""),
-                "query": h.get("query", ""),
-                "source_file": h.get("source_file", ""),
-            },
-        )
-
-    card_registry.save(root, registry)
-
-    if skipped_active:
-        preview = ", ".join(f"{orig}→{cid}({st})" for orig, cid, st in skipped_active[:3])
-        more = f" 외 {len(skipped_active)-3}" if len(skipped_active) > 3 else ""
-        print(f"   ↪︎ 이미 활성 RESEARCH 스킵 ({len(skipped_active)}건): {preview}{more}")
-    if reactivated_ids:
-        print(f"   🔄 reactivation: {len(reactivated_ids)}건 ({', '.join(reactivated_ids[:5])}{'...' if len(reactivated_ids) > 5 else ''})")
-    if new_cards:
-        print(f"   🆕 신규 RESEARCH 발급: {len(new_cards)}건")
-
-    # claim-extraction 파일의 임시 ID 라벨을 발급된 RESEARCH ID로 치환
-    updated_ce_texts = {}
-    for p in ce_paths:
-        try:
-            text = p.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        changed = text
-        for old, new in replacement_map.items():
-            if old == new:
-                continue
-            changed = re.sub(rf"\[{old}\]", f"[{new}]", changed)
-            changed = changed.replace(f'"{old}"', f'"{new}"')
-        if changed != text:
-            updated_ce_texts[p] = changed
-
-    return new_cards + reactivated_cards, updated_ce_texts, reactivated_ids
-
-
-def build_research_card(card_id: str, mode: str, h: dict, note: str | None = None) -> str:
-    """RESEARCH 카드 렌더. mode=search (외부 Consensus 검색) 또는 reanalyze (보유 PDF 재스캔)."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    topic = h.get("topic") or h.get("무엇") or "claim-extraction 참조"
-    source = h.get("source_file", "claim-extraction-flow.md")
-
-    if note == "reactivated":
-        log_line = f"- {now} · 🔄 **reactivated** by evaluation_aggregator (동일 dedup_key 재제안 감지, completed → ready)"
-    else:
-        log_line = f"- {now} · created by evaluation_aggregator (from {source})"
-
-    if mode == "search":
-        covers = h.get("covers") or []
-        covers_str = ", ".join(covers) if covers else "(없음)"
-        query = h.get("query", "")
-        body = f"""**mode**: search
-
-**담당 명령**: `"리서치 진행해줘"` → Consensus 자동 검색 (4-stage 파이프라인)
-
-**covers**: {covers_str}
-
-**query**: `{query}`
-
-**검색 키워드 / 기대 논문 프로필**: `{source}`의 각 R 섹션 참조 / registry: `papers/.registry.json`"""
-    else:  # reanalyze
-        target_pdf = h.get("대상 PDF", "")
-        angle = h.get("재분석 각도", "")
-        body = f"""**mode**: reanalyze
-
-**담당 명령**: `"논문 재분석해줘"` → paper-analyst Mode B
-
-**대상 PDF**: {target_pdf}
-
-**재분석 각도**: {angle}
-
-**registry**: `papers/.registry.json`"""
-
-    return f"""### [{card_id}] 🟡 active · P2 · axis1 · Stage 1
-
-**무엇**: {topic}
-
-{body}
-
-**의존성**: 없음
-**차단하는 것**: 없음
-
-**진행 로그**:
-{log_line}
-"""
-
-
 # ──────────────────────────────────────────────────────────
-# WRITE 카드 발급 — axis*.md의 "🛠 WRITE 후보" 섹션 파싱 → card_registry
+# WRITE 후보 파싱 — axis*.md의 "🛠 WRITE 후보" 섹션
+# (카드 발급 폐기 — evaluation.md WRITE 권고 섹션 채우기에만 사용)
 # ──────────────────────────────────────────────────────────
 
 WRITE_SECTION_RE = re.compile(
@@ -1056,558 +896,6 @@ def extract_write_proposals_from_axes(project: str, stage: str) -> list:
     return proposals
 
 
-def process_write_proposals(project: str, work_plan_text: str, stage: str) -> tuple:
-    """axis*.md WRITE 후보 → work-plan WRITE 카드 발급.
-
-    Returns: (new_cards, reactivated_ids)
-    """
-    proposed = extract_write_proposals_from_axes(project, stage)
-    if not proposed:
-        return [], []
-
-    root = project_root(project)
-    write_reg = card_registry.load(root, "write")
-
-    # bootstrap: work-plan에 WRITE 카드 있으나 registry에 없으면 역복원
-    if not write_reg["cards"] and work_plan_text:
-        added = card_registry.bootstrap_from_work_plan(write_reg, work_plan_text)
-        if added:
-            print(f"   🔧 write registry bootstrap: {added}건 역복원 (output/.registry.json)")
-
-    new_cards = []
-    reactivated_ids = []
-    skipped_active = 0
-    by_axis: dict[str, list[str]] = {}
-
-    for prop in proposed:
-        if prop["mode"] == "modify":
-            dedup_raw = [prop["target"], prop["what"]]
-        else:
-            dedup_raw = [prop["target"], prop.get("location") or prop["what"]]
-
-        existing = card_registry.find_by_dedup_key(write_reg, prop["mode"], dedup_raw)
-        if existing:
-            status = write_reg["cards"][existing]["status"]
-            if status == "completed":
-                card_registry.reactivate(write_reg, existing,
-                                          reason=f"동일 dedup_key 재제안 (from {prop['axis']}/{prop['temp_id']})")
-                meta = write_reg["cards"][existing]["metadata"]
-                new_cards.append(build_write_card(existing, prop["mode"], {
-                    **meta,
-                    "무엇": prop["what"],
-                    "원인": prop["cause"],
-                }, prop, note="reactivated"))
-                reactivated_ids.append(existing)
-            else:
-                skipped_active += 1
-            continue
-
-        new_id = card_registry.next_id(write_reg)
-        metadata = {
-            "무엇": prop["what"],
-            "대상 챕터": prop["target"],
-            "원인": prop["cause"],
-        }
-        if prop["mode"] == "modify" and prop.get("detail"):
-            metadata["수정 내용"] = prop["detail"]
-        if prop["mode"] == "create":
-            if prop.get("location"):
-                metadata["위치"] = prop["location"]
-            if prop.get("content_req"):
-                metadata["내용 요구"] = prop["content_req"]
-
-        card_registry.add_new(write_reg, new_id, prop["mode"], dedup_raw, metadata)
-        new_cards.append(build_write_card(new_id, prop["mode"], metadata, prop))
-        by_axis.setdefault(prop["axis"], []).append(new_id)
-
-    card_registry.save(root, write_reg)
-
-    if skipped_active:
-        print(f"   ↪︎ 이미 활성 WRITE 스킵 ({skipped_active}건)")
-    if reactivated_ids:
-        print(f"   🔄 WRITE reactivation: {len(reactivated_ids)}건")
-    if new_cards:
-        summary = ", ".join(f"{ax}:{len(ids)}" for ax, ids in by_axis.items())
-        n_new = len(new_cards) - len(reactivated_ids)
-        print(f"   🆕 신규 WRITE 발급: {n_new}건 ({summary})")
-
-    return new_cards, reactivated_ids
-
-
-def build_write_card(card_id: str, mode: str, metadata: dict, prop: dict, note: str | None = None) -> str:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    target = metadata.get("대상 챕터", prop.get("target", ""))
-    what = metadata.get("무엇", prop.get("what", ""))
-    cause = metadata.get("원인", prop.get("cause", ""))
-
-    # axis number → 영향 축 표기
-    axis_id = prop.get("axis", "")
-    axis_n_m = re.match(r"axis(\d+)", axis_id)
-    axis_tag = f"axis{axis_n_m.group(1)}" if axis_n_m else "axis?"
-
-    if note == "reactivated":
-        log_line = f"- {now} · 🔄 **reactivated** by evaluation_aggregator (동일 dedup_key 재제안)"
-    else:
-        log_line = f"- {now} · created by aggregator (from {axis_id}/{prop.get('temp_id', '?')})"
-
-    if mode == "modify":
-        body = f"""**mode**: modify
-
-**담당 명령**: `"output {Path(target).name} 수정해줘: {card_id}"` → output-editor
-
-**대상 챕터**: {target}
-
-**수정 내용**: {metadata.get('수정 내용', prop.get('detail', ''))}
-
-**원인**: {cause}"""
-    else:  # create
-        body = f"""**mode**: create
-
-**담당 명령**: `"초안 작성해줘"` → writing-architect (Phase 1 구조 설계 → Phase 2 작성)
-
-**대상 챕터**: {target}
-
-**위치**: {metadata.get('위치', prop.get('location', ''))}
-
-**내용 요구**: {metadata.get('내용 요구', prop.get('content_req', ''))}
-
-**원인**: {cause}"""
-
-    return f"""### [{card_id}] 🟡 active · P2 · {axis_tag} · Stage 2
-
-**무엇**: {what}
-
-{body}
-
-**의존성**: 없음
-**차단하는 것**: 없음
-
-**진행 로그**:
-{log_line}
-"""
-
-
-# ──────────────────────────────────────────────────────────
-# Dashboard render
-# ──────────────────────────────────────────────────────────
-
-STAGE_RE = re.compile(r"Stage\s+(\d+)")
-AXIS_TAG_RE = re.compile(r"axis(\d+)")
-RECOVERY_RE = re.compile(r"\*\*예상 회복\*\*\s*:\s*축\s*(\d+)(?:-(\d+))?\s*\+(\d+)")
-
-
-def collect_task_stats(sections: dict) -> dict:
-    """섹션별 task 수, stage별 진척도, axis별 잔여 회복 집계."""
-    state_counts = {"active": 0, "in_progress": 0, "blocked": 0, "completed": 0, "deferred": 0}
-    stage_counts = {1: [0, 0], 2: [0, 0], 3: [0, 0], 4: [0, 0]}  # [done, total]
-    axis_recovery = {f"axis{i}": [0, 0] for i in range(1, 7)}  # [+N 합, task 수]
-
-    # 상태 카운트
-    state_counts["active"] = count_cards(sections["active"])
-    state_counts["in_progress"] = count_cards(sections["in_progress"])
-    state_counts["blocked"] = count_cards(sections["blocked"])
-    state_counts["deferred"] = count_cards(sections["deferred"])
-    state_counts["completed"] = count_cards(sections["completed_recent"]) + count_cards(sections["completed_older"])
-
-    # Stage 진척도 — 모든 카드 스캔
-    def process_cards(section_key, is_done: bool):
-        for card in iter_cards(sections[section_key]):
-            header_line = card["header"] + " " + card["suffix"]
-            body = "\n".join(card["body_lines"])
-
-            stage_m = STAGE_RE.search(header_line)
-            stage = int(stage_m.group(1)) if stage_m else None
-            if stage and stage in stage_counts:
-                stage_counts[stage][1] += 1
-                if is_done:
-                    stage_counts[stage][0] += 1
-
-            # 잔여 회복은 아직 미완료(active/in_progress/blocked) 카드만
-            if not is_done:
-                axis_m = AXIS_TAG_RE.search(header_line)
-                axis_key = f"axis{axis_m.group(1)}" if axis_m else None
-                rec_m = RECOVERY_RE.search(body)
-                if axis_key and axis_key in axis_recovery and rec_m:
-                    axis_recovery[axis_key][0] += int(rec_m.group(3))
-                    axis_recovery[axis_key][1] += 1
-
-    for key in ("active", "in_progress", "blocked"):
-        process_cards(key, is_done=False)
-    for key in ("completed_recent", "completed_older"):
-        process_cards(key, is_done=True)
-
-    return {
-        "state_counts": state_counts,
-        "stage_counts": stage_counts,
-        "axis_recovery": axis_recovery,
-    }
-
-
-def bar_10(pct: float) -> str:
-    """0~100 → 10칸 bar."""
-    filled = max(0, min(10, round(pct / 10)))
-    return "█" * filled + "░" * (10 - filled)
-
-
-def recommend_commands(sections: dict, stats: dict) -> list:
-    """다음 권장 명령 최대 3개."""
-    recs = []
-
-    def tasks_of_type(section_key, task_type):
-        ids = []
-        for card in iter_cards(sections[section_key]):
-            if card["type"] == task_type:
-                ids.append(f"{task_type}-{card['num']:03d}")
-        return ids
-
-    # RESEARCH 카드는 mode로 search/reanalyze 구분 — 카드 본문에서 `**mode**:` 필드로 분류
-    research_active = []
-    for card in iter_cards(sections["active"]):
-        if card["type"] == "RESEARCH":
-            body = "\n".join(card["body_lines"])
-            mode_m = re.search(r"\*\*mode\*\*:\s*(\w+)", body)
-            mode = mode_m.group(1).strip() if mode_m else "search"
-            research_active.append((f"RESEARCH-{card['num']:03d}", mode))
-
-    search_active = [cid for cid, m in research_active if m == "search"]
-    reanalyze_active = [cid for cid, m in research_active if m == "reanalyze"]
-
-    if search_active:
-        preview = ", ".join(search_active[:3])
-        if len(search_active) > 3:
-            preview += f" 외 {len(search_active) - 3}"
-        recs.append(f'`"리서치 진행해줘"` — RESEARCH search {len(search_active)}건 대기 ({preview})')
-
-    if reanalyze_active:
-        recs.append(f'`"논문 재분석해줘"` — RESEARCH reanalyze {len(reanalyze_active)}건 대기')
-
-    # WRITE 카드도 mode로 create/modify 구분
-    write_active = []
-    for card in iter_cards(sections["active"]):
-        if card["type"] == "WRITE":
-            body = "\n".join(card["body_lines"])
-            mode_m = re.search(r"\*\*mode\*\*:\s*(\w+)", body)
-            mode = mode_m.group(1).strip() if mode_m else "modify"
-            write_active.append((f"WRITE-{card['num']:03d}", mode))
-
-    create_active = [cid for cid, m in write_active if m == "create"]
-    modify_active = [cid for cid, m in write_active if m == "modify"]
-
-    if create_active and len(recs) < 3:
-        recs.append(f'`"초안 작성해줘"` — WRITE create {len(create_active)}건 대기')
-
-    if modify_active and len(recs) < 3:
-        preview = ", ".join(modify_active[:3])
-        recs.append(f'`"Chapter X 수정해줘"` — WRITE modify {len(modify_active)}건 ({preview})')
-
-    if not recs:
-        if stats["state_counts"]["blocked"] > 0:
-            recs.append(f'`"상태 확인해줘"` — 🔴 Blocked {stats["state_counts"]["blocked"]}건 의존성 검토 필요')
-        else:
-            recs.append('_(권장 명령 없음 — 🟡 Active 비어있음. `"flow 레퍼런스 분석해줘"` / `"flow 내용 분석해줘"`로 새 카드 발급)_')
-
-    return recs[:3]
-
-
-def render_briefing(project: str, sections: dict, stats: dict, recs: list,
-                     ambition: str, critical_mode: bool,
-                     axis_data: dict, prev_total) -> str:
-    """대시보드 위에 표시되는 '사용자 브리핑' — 지금 할 일을 한눈에."""
-    root = project_root(project)
-
-    # 1. 지금 열어볼 파일
-    read_files = ["1. **`evaluations/latest/evaluation.md`** — 최근 평가 진단 (카테고리·Critical Issues·축별 상태)"]
-    # 가장 시급한 축 지목 (카테고리 우선순위 기반 — worst 먼저)
-    if axis_data:
-        def axis_priority(item):
-            cat = item[1].get("category")
-            return CATEGORY_PRIORITY.index(cat) if cat in CATEGORY_PRIORITY else len(CATEGORY_PRIORITY)
-        worst_axis, worst_d = min(axis_data.items(), key=axis_priority)
-        worst_n = worst_axis[-1]
-        worst_cat = worst_d.get("category")
-        cat_str = f"{category_emoji(worst_cat)} {category_label(worst_cat)}" if worst_cat else "(카테고리 부재)"
-        read_files.append(
-            f"2. **`evaluations/latest/axis{worst_n}-*.md`** — 가장 시급한 축({worst_d['title']} {cat_str}) 상세"
-        )
-    read_files.append("3. **이 파일 (`work-plan.md`)** — 아래 🎯 다음 명령부터 따라가세요")
-
-    # 2. 확인·수정 가능한 작업 파일
-    work_files = []
-    flow_md = root / "flow" / "flow.md"
-    if flow_md.exists():
-        work_files.append("- `flow/flow.md` — 줄글 플랜 (수정하고 `\"평가해줘\"` 재실행 가능)")
-    out_dir = root / "output"
-    if out_dir.exists():
-        real_files = [p for p in out_dir.glob("*.md") if not p.name.startswith("claim-extraction")]
-        if real_files:
-            work_files.append(f"- `output/*.md` — 생성된 결과물 {len(real_files)}개. `\"output {{파일명}} 수정해줘: WRITE-NNN\"`")
-    crit_q = root / "critical-questions.md"
-    if crit_q.exists():
-        crit_c = root / "critical-commitments.md"
-        if not crit_c.exists() or crit_q.stat().st_mtime > crit_c.stat().st_mtime:
-            work_files.append("- `critical-questions.md` — 🎭 **답변 작성 필요** → `\"답변 반영해줘\"`")
-        else:
-            work_files.append("- `critical-questions.md` (답변 완료) · `critical-commitments.md` (commitment 추출됨)")
-    if not work_files:
-        work_files.append("- `flow/flow.md` — 먼저 줄글 플랜을 작성하세요 (참고: `flow/FLOW-TEMPLATE.md`)")
-
-    # 3. 지금 실행할 명령 (aggregator가 이미 계산한 recs 재활용)
-    commands_block = []
-    for i, r in enumerate(recs, 1):
-        commands_block.append(f"{i}. {r}")
-    if not commands_block:
-        commands_block.append('1. `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` — 아직 분석 없음')
-
-    # 4. 중요 알림
-    alerts = []
-    if stats["state_counts"]["blocked"] > 0:
-        alerts.append(f"🔴 **Blocked {stats['state_counts']['blocked']}건** — 의존성 해소 필요 (아래 🔴 Blocked 섹션 확인)")
-    if critical_mode:
-        if (root / "critical-questions.md").exists():
-            crit_c = root / "critical-commitments.md"
-            crit_q_path = root / "critical-questions.md"
-            if not crit_c.exists():
-                alerts.append("🎭 **Critical Mode 활성** — `critical-questions.md`에 답변 필요 → `\"답변 반영해줘\"`")
-            elif crit_q_path.stat().st_mtime > crit_c.stat().st_mtime:
-                alerts.append("🎭 **critical-questions.md 변경 감지** — `\"답변 반영해줘\"`로 commitment 재추출 필요")
-        else:
-            alerts.append("🎭 **Critical Mode 활성** — 첫 평가 후 `critical-questions.md` 자동 생성됨")
-    if prev_total is not None and axis_data:
-        scores = [d["score"] for d in axis_data.values() if d.get("score") is not None]
-        if scores:
-            total = sum(scores)
-            delta = total - prev_total
-            if delta > 0:
-                alerts.append(f"📈 점수 추세: 지난 평가 대비 **+{delta}** (보조 신호)")
-            elif delta < 0:
-                alerts.append(f"📉 점수 추세: 지난 평가 대비 **{delta}** (보조 신호) — 카테고리 변화 우선 확인")
-    if stats["state_counts"]["active"] == 0 and stats["state_counts"]["in_progress"] == 0:
-        alerts.append("✨ 🟡 Active 비어있음 — `\"평가해줘\"`로 새 task 발급 또는 프로젝트 단계 이동")
-    if not alerts:
-        alerts.append("_(특이사항 없음)_")
-
-    # 5. Stage 체크리스트
-    sc = stats["stage_counts"]
-    def stage_check(n, name):
-        done, total = sc[n]
-        if total == 0:
-            return f"- [ ] **Stage {n} {name}** — 아직 task 없음"
-        if done == total:
-            return f"- [x] **Stage {n} {name}** — 완료 ({done}/{total})"
-        return f"- [ ] **Stage {n} {name}** — 진행 중 ({done}/{total})"
-
-    lines = [
-        "### 📖 지금 열어볼 파일",
-        *read_files,
-        "",
-        "### ✍️ 확인·수정 가능한 작업 파일",
-        *work_files,
-        "",
-        "### 🎯 지금 실행할 명령 (우선순위 순)",
-        *commands_block,
-        "",
-        "### ⚠️ 중요 알림",
-        *[f"- {a}" for a in alerts],
-        "",
-        "### 📚 Stage 진행 체크리스트",
-        stage_check(1, "리서치"),
-        stage_check(2, "초안"),
-        stage_check(3, "수정"),
-        stage_check(4, "최종"),
-    ]
-    return "\n".join(lines)
-
-
-def render_dashboard(stats: dict, recs: list, axis_data: dict = None) -> str:
-    state = stats["state_counts"]
-    stage = stats["stage_counts"]
-    axis_rec = stats["axis_recovery"]
-    axis_data = axis_data or {}
-
-    def stage_line(n: int, name: str) -> str:
-        done, total = stage[n]
-        pct = (done / total * 100) if total else 0
-        return f"- Stage {n} {name}: {bar_10(pct)} {pct:.0f}% ({done}/{total})"
-
-    lines = [
-        "### Stage 진척도",
-        stage_line(1, "리서치"),
-        stage_line(2, "초안  "),
-        stage_line(3, "수정  "),
-        stage_line(4, "최종  "),
-        "",
-        "### 상태별 카운트",
-        f"🟡 active: {state['active']}  |  🔵 in-progress: {state['in_progress']}  |  🔴 blocked: {state['blocked']}  |  🟢 completed: {state['completed']}  |  ⚪ deferred: {state['deferred']}",
-        "",
-        "### 축별 현재 상태",
-    ]
-    axis_titles = {f"axis{i}": AXIS_FILES[f"axis{i}"][1] for i in range(1, 7)}
-    for i in range(1, 7):
-        key = f"axis{i}"
-        title = axis_titles[key]
-        d = axis_data.get(key)
-        _amount, count = axis_rec.get(key, (0, 0))
-        if d and d.get("category"):
-            cat = d["category"]
-            emoji = category_emoji(cat)
-            label = category_label(cat)
-            lines.append(f"- 축 {i} ({title}): {emoji} {label}  ({count} active task{'s' if count != 1 else ''})")
-        elif key == "axis6":
-            lines.append(f"- 축 {i} ({title}): — (Critical Mode 비활성)")
-        else:
-            lines.append(f"- 축 {i} ({title}): _(평가 미실행)_  ({count} active task{'s' if count != 1 else ''})")
-    lines.append("")
-    lines.append("> 축 상태 emoji: 🟢 충실 / 🟡 적정 / 🟠 보강 필요 / 🔴 구조적 결함 / ⚫ 측정 불가")
-    lines.append("> task state emoji와 column 헤더로 구분됨 (위 상태별 카운트 vs 위 축별 현재 상태).")
-    lines.append("")
-    lines.append("### 🎯 다음 권장 명령")
-    for i, r in enumerate(recs, 1):
-        lines.append(f"{i}. {r}")
-    return "\n".join(lines)
-
-
-# ──────────────────────────────────────────────────────────
-# Work-plan 업데이트
-# ──────────────────────────────────────────────────────────
-
-def update_header_block(header_block: str, stage: str, ambition: str, trigger: str) -> str:
-    """파일 상단 meta 4줄을 현재 값으로 업데이트 (timestamp, Mode, Stage, ambition)."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lines = header_block.split("\n")
-    updated = []
-    replaced = {"timestamp": False, "mode": False, "stage": False, "ambition": False}
-
-    for line in lines:
-        if line.startswith("> 📅 마지막 갱신:"):
-            updated.append(f"> 📅 마지막 갱신: {now} ({trigger})")
-            replaced["timestamp"] = True
-        elif line.startswith("> Mode:"):
-            updated.append(f"> Mode: {stage}")
-            replaced["mode"] = True
-        elif line.startswith("> Stage:"):
-            # 호환: stage는 mode와 동기화 (구 v2 호환)
-            updated.append(f"> Stage: {stage}")
-            replaced["stage"] = True
-        elif line.startswith("> intellectual_ambition:"):
-            updated.append(f"> intellectual_ambition: {ambition}")
-            replaced["ambition"] = True
-        else:
-            updated.append(line)
-
-    # 누락된 meta 라인 추가 (파일 상단에 `# work-plan.md` 다음)
-    if not all(replaced.values()):
-        added = []
-        for line in updated:
-            added.append(line)
-            if line.strip() == "# work-plan.md":
-                if not replaced["timestamp"]:
-                    added.append("")
-                    added.append(f"> 📅 마지막 갱신: {now} ({trigger})")
-                if not replaced["mode"]:
-                    added.append(f"> Mode: {stage}")
-                if not replaced["stage"]:
-                    added.append(f"> Stage: {stage}")
-                if not replaced["ambition"]:
-                    added.append(f"> intellectual_ambition: {ambition}")
-        updated = added
-
-    return "\n".join(updated)
-
-
-def rebuild_work_plan(
-    existing: str,
-    dashboard: str,
-    briefing: str,
-    new_active_cards: list,
-    stage: str,
-    ambition: str,
-    trigger: str,
-    remove_research_ids: set = None,
-) -> str:
-    """기존 work-plan의 섹션을 보존하며 대시보드 치환 + active에 새 카드 추가.
-
-    remove_research_ids: 주어진 RESEARCH ID 카드를 모든 섹션에서 제거
-    (completed mode=search 정리 / reactivation 대체).
-    """
-    sections = split_sections(existing)
-    header_block = extract_header_block(existing)
-    header_block = update_header_block(header_block, stage, ambition, trigger)
-
-    # completed/reactivated RESEARCH 카드 제거
-    if remove_research_ids:
-        for key in ("active", "in_progress", "blocked", "deferred",
-                    "completed_recent", "completed_older"):
-            sections[key] = card_registry.remove_cards_from_section_text(
-                sections[key], remove_research_ids, "RESEARCH"
-            )
-
-    # 새 RESEARCH 카드를 Active 섹션 하단에 추가
-    active_body = sections["active"]
-    if active_body.strip() == "_(없음)_":
-        active_body = ""
-    for card in new_active_cards:
-        if active_body and not active_body.endswith("\n"):
-            active_body += "\n"
-        if active_body:
-            active_body += "\n"
-        active_body += card.rstrip() + "\n"
-    active_body = active_body.strip() or "_(없음)_"
-
-    # Recent completed 최신순 유지 + 15개 overflow
-    recent_body, older_body = rebalance_completed(sections["completed_recent"], sections["completed_older"])
-
-    # 재조립
-    def section_block(header: str, body: str) -> str:
-        body = body.strip() or "_(없음)_"
-        return f"{header}\n\n{body}"
-
-    recent_header_count = count_cards(recent_body) if recent_body != "_(없음)_" else 0
-    recent_header = f"## 🟢 Recent completed (최근 15개, 현재 {recent_header_count})"
-
-    parts = [
-        header_block,
-        "---",
-        f"{BRIEFING_HEADER}\n\n" + briefing.strip(),
-        "---",
-        "## 📊 대시보드\n\n" + dashboard.strip(),
-        "---",
-        section_block("## 🟡 Active", active_body),
-        "---",
-        section_block("## 🔵 In-progress", sections["in_progress"]),
-        "---",
-        section_block("## 🔴 Blocked", sections["blocked"]),
-        "---",
-        section_block(recent_header, recent_body),
-        "---",
-        section_block("## ⚪ Deferred", sections["deferred"]),
-        "---",
-        section_block("## 📜 Older completed", older_body),
-    ]
-    return "\n\n".join(parts).rstrip() + "\n"
-
-
-def rebalance_completed(recent: str, older: str):
-    """Recent completed 16번째부터는 Older로 밀어냄. 최신순 유지는 호출자 책임."""
-    recent_cards = list(iter_cards(recent))
-    if len(recent_cards) <= 15:
-        return recent, older
-
-    overflow = recent_cards[15:]
-    keep = recent_cards[:15]
-
-    def rebuild(cards):
-        if not cards:
-            return ""
-        blocks = []
-        for c in cards:
-            block = c["header"] + "\n" + "\n".join(c["body_lines"]).rstrip()
-            blocks.append(block.rstrip())
-        return "\n\n".join(blocks)
-
-    # older에 overflow 카드 prepend (최신 밀려난 것이 위로)
-    overflow_block = rebuild(overflow)
-    older_new = (overflow_block + "\n\n" + older).strip() if older and older != "_(없음)_" else overflow_block
-    return rebuild(keep) or "_(없음)_", older_new or "_(없음)_"
 
 
 # ──────────────────────────────────────────────────────────
@@ -1672,71 +960,27 @@ def _check_action_dependencies(project: str, stage: str, action: str) -> list[st
     return msgs
 
 
-def _issue_reanalyze_from_delta(project: str, affected: list) -> tuple:
-    """paper_reanalysis_delta 결과 → RESEARCH(reanalyze) 카드 발급.
+def _delta_reanalyze_items(affected: list) -> list:
+    """paper_reanalysis_delta 결과를 reanalyze 항목 리스트로 정규화.
 
     affected: [{"paper": "Zelazo_2012", "primary_section": "hot/cool EF", "changed_section": "..."}]
-    Returns: (new_cards: list[str], reactivated_ids: list[str])
+    Returns: list of {paper, target_pdf, angle, topic}
+    카드 발급은 폐기 (work-plan / card_registry 모두 사라짐). evaluation.md WRITE/RESEARCH
+    권고 섹션에서 자연어로 노출됨.
     """
-    root = project_root(project)
-    registry = card_registry.load(root, "research")
-
-    new_cards = []
-    reactivated_ids = []
-    skipped = 0
-
+    items = []
     for entry in affected:
         paper = entry["paper"]
-        # 추정: papers/collected/{paper}.pdf
-        target_pdf = f"papers/collected/{paper}.pdf"
-        angle = f"flow 변경 섹션 '{entry['changed_section']}' 반영 — {entry['primary_section']} 재스캔"
-        topic = f"{paper} delta 재분석 ({entry['primary_section']})"
-
-        dedup_raw = [target_pdf, angle]
-        existing_cid = card_registry.find_by_dedup_key(registry, "reanalyze", dedup_raw)
-        if existing_cid:
-            status = registry["cards"][existing_cid]["status"]
-            if status == "completed":
-                card_registry.reactivate(registry, existing_cid,
-                                          reason=f"flow delta 재제안 (paper={paper})")
-                meta = registry["cards"][existing_cid]
-                card_meta = {
-                    "topic": meta.get("metadata", {}).get("무엇") or topic,
-                    "대상 PDF": target_pdf,
-                    "재분석 각도": angle,
-                    "source_file": "paper_reanalysis_delta",
-                }
-                new_cards.append(build_research_card(existing_cid, "reanalyze", card_meta, note="reactivated"))
-                reactivated_ids.append(existing_cid)
-            else:
-                skipped += 1
-            continue
-
-        new_id = card_registry.next_id(registry)
-        new_cards.append(build_research_card(new_id, "reanalyze", {
-            "topic": topic,
-            "대상 PDF": target_pdf,
-            "재분석 각도": angle,
-            "source_file": "paper_reanalysis_delta",
-        }))
-        card_registry.add_new(registry, new_id, "reanalyze", dedup_raw, {
-            "무엇": topic,
-            "대상 PDF": target_pdf,
-            "재분석 각도": angle,
-            "source_file": "paper_reanalysis_delta",
+        items.append({
+            "paper": paper,
+            "target_pdf": f"papers/collected/{paper}.pdf",
+            "angle": f"flow 변경 섹션 '{entry.get('changed_section', '')}' 반영 — "
+                     f"{entry.get('primary_section', '')} 재스캔",
+            "topic": f"{paper} delta 재분석 ({entry.get('primary_section', '')})",
         })
-
-    card_registry.save(root, registry)
-
-    if skipped:
-        print(f"   ↪︎ delta 재제안 중 이미 활성 {skipped}건 skip")
-    n_new = len(new_cards) - len(reactivated_ids)
-    if n_new > 0:
-        print(f"   🆕 delta RESEARCH(reanalyze) 발급: {n_new}건")
-    if reactivated_ids:
-        print(f"   🔄 delta reanalyze reactivation: {len(reactivated_ids)}건")
-
-    return new_cards, reactivated_ids
+    if items:
+        print(f"   🆕 delta reanalyze 항목 {len(items)}건 — evaluation.md '다음 액션'에서 노출")
+    return items
 
 
 def _apply_frontmatter_to_derivatives(project: str, stage: str) -> None:
@@ -1854,14 +1098,13 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
                     pass
             print(line)
 
-    # flow가 bump됐고 action=reference면 paper_reanalysis_delta 자동 호출 → reanalyze 카드 발급
-    delta_reanalyze_cards = []
-    delta_reanalyze_reactivated = []
+    # flow가 bump됐고 action=reference면 paper_reanalysis_delta 자동 호출 → 영향 논문 list 산출
+    delta_reanalyze_items = []
     if flow_was_bumped and action == "reference":
         affected = paper_reanalysis_delta.get_affected_papers(project)
         if affected:
-            print(f"   📊 flow 변경 delta — 영향 논문 {len(affected)}건 → RESEARCH(reanalyze) 발급 검토")
-            delta_reanalyze_cards, delta_reanalyze_reactivated = _issue_reanalyze_from_delta(project, affected)
+            print(f"   📊 flow 변경 delta — 영향 논문 {len(affected)}건")
+            delta_reanalyze_items = _delta_reanalyze_items(affected)
 
     lat = latest_dir(project, stage)
     if not lat.exists():
@@ -1869,12 +1112,28 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
         return 1
 
     # 0.7 파생 파일 frontmatter 자동 부여 (sync 보장)
-    # claim-extraction-{stage}.md, axis*.md 변경 감지되면 version_manager로 갱신.
     _apply_frontmatter_to_derivatives(project, stage)
 
-    # 1. axis 파싱 + evaluation.md 생성
+    # 1. axis 파싱
     axis_data, missing, ambition, critical_mode = parse_axis_scores(project, stage)
-    total, prev_total = write_evaluation_md(project, stage, axis_data, missing, ambition, critical_mode)
+
+    # 2. claim-extraction에서 미해결 RESEARCH 항목 (search[] + reanalyze[]) 추출
+    ce_paths = claim_extraction_paths(project)
+    research_search_items = extract_search_proposals_from_claim_extraction(ce_paths)
+    research_reanalyze_items = extract_reanalyze_proposals_from_claim_extraction(ce_paths)
+    # delta 기반 reanalyze 항목 합류
+    research_reanalyze_items = research_reanalyze_items + delta_reanalyze_items
+
+    # 3. axis*.md에서 WRITE 권고 추출 (action=content 또는 항상 — 사용자에게 노출)
+    write_proposals = extract_write_proposals_from_axes(project, stage)
+
+    # 4. evaluation.md 생성 (다음 액션 + RESEARCH + WRITE 권고 섹션 포함)
+    total, prev_total = write_evaluation_md(
+        project, stage, axis_data, missing, ambition, critical_mode,
+        research_search_items=research_search_items,
+        research_reanalyze_items=research_reanalyze_items,
+        write_proposals=write_proposals,
+    )
 
     n_axes = len(axis_data)
     verdict_emoji, verdict_label, _ = verdict_from_categories(axis_data)
@@ -1891,131 +1150,19 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
         print(f"   점수 추세 (보조): {total}/{n_axes*100} (Δ {total - prev_total:+d})")
     if missing:
         print(f"⚠️  누락 축: {missing}")
+    if research_search_items:
+        print(f"   📚 미해결 RESEARCH search 항목: {len(research_search_items)}건 → evaluation.md")
+    if research_reanalyze_items:
+        print(f"   🔄 reanalyze 항목: {len(research_reanalyze_items)}건 → evaluation.md")
+    if write_proposals:
+        print(f"   ✏️ WRITE 권고: {len(write_proposals)}건 → evaluation.md")
 
-    # 1.5 Sanity check
+    # 5. Sanity check
     issues = validate_axis_consistency(project, axis_data)
     if issues:
         print("⚠️  Sanity check 위반:")
         for iss in issues:
             print(f"   {iss}")
-
-    # 2. work-plan.md 준비
-    wp_path = work_plan_path(project)
-    existing = wp_path.read_text(encoding="utf-8") if wp_path.exists() else ""
-
-    if existing and not is_v2_format(existing):
-        archived = archive_legacy(project, existing)
-        print(f"ℹ️  기존 v1 work-plan을 {archived.relative_to(project_root(project))}로 이동")
-        existing = ""
-
-    if not existing:
-        existing = make_skeleton(stage, ambition,
-                                  "_(대시보드는 아래에서 재계산)_",
-                                  "_(브리핑은 아래에서 재계산)_",
-                                  trigger="initial")
-
-    # 3. action별 카드 발급
-    # - reference: claim-extraction의 search[] → RESEARCH 카드만
-    # - content  : axis*.md의 🛠 WRITE 후보 → WRITE 카드만
-    new_cards = []
-    updated_ce_texts = {}
-    reactivated_ids = []
-
-    if action == "reference":
-        # mode=search 발급
-        new_cards, updated_ce_texts, reactivated_ids = process_research_proposals(project, existing)
-        # mode=reanalyze 발급 (claim-extraction의 reanalyze[] 기반)
-        ra_cards, ra_replacement, ra_reactivated = process_reanalyze_proposals(project, existing)
-        new_cards = new_cards + ra_cards
-        reactivated_ids = reactivated_ids + ra_reactivated
-        # delta 기반 reanalyze 카드 (위에서 flow_was_bumped 시 산출됨)
-        new_cards = new_cards + delta_reanalyze_cards
-        reactivated_ids = reactivated_ids + delta_reanalyze_reactivated
-        # claim-extraction 파일에 reanalyze 임시 ID도 치환 (XXX/YYY → RESEARCH-NNN)
-        if ra_replacement:
-            for p in claim_extraction_paths(project):
-                try:
-                    text = updated_ce_texts.get(p) or p.read_text(encoding="utf-8")
-                except Exception:
-                    continue
-                changed = text
-                for old, new in ra_replacement.items():
-                    if old == new:
-                        continue
-                    changed = re.sub(rf"\[{old}\]", f"[{new}]", changed)
-                    changed = changed.replace(f'"{old}"', f'"{new}"')
-                if changed != text:
-                    updated_ce_texts[p] = changed
-        for p, text in updated_ce_texts.items():
-            p.write_text(text, encoding="utf-8")
-            print(f"   {p.relative_to(project_root(project))} 업데이트")
-
-    if action == "content":
-        new_write_cards, reactivated_write_ids = process_write_proposals(project, existing, stage)
-        new_cards = new_cards + new_write_cards
-        reactivated_ids = reactivated_ids + reactivated_write_ids
-
-    # 3.5 research registry sync: work-plan completed 섹션의 RESEARCH를 mark_completed.
-    # mode=search 카드는 완료 시 work-plan에서 제거 (4-stage 산출물이 별도 파일에 남음).
-    # mode=reanalyze 카드는 work-plan에 보존 (analyzed/*.md에 v2 append로 이력 남음).
-    root = project_root(project)
-    research_reg = card_registry.load(root, "research")
-    tmp_sections = split_sections(existing) if existing else None
-    completed_research_ids = []
-    search_completed_ids = []  # work-plan에서 제거할 대상 (mode=search만)
-    if tmp_sections:
-        completed_research_ids = card_registry.sync_from_work_plan(research_reg, tmp_sections)
-        card_registry.save(root, research_reg)
-        # mode=search만 work-plan에서 제거
-        for cid in completed_research_ids:
-            c = research_reg["cards"].get(cid)
-            if c and c.get("mode") == "search":
-                search_completed_ids.append(cid)
-    if search_completed_ids:
-        print(f"   ✅ completed RESEARCH(search) 기록: {len(search_completed_ids)}건 — work-plan에서 제거")
-
-    # 3.6 write registry sync (lifecycle 추적 + bootstrap). work-plan에 완료 카드 보존.
-    write_reg = card_registry.load(root, "write")
-    if tmp_sections:
-        added = card_registry.bootstrap_from_work_plan(write_reg, existing)
-        done = card_registry.sync_from_work_plan(write_reg, tmp_sections)
-        card_registry.save(root, write_reg)
-        if added:
-            print(f"   🔧 write registry bootstrap: {added}건 역복원")
-        if done:
-            print(f"   ✅ completed WRITE 기록: {len(done)}건 (work-plan에는 보존)")
-
-    # reactivation된 RESEARCH가 work-plan에 잔여로 남아있다면 제거 (새 카드로 대체)
-    reactivate_set = set(reactivated_ids)
-
-    # 4. 대시보드·브리핑 재계산 (새 카드 반영 후)
-    tmp = rebuild_work_plan(existing, "_(계산 중)_", "_(계산 중)_",
-                             new_cards, stage, ambition, "eval",
-                             remove_research_ids=set(search_completed_ids) | reactivate_set)
-    sections = split_sections(tmp)
-    stats = collect_task_stats(sections)
-    recs = recommend_commands(sections, stats)
-    dashboard = render_dashboard(stats, recs, axis_data)
-    briefing = render_briefing(project, sections, stats, recs,
-                                ambition, critical_mode, axis_data, prev_total)
-
-    final = rebuild_work_plan(existing, dashboard, briefing,
-                               new_cards, stage, ambition, "eval",
-                               remove_research_ids=set(search_completed_ids) | reactivate_set)
-
-    # 변경이 있는 경우에만 쓰기 (unnecessary snapshot 방지)
-    # 단, mtime·timestamp 라인은 매번 바뀌므로 그 라인을 빼고 비교
-    def normalize_for_compare(text: str) -> str:
-        return re.sub(r"> 📅 마지막 갱신:.*\n", "", text)
-
-    if wp_path.exists() and normalize_for_compare(existing) == normalize_for_compare(final):
-        # 실질 변경 없음 → 파일 쓰기 skip (mtime 보존)
-        print("ℹ️  work-plan.md 실질 변경 없음 — 파일 갱신 skip")
-    else:
-        wp_path.write_text(final, encoding="utf-8")
-    print(f"✅ work-plan.md 갱신 (active={stats['state_counts']['active']}, "
-          f"in_progress={stats['state_counts']['in_progress']}, "
-          f"completed={stats['state_counts']['completed']})")
 
     # Final stage 한정 — holistic dispatch 의무 안내
     if stage == "final":
@@ -2031,7 +1178,6 @@ def aggregate(project: str, action: str = "reference", stage: str | None = None)
             print("   evaluation-orchestrator는 final-holistic-reviewer를 dispatch해야 합니다.")
             print("   (통합본 척추를 prior로, axis 카드 verdict를 adjudicate)")
             print(f"   출력 예정: {holistic_path.relative_to(project_root(project))}")
-            print("   미실행 시 work-plan WRITE 카드는 actionable로 간주하지 않음.")
         else:
             print()
             print("🛡 holistic-review.md 최신 — adjudication 완료 상태")
@@ -2096,66 +1242,93 @@ def render_status(project: str, stage: str) -> int:
             print(f"   {st}/critical : 활성 ({len(list(critical_dir.glob('*.md')))} 파일)")
         print()
 
-    # 3. papers / RESEARCH 카드
-    research_reg = card_registry.load(root, "research")
-    cands = list((root / "papers" / "candidates").glob("*.pdf")) if (root / "papers" / "candidates").exists() else []
-    coll = list((root / "papers" / "collected").glob("*.pdf")) if (root / "papers" / "collected").exists() else []
-    consensus = root / "papers" / "consensus-results.md"
+    # 3. papers / RESEARCH 항목 (claim-extractor 산출물에서 추출)
+    papers_root_dir = root / "papers"
+
+    # candidates/ 는 stage별 분리 폴더 + legacy single 폴더 양쪽 지원
+    cands_total = 0
+    cands_by_stage: dict[str, int] = {}
+    cdir_root = papers_root_dir / "candidates"
+    if cdir_root.exists():
+        # subfolder per stage (research-gap, flow)
+        for sub in cdir_root.iterdir():
+            if sub.is_dir():
+                cnt = len(list(sub.glob("*.pdf")))
+                if cnt:
+                    cands_by_stage[sub.name] = cnt
+                    cands_total += cnt
+        # legacy: candidates/ 에 직접 PDF
+        direct = list(cdir_root.glob("*.pdf"))
+        if direct:
+            cands_by_stage["(legacy)"] = len(direct)
+            cands_total += len(direct)
+
+    coll = list((papers_root_dir / "collected").glob("*.pdf")) if (papers_root_dir / "collected").exists() else []
+
+    # search-results/{stage}.md (신규) 또는 consensus-results.md (legacy)
+    sr_dir = papers_root_dir / "search-results"
+    search_results_files = []
+    if sr_dir.exists():
+        search_results_files = sorted(sr_dir.glob("*.md"))
+    legacy_consensus = papers_root_dir / "consensus-results.md"
+    if legacy_consensus.exists():
+        search_results_files.append(legacy_consensus)
+
+    # claim-extraction-{stage}.md 에서 미해결 R-NN/H-NN 카운트
+    research_search_total = 0
+    research_reanalyze_total = 0
+    for st in STAGES:
+        ce = root / st / f"claim-extraction-{st}.md"
+        if not ce.exists():
+            continue
+        try:
+            search_items = extract_search_proposals_from_claim_extraction([ce])
+            ra_items = extract_reanalyze_proposals_from_claim_extraction([ce])
+            research_search_total += len(search_items)
+            research_reanalyze_total += len(ra_items)
+        except Exception:
+            continue
 
     print(f"📚 Research")
-    n_total = len(research_reg["cards"])
-    n_done = sum(1 for c in research_reg["cards"].values() if c["status"] == "completed")
-    n_active = sum(1 for c in research_reg["cards"].values() if c["status"] in ("ready", "in_progress"))
-    print(f"   RESEARCH 카드: {n_total} (완료 {n_done} · 활성 {n_active})")
-    if consensus.exists():
-        text = consensus.read_text(encoding="utf-8")
-        n_papers = len(re.findall(r"^\#{2,3}\s+#\d+", text, re.MULTILINE))
-        print(f"   consensus-results.md: {n_papers}편 후보 확보")
-    print(f"   candidates/: {len(cands)}편 대기 (사용자 선별)")
+    if research_search_total:
+        print(f"   미해결 RESEARCH search 항목: {research_search_total}건 (claim-extraction)")
+    if research_reanalyze_total:
+        print(f"   미해결 reanalyze 항목: {research_reanalyze_total}건")
+    for srf in search_results_files:
+        try:
+            text = srf.read_text(encoding="utf-8")
+            n_papers = len(re.findall(r"^\#{2,3}\s+#\d+", text, re.MULTILINE))
+            print(f"   {srf.relative_to(papers_root_dir)}: {n_papers}편 후보")
+        except Exception:
+            pass
+    if cands_total:
+        parts = ", ".join(f"{k}={v}" for k, v in cands_by_stage.items())
+        print(f"   candidates/: {cands_total}편 대기 ({parts})")
     print(f"   collected/: {len(coll)}편 처리 완료")
     print()
 
-    # 4. WRITE 카드 + 활성 카드 dispatch 가이드
-    write_reg = card_registry.load(root, "write")
-    n_w_total = len(write_reg["cards"])
-    n_w_active = sum(1 for c in write_reg["cards"].values() if c["status"] in ("ready", "in_progress"))
-    if n_w_total:
+    # 4. WRITE 권고 (axis*.md 🛠 WRITE 후보)
+    write_total = 0
+    for st in STAGES:
+        try:
+            wp = extract_write_proposals_from_axes(project, st)
+            write_total += len(wp)
+        except Exception:
+            continue
+    if write_total:
         print(f"✏️  Write")
-        print(f"   WRITE 카드: {n_w_total} (활성 {n_w_active})\n")
-
-    # 5. 활성 카드 dispatch 가이드 (각 카드별 다음 명령)
-    active_cards = []
-    for cid, c in research_reg["cards"].items():
-        if c["status"] in ("ready", "in_progress"):
-            cmd = '"리서치 진행해줘"' if c["mode"] == "search" else '"논문 재분석해줘"'
-            active_cards.append((cid, c["mode"], cmd, c["metadata"].get("무엇", "")))
-    for cid, c in write_reg["cards"].items():
-        if c["status"] in ("ready", "in_progress"):
-            target = c["metadata"].get("대상 챕터", "")
-            fname = Path(target).name if target else "{파일명}"
-            cmd = '"초안 작성해줘"' if c["mode"] == "create" else f'"output {fname} 수정해줘: {cid}"'
-            active_cards.append((cid, c["mode"], cmd, c["metadata"].get("무엇", "")))
-
-    if active_cards:
-        print(f"🎯 처리 가능한 활성 카드 ({len(active_cards)}개)")
-        for cid, mode, cmd, what in active_cards[:8]:
-            preview = (what[:40] + "…") if len(what) > 40 else what
-            print(f"   {cid} ({mode:9}) → {cmd}")
-            if preview:
-                print(f"     └ {preview}")
-        if len(active_cards) > 8:
-            print(f"   ... 외 {len(active_cards)-8}개")
+        print(f"   WRITE 권고: {write_total}건 (axis*.md WRITE 후보 → evaluation.md 자연어로 노출)")
         print()
 
-    # 6. 다음 권장 명령
+    # 5. 다음 권장 명령
     print(f"💡 권장 다음 명령:")
     recs = []
-    if n_active > 0:
-        recs.append(f'   • `"리서치 진행해줘"` — 활성 RESEARCH {n_active}건 실행')
-    if n_done > 0 and len(cands) == 0 and len(coll) == 0:
-        recs.append(f'   • consensus-results.md 검토 후 필요 PDF를 papers/candidates/에 투입')
-    if len(cands) > 0:
-        recs.append(f'   • `"논문 처리해줘"` — candidates/ {len(cands)}편 분석')
+    if research_search_total > 0:
+        recs.append(f'   • `"리서치 진행해줘"` — 미해결 search 항목 {research_search_total}건')
+    if research_reanalyze_total > 0:
+        recs.append(f'   • `"논문 재분석해줘"` — reanalyze 항목 {research_reanalyze_total}건')
+    if cands_total > 0:
+        recs.append(f'   • `"논문 처리해줘"` — candidates/ {cands_total}편 분석')
     flow_eval = latest_dir(project, "flow")
     if (root / "flow" / "flow.md").exists() and not (flow_eval / "axis1-reference.md").exists():
         recs.append(f'   • `"flow 레퍼런스 분석해줘"` — 아직 안 돌림')
