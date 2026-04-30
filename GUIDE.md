@@ -51,14 +51,51 @@ claude
 
 ---
 
+## 💬 어떻게 쓰나요? — 5분 안에 시작
+
+**ChatGPT 대화창 쓰듯**이 사용하세요. 정확한 명령어 외울 필요 없습니다.
+
+```
+사용자: "에세이 프로젝트 하나 만들어줘. 이름은 ef-essay"
+시스템: ✓ 프로젝트 생성. flow.md 빈 파일 만들었어요. 거기에 줄거리 쓰시면 됩니다.
+       📍 새 프로젝트 · flow 미작성
+       👉 다음: flow/flow.md를 줄글로 채우기
+
+사용자: (flow.md 직접 작성)
+
+사용자: "이거 어떤지 평가해줘"
+시스템: (5축 평가 진행) ... 축 3 (반박 논리)이 약합니다. R-04·R-07 미해결.
+       📍 flow 평가 ✓ (🟠 axis3) · output 미진입
+       👉 다음 권장: "리서치 진행해줘" — 미해결 R 2건
+
+사용자: "근거 좀 찾아줘"
+시스템: (Consensus 자동 검색) ... 12편 후보. papers/search-results/flow.md 참고.
+       📍 ... · 미해결 R 0건
+       👉 다음 권장: PDF 다운로드 → "논문 처리해줘"
+```
+
+**핵심 원칙**:
+- 매 응답 끝에 **📍 진척 + 👉 다음 권장**이 자동으로 나옵니다 → 어디까지 왔고 뭐 하면 좋을지 항상 보임
+- 명령이 모호하면 시스템이 *대화로* 확인합니다 ("flow 쪽 평가 맞으세요?")
+- 막히면 그냥 물어보세요: `"지금 뭐 하면 좋을까?"`, `"어디까지 왔지?"`, `"이거 어떻게 보강해야 해?"`
+
+---
+
 ## 🗺 글 한 편 쓰는 전체 과정
 
 ```
    ① 프로젝트 만들기
         ↓
+   ⓪ (선택) research-gap 단계 ──┐
+        분야 anchor 탐색 ·       │ research-gap 단계
+        thesis 형성 전 갭 발견   │ (분야 지도 그리기)
+        ↓                       │
+   (thesis 잡혔으면 바로 ②부터)  │
+   ───────────────────────────  ┘
+        ↓
    ② 줄거리(flow.md) 쓰기 ──┐
         ↓                   │
-   ③ 줄거리 분석             │
+   ③ 줄거리 평가             │
         ↓                   │ flow 단계
    ④ 논문 검색               │ (계획 + 자료 수집)
         ↓                   │
@@ -70,14 +107,20 @@ claude
         ↓
    ⑧ 초안 작성 ──────────────┐
         ↓                    │
-   ⑨ 분석 + 수정 (반복)        │ output 단계
+   ⑨ 평가 + 수정 (반복)        │ output 단계
         ↓                    │ (글쓰기)
    ⑩ 마무리 (검증·통합) ───────┘
         ↓
       🎉 완성
 ```
 
-⚠ **stage prefix 필수**: 평가·분석 명령에는 항상 `flow` / `output` / `final` 중 하나를 prefix로 명시 (`"flow 평가해줘"` / `"output 평가해줘"` / `"final 평가해줘"`). 단독 `"평가해줘"`는 받지 않습니다.
+💬 **GPT 대화창처럼 쓰세요**. 정확한 명령어를 외울 필요 없습니다 — 자연어로 의도를 말하면 시스템이 알아듣습니다 ("이 부분 보강하고 싶어", "근거 좀 더 찾아줘", "어디까지 왔지?" 등).
+
+📍 **매 응답 끝에 진척 라인 자동 표시**: 어느 단계에 와있고 다음에 뭐 하면 좋을지 항상 1-2줄로 요약됩니다. 별도로 "현재 상태" 명령 안 해도 위치 파악 가능.
+
+ℹ **stage prefix는 옵션**: `"flow 평가해줘"`처럼 명시하면 그 의도 우선. 미명시 시 폴더 컨텍스트로 자동 추론. 모호하면 자연어로 확인 ("flow 쪽 평가 맞으세요?").
+
+ℹ **명령 통합 (2026-04-30)**: 이전의 `"X 레퍼런스 분석해줘"` + `"X 내용 분석해줘"` 두 명령은 **`"X 평가해줘"` 단일 명령으로 통합**되었습니다. 5축 평가(Critical Mode 시 6축)가 한 번에 실행되며 결과는 `evaluation.md`에 통합 (work-plan.md 폐기).
 
 ---
 
@@ -95,7 +138,49 @@ claude
 - `projects/my-essay/` 폴더가 통째 생성
 - 안에 빈 `flow/flow.md` 파일
 
-**다음**: ② flow.md 작성
+**다음**:
+- thesis가 아직 안 잡혔으면 → ⓪ research-gap 단계 (선택)
+- thesis가 이미 명확하면 → ② flow.md 작성
+
+---
+
+### ⓪ (선택) research-gap 단계 — 분야 anchor 탐색
+
+본인 주제에 대해 **"무엇이 빠져 있나"**를 먼저 조사하는 단계입니다. thesis가 아직 흐릿할 때, 또는 분야의 anchor(핵심 논문·논쟁 지점)를 모를 때 사용. thesis가 이미 잡혔다면 이 단계 **건너뛰고 ②로** 가도 됩니다.
+
+**작업 흐름**:
+
+```
+research-gap.md 작성 (분야·관심·아는 지형) → "리서치 갭 분석해줘" → research-plan.md (H-NN hypotheses)
+   ↓
+"리서치 진행해줘" → Consensus 검색 → search-results/research-gap.md
+   ↓
+PDF 다운로드 → papers/candidates/research-gap/ → "논문 처리해줘"
+   ↓
+analyzed/research-gap/[R].*.md ([D].*.md = 비판 frame)
+   ↓
+"갭 리포트 만들어줘" → gap-report.md (통합 갭 진단)
+   ↓
+이 결과를 flow.md 작성의 입력으로 활용
+```
+
+**핵심 명령 4개**:
+| 명령 | 무엇 |
+|------|------|
+| `"리서치 갭 분석해줘"` | research-gap.md → research-plan.md (H-NN 가설 발급) |
+| `"리서치 진행해줘"` | research-gap·flow 두 plan의 미해결 H/R 모두 처리 |
+| `"논문 처리해줘"` | 두 candidates 폴더 (research-gap·flow) 자동 스캔 |
+| `"갭 리포트 만들어줘"` | analyzed/research-gap/[R][D].*.md → gap-report.md 통합 |
+
+**flow 단계로 넘어갈 때**: research-gap에서 분석한 핵심 논문을 flow 작업에서 **anchor로 격상** 가능:
+```
+"이 논문 flow anchor로 분석해줘 Smith_2024"
+```
+→ research-gap 단계의 [R] 분석을 기반으로 flow 관점의 [A] 분석을 추가 생성.
+
+**작성 가이드**: `skills/RESEARCH-GAP-TEMPLATE.md` 참고.
+
+**다음**: ② flow.md 작성 (gap-report.md를 입력으로)
 
 ---
 
@@ -134,36 +219,37 @@ AI 글쓰기 도구의 부상...
 
 ---
 
-### ③ 줄거리 분석
+### ③ 줄거리 평가
 
 ```
-"레퍼런스 분석해줘"      ← 어떤 논문이 필요한지 찾아줌 + RESEARCH 카드 발급
-"내용 분석해줘"          ← 논리·반박·독창성 등 약점 진단 + WRITE 카드 발급
+"flow 평가해줘"          ← 5축 평가 + 필요 논문 진단 + 약점·보강 항목 통합 발급
 ```
 
-(둘 다 또는 하나만 — 보통 둘 다 권장)
+(이전의 `"레퍼런스 분석해줘"` + `"내용 분석해줘"` 두 명령이 통합되었습니다.)
 
 **무엇이 생기나요?**
 
 | 파일 | 무엇 |
 |------|------|
-| `flow/evaluations/evaluation.md` | **종합 진단** — 어디가 약하고 뭘 보강할지 |
-| `work-plan.md` | **할 일 카드** — 다음 명령어가 적힘 |
+| `flow/evaluation.md` | **종합 진단 + 작업 항목** — 5축 채점 + R-NN(레퍼런스 필요)·WRITE 항목까지 한 파일 |
+| `flow/claim-extraction-flow.md` | 문장 단위 주장 분류 + 인용 매칭 (R-NN 식별자) |
+
+> **work-plan.md는 폐기되었습니다.** 별도 카드 파일·card_registry·status JSON 모두 제거. **폴더 자체가 SSOT** — 작업 항목은 evaluation.md 안에서 관리됩니다.
 
 **연구자가 확인하는 것**:
 
 `evaluation.md` 5축 평가:
 - 🟢 충실 / 🟡 적정 / 🟠 보강 필요 / 🔴 구조적 결함 / ⚫ 측정 불가
 
-🔴·🟠가 있으면 그 부분 보강 권고 (work-plan에 카드로 발급됨).
+🔴·🟠가 있으면 evaluation.md의 작업 항목 섹션에 그대로 등재됩니다. 식별자는:
+- **R-NN** (claim-extractor 발급): "이 주장의 인용 논문 찾기" — UNMATCHED 문장
+- **H-NN** (gap-analyzer 발급): research-gap 단계의 가설 항목 (research-plan.md 안)
 
-`work-plan.md`의 카드:
-- `RESEARCH-001`: "이 주장 근거 논문 찾기"
-- `WRITE-005`: "Section 3 보강 필요"
+(이전의 `RESEARCH-NNN`·`WRITE-NNN` 카드 ID 시스템은 **폐기**되었습니다. 작업은 R-NN/H-NN 식별자로 직접 추적합니다.)
 
 **선택지**:
-- 카드를 따라 자동 명령 실행 → ④로
-- 또는 약점이 보이면 **flow.md 직접 수정 → 다시 분석** (이 사이클 여러 번 반복 가능)
+- evaluation.md의 R-NN 항목을 따라 `"리서치 진행해줘"` 실행 → ④로
+- 또는 약점이 보이면 **flow.md 직접 수정 → 다시 평가** (이 사이클 여러 번 반복 가능)
 
 ---
 
@@ -173,17 +259,20 @@ AI 글쓰기 도구의 부상...
 "리서치 진행해줘"
 ```
 
-`work-plan.md`의 RESEARCH 카드들을 자동 실행 → AI가 학술 DB(Consensus)에서 관련 논문을 찾아옵니다.
+`research-gap/research-plan.md`의 H-NN 가설 + `flow/evaluation.md`의 R-NN 항목을 **모두 한 번에** 자동 실행 → AI가 학술 DB(Consensus)에서 관련 논문을 찾아옵니다.
 
 **무엇이 생기나요?**
 
 | 파일 | 무엇 |
 |------|------|
-| `papers/consensus-results.md` | **검색된 논문 목록** + 각각의 평가·인용 강도 |
+| `papers/search-results/research-gap.md` | research-gap 단계 검색 결과 |
+| `papers/search-results/flow.md` | flow 단계 검색 결과 |
+
+(이전의 `consensus-results.md` 단일 파일은 **단계별로 분리**되었습니다. PDF는 단계 공유, 검색·분석은 단계별 frame 분리.)
 
 **연구자가 결정하는 것**:
 
-`consensus-results.md`를 읽고 **어떤 논문을 다운로드할지** 결정합니다. 6 카테고리로 분류되어 있음:
+`search-results/{단계}.md`를 읽고 **어떤 논문을 다운로드할지** 결정합니다. 6 카테고리로 분류되어 있음:
 - 🎯 **최우선**: 핵심 (꼭 다운로드)
 - 🔴 **Steelman**: 본 주장 도전 논문 (반박 재료, 다운로드)
 - 🟢 **보조**: 보완 자료
@@ -198,15 +287,18 @@ AI 글쓰기 도구의 부상...
 
 ### ⑤ PDF 다운로드 (직접 작업)
 
-`consensus-results.md`의 URL을 클릭해 PDF 받은 후:
+`search-results/{단계}.md`의 URL을 클릭해 PDF 받은 후:
 
 ```
-papers/candidates/    ← 이 폴더에 PDF 떨어뜨립니다
+papers/candidates/research-gap/   ← research-gap 단계 입구
+papers/candidates/flow/           ← flow 단계 입구
 ```
+
+(현재 작업 중인 단계에 맞게 떨어뜨립니다. 둘 다에 떨어뜨려도 시스템이 자동으로 둘 다 스캔.)
 
 파일명은 어떻든 상관없습니다 — 다음 단계에서 자동 정규화됩니다.
 
-> 💡 사용자가 *consensus 검색에 없는* 논문을 직접 추가해도 됩니다 (예: 지도교수 추천 논문). 시스템이 다음 단계에서 자동으로 분류·분석에 추가해줍니다.
+> 💡 사용자가 *Consensus 검색에 없는* 논문을 직접 추가해도 됩니다 (예: 지도교수 추천 논문). 시스템이 다음 단계에서 자동으로 분류·분석에 추가해줍니다.
 
 **다음**: ⑥ 논문 처리
 
@@ -218,24 +310,32 @@ papers/candidates/    ← 이 폴더에 PDF 떨어뜨립니다
 "논문 처리해줘"
 ```
 
-이 한 명령이 다 해줍니다:
+이 한 명령이 두 candidates 폴더(research-gap·flow)를 **자동 스캔**해 처리합니다:
 1. PDF 정규화 (이름 통일) + 중복 제거
 2. PDF 본문 추출 (시스템 내부)
-3. consensus-results와 매핑 → **자동 중요도 분류** (anchor / 일반)
-4. 각 논문 분석
+3. search-results와 매핑 → **자동 중요도 분류**
+4. 각 논문 분석 — **단계 frame에 맞춰 분기**:
+   - research-gap 단계 PDF → `[R]` (gap 발견용) 또는 `[D]` (비판 frame)
+   - flow 단계 PDF → `[A]` (anchor) 또는 `[N]` (normal)
 
 **무엇이 생기나요?**
 
 ```
 papers/
-├── collected/{Author_Year}.pdf       ← 정규화된 PDF 원본 (그래프·표 확인용)
+├── collected/{Author_Year}.pdf       ← 정규화된 PDF 원본 (단일, 단계 공유 — 그래프·표 확인용)
 └── analyzed/
-    ├── [A].논문이름.md                ← Anchor (핵심 논문, 깊은 분석)
-    └── [N].논문이름.md                ← Normal (보조 논문, 간단 분석)
+    ├── research-gap/
+    │   ├── [R].논문이름.md            ← research-gap frame 분석
+    │   └── [D].논문이름.md            ← 비판·dialectic frame
+    └── flow/
+        ├── [A].논문이름.md            ← Anchor (핵심 논문, 깊은 분석)
+        └── [N].논문이름.md            ← Normal (보조 논문, 간단 분석)
 ```
 
-**파일명 표시**:
-- `[A]` = **Anchor** (consensus 🎯 또는 🔴 — 본 글의 핵심 자료)
+> **PDF는 단일 hub**: `collected/`에 한 번만 보관. 같은 논문을 다른 frame으로 분석하고 싶으면 `"이 논문 flow anchor로 분석해줘 X"` 같은 명령으로 별도 frame 분석을 추가 생성합니다.
+
+**파일명 표시 (flow 단계)**:
+- `[A]` = **Anchor** (search-results 🎯 또는 🔴 — 본 글의 핵심 자료)
 - `[N]` = **Normal** (보조 — 가볍게 인용)
 
 **[A] 논문 분석에 들어있는 내용** (~300줄):
@@ -259,11 +359,11 @@ papers/
 
 | 하고 싶은 것 | 어디서 |
 |------------|--------|
-| 인용문 정확한지 확인 | `papers/analyzed/[A].이름.md` ("인용 가능" 섹션) |
+| 인용문 정확한지 확인 | `papers/analyzed/flow/[A].이름.md` ("인용 가능" 섹션) |
 | 그래프·표·이미지 확인 | `papers/collected/이름.pdf` (PDF 원본 직접 열기) |
 | 방법론 디테일 확인 | `papers/collected/이름.pdf` (Methods 섹션) |
-| 저자 가정·한계 점검 | analyzed.md "다른 anchor 대비" + collected/ 원문 |
-| 본인 의문·메모 적기 | `analyzed/[A].이름.md` "## 사용자 메모" 섹션 직접 편집 |
+| 저자 가정·한계 점검 | analyzed/flow/[A].md "다른 anchor 대비" + collected/ 원문 |
+| 본인 의문·메모 적기 | `analyzed/flow/[A].이름.md` "## 사용자 메모" 섹션 직접 편집 |
 
 > 💡 **사용자 메모 섹션은 AI가 절대 안 건드립니다**. 자유롭게 적으세요. 다음 분석·초안 작성에서 AI가 본인 메모를 *prior*로 활용합니다 — 메모를 적을수록 글이 본인 색으로.
 
@@ -292,11 +392,12 @@ papers/
 2. **본문 작성**: 승인된 구조대로 작성
 
 **AI가 참조하는 것** (= 이전 단계의 산출물 활용):
-- `flow.md` (thesis 줄거리)
-- `analyzed/[A].*.md`의 "인용 가능"·"본 글에서 활용" 섹션
-- `analyzed/[N].*.md`의 인용 1-2개
+- `flow/flow.md` (thesis 줄거리)
+- `papers/analyzed/flow/[A].*.md`의 "인용 가능"·"본 글에서 활용" 섹션
+- `papers/analyzed/flow/[N].*.md`의 인용 1-2개
 - 사용자 메모 (있으면)
-- `evaluation.md` 약점 (보강 가이드)
+- `flow/evaluation.md` 약점 (보강 가이드)
+- (research-gap 단계를 거쳤다면) `research-gap/gap-report.md`
 
 **무엇이 생기나요?**
 
@@ -318,32 +419,33 @@ output/
 
 ---
 
-### ⑨ 분석 + 수정 반복 (output 단계)
+### ⑨ 평가 + 수정 반복 (output 단계)
 
 ```
-"레퍼런스 분석해줘"      ← output 인용 충실도
-"내용 분석해줘"          ← output 논리·약점
+"output 평가해줘"        ← 인용 충실도 + 논리·약점 통합 진단
 ```
 
-(현재 output 단계라 자동 적용. flow 다시 분석 X.)
+(이전의 두 명령 `"레퍼런스 분석해줘"` + `"내용 분석해줘"`가 통합되었습니다.)
 
 **무엇이 생기나요?**
 
 | 파일 | 무엇 |
 |------|------|
-| `output/evaluations/evaluation.md` | output 평가 결과 |
-| `work-plan.md` | 새 **WRITE-modify** 카드들 |
+| `output/evaluation.md` | 평가 결과 + 작업 항목(R-NN·WRITE) 통합 |
+| `output/claim-extraction-output.md` | 문장 단위 인용 매핑 |
 
-**카드 처리**:
+**작업 항목 처리**:
+
+evaluation.md의 작업 항목을 보고 직접 명령:
 ```
-"output 03-thesis.md 수정해줘: WRITE-007"
+"output 03-thesis.md 수정해줘: 인용 보강 + 반박 단락 추가"
 ```
 
-→ AI가 카드대로 수정 + **인용 정확성 자동 검증**.
+→ AI가 지시대로 수정 + **인용 정확성 자동 검증**.
 
 **반복 사이클**:
 ```
-분석 → 카드 발급 → 카드 처리 → 분석 → ...
+평가 → evaluation.md 작업 항목 확인 → 수정 → 평가 → ...
 ```
 
 언제 끝내나? `evaluation.md`의 모든 축이 🟢 또는 🟡일 때 (🟠·🔴 없음).
@@ -426,45 +528,61 @@ output/
 ```
 projects/my-essay/
 │
-├── flow/
-│   └── flow.md                       ← ② 본인이 작성하는 줄거리
+├── research-gap/                      ← ⓪ (선택) 분야 anchor 탐색 단계
+│   ├── research-gap.md                ← 본인이 작성 (분야·관심·아는 지형)
+│   ├── research-plan.md               ← gap-analyzer 산출 (H-NN 가설)
+│   └── gap-report.md                  ← gap-synthesizer 산출 (통합 갭)
 │
-├── papers/                            ← 연구자료
-│   ├── candidates/                    ← ⑤ PDF 떨어뜨리는 곳 (입구)
+├── flow/                              ← flow 단계 (글의 thesis·줄거리)
+│   ├── flow.md                        ← ② 본인이 작성하는 줄거리
+│   ├── evaluation.md                  ← ③ 평가 + 작업 항목 통합 (work-plan 폐기)
+│   └── claim-extraction-flow.md       ← 문장 단위 R-NN 매핑
+│
+├── papers/                            ← 연구자료 (단일 hub + 단계별 서브폴더)
+│   ├── candidates/
+│   │   ├── research-gap/              ← ⑤ research-gap 단계 PDF 입구
+│   │   └── flow/                      ← ⑤ flow 단계 PDF 입구
 │   │
-│   ├── collected/                     ← 📚 정규화된 PDF 원본 라이브러리
+│   ├── collected/                     ← 📚 정규화된 PDF 원본 (단일, 단계 공유)
 │   │   └── Author_Year.pdf            ← 그래프·표·방법론 확인 시 여기 직접 열기
 │   │
-│   ├── analyzed/                      ← 📝 논문별 분석 노트 (사용자 ↔ AI 공용)
-│   │   ├── [A].이름.md                ← Anchor (정독 + 메모 추천)
-│   │   └── [N].이름.md                ← Normal (간단 인용 후보)
+│   ├── analyzed/                      ← 📝 단계별 frame 분석 (사용자 ↔ AI 공용)
+│   │   ├── research-gap/
+│   │   │   ├── [R].이름.md            ← gap 발견 frame
+│   │   │   └── [D].이름.md            ← 비판·dialectic frame
+│   │   └── flow/
+│   │       ├── [A].이름.md            ← Anchor (정독 + 메모 추천)
+│   │       └── [N].이름.md            ← Normal (간단 인용 후보)
 │   │
-│   └── consensus-results.md           ← ④ 검색된 논문 목록 (PDF 다운로드 결정용)
+│   └── search-results/                ← ④ Consensus 검색 결과 (단계별 분리)
+│       ├── research-gap.md
+│       └── flow.md
 │
 ├── output/                            ← 본문
 │   ├── 01-introduction.md             ← ⑧ 자동 생성 본문
 │   ├── 02-background.md
 │   ├── ...
-│   └── bibliography.md                ← 10-3 자동 참고문헌
+│   ├── bibliography.md                ← 10-3 자동 참고문헌
+│   ├── evaluation.md                  ← ⑨ output 평가 + 작업 항목
+│   └── claim-extraction-output.md
 │
 ├── final/
-│   └── complete-draft.md              ← 10-4 최종본
+│   ├── complete-draft.md              ← 10-4 최종본
+│   └── evaluation.md                  ← 10-4-1 final 평가
 │
-├── adversarial-review.md              ← 10-1 반박 시뮬 (선택)
-│
-├── work-plan.md                        ← 📋 할 일 카드 (매일 확인)
-│
-└── flow/evaluations/evaluation.md     ← 평가 결과 (분석 후)
+└── adversarial-review.md              ← 10-1 반박 시뮬 (선택)
 ```
+
+> **work-plan.md는 폐기**되었습니다. card_registry·status JSON 모두 제거. **폴더 자체가 SSOT** — 작업 항목은 각 단계의 `evaluation.md`에서 관리됩니다.
 
 > 위 구조에서 **연구자가 자주 보는 곳 (5)**:
 > 1. `flow/flow.md` — 본인 작성·수정
 > 2. `papers/collected/*.pdf` — **PDF 원문 (그래프·표·방법론)**
-> 3. `papers/analyzed/[A].*.md` — 분석 + 메모 추가
+> 3. `papers/analyzed/flow/[A].*.md` — 분석 + 메모 추가
 > 4. `output/*.md` — 본문 검토·수정
-> 5. `work-plan.md` — 할 일 확인
-> 
-> 다른 폴더 (`history/`, `markdown/`, `.research-raw/` 등)는 시스템 내부. 신경 안 써도 됩니다.
+> 5. `flow/evaluation.md` (또는 `output/evaluation.md`) — 평가·작업 항목 확인
+>
+> 다른 폴더 (`history/`, `.research-raw/` 등)는 시스템 내부. 신경 안 써도 됩니다.
 
 ---
 
@@ -488,12 +606,12 @@ projects/my-essay/
 ### 글이 잘 안 풀릴 때
 
 ```
-"내용 분석해줘"
+"flow 평가해줘"   (또는 "output 평가해줘")
 ```
 
 → 5축 평가가 약점을 정확히 진단. 그 진단 기반으로:
 - flow.md (또는 output) 직접 수정
-- 또는 발급된 카드 처리
+- 또는 evaluation.md의 작업 항목(R-NN·H-NN) 따라 진행
 
 ### 특정 논문 더 깊이 보고 싶을 때
 
@@ -505,16 +623,24 @@ projects/my-essay/
 
 ### 영감이 떠올랐을 때 — 메모만 추가
 
-`papers/analyzed/[A].이름.md` 직접 열고 `## 사용자 메모` 섹션에 자유 작성. AI는 안 건드리고 다음 작업에서 prior로 활용.
+`papers/analyzed/flow/[A].이름.md` 직접 열고 `## 사용자 메모` 섹션에 자유 작성. AI는 안 건드리고 다음 작업에서 prior로 활용.
 
 ### 새 논문이 추가됐을 때 (지도교수 추천 등)
 
-PDF를 `candidates/`에 떨어뜨리고:
+PDF를 `candidates/flow/` (또는 `candidates/research-gap/`)에 떨어뜨리고:
 ```
 "논문 처리해줘"
 ```
 
-→ 자동으로 분류·분석 + consensus에 합쳐짐.
+→ 두 candidates 폴더 자동 스캔 + 단계 frame에 맞춰 분류·분석.
+
+### research-gap 논문을 flow 단계에 활용하고 싶을 때
+
+```
+"이 논문 flow anchor로 분석해줘 Smith_2024"
+```
+
+→ research-gap 단계의 [R] 분석을 기반으로 flow 관점의 [A] 분석을 추가 생성. PDF는 `collected/`에 이미 있으니 재다운로드 X.
 
 ### flow.md를 큰 폭으로 바꿨을 때
 
@@ -528,22 +654,31 @@ PDF를 `candidates/`에 떨어뜨리고:
 
 ## 📜 명령어 빠른 참조
 
-### 매일 쓰는 5개
+### 매일 쓰는 6개
 
 | 명령 | 언제 |
 |------|------|
 | `"X 프로젝트 만들어줘"` | 처음 시작 |
-| `"레퍼런스 분석해줘"` / `"내용 분석해줘"` | flow.md/output 작성 후 |
-| `"리서치 진행해줘"` | RESEARCH 카드 자동 실행 |
-| `"논문 처리해줘"` | PDF 받은 후 분류·분석 |
+| `"flow 평가해줘"` / `"output 평가해줘"` | flow.md / output 작성 후 (5축 평가 + 작업 항목 통합) |
+| `"리서치 진행해줘"` | research-gap·flow plan의 미해결 H/R 모두 검색 |
+| `"논문 처리해줘"` | PDF 받은 후 자동 분류·분석 (두 candidates 폴더) |
 | `"현재 상태"` / `"작업 추천해줘"` | 매일 시작·막혔을 때 |
+| `"final 평가해줘"` | 최종 통합 후 (holistic / coursework / dissertation) |
 
-### 가끔 쓰는 9개
+### research-gap 단계 (선택)
+
+| 명령 | 언제 |
+|------|------|
+| `"리서치 갭 분석해줘"` | research-gap.md 작성 후 → research-plan.md 발급 |
+| `"갭 리포트 만들어줘"` | analyzed/research-gap/ 분석 후 통합 갭 리포트 |
+| `"이 논문 flow anchor로 분석해줘 X"` | research-gap 논문을 flow anchor로 격상 |
+
+### 가끔 쓰는 8개
 
 | 명령 | 언제 |
 |------|------|
 | `"초안 작성해줘"` | flow 다 됐을 때 (자동 output 진입) |
-| `"output X.md 수정해줘: WRITE-NNN"` | 카드대로 수정 |
+| `"output X.md 수정해줘: [지시]"` | 평가 항목 따라 수정 |
 | `"논문 재분석해줘"` | flow.md 큰 변경 후 |
 | `"비판적으로 분석해줘 X"` | 특정 논문 깊은 비판 |
 | `"적대적 리뷰 해줘"` | 글 끝 — 학파별 반박 |
@@ -557,13 +692,13 @@ PDF를 `candidates/`에 떨어뜨리고:
 ## ❓ 자주 묻는 질문
 
 **Q. AI가 만든 분석을 직접 수정해도 되나요?**
-A. **됩니다.** `papers/analyzed/[A].이름.md`를 에디터로 열고 자유롭게 수정·메모 추가. AI는 다음 분석에서 사용자 변경을 존중합니다. 특히 `## 사용자 메모` 섹션은 AI가 절대 안 건드립니다.
+A. **됩니다.** `papers/analyzed/flow/[A].이름.md`를 에디터로 열고 자유롭게 수정·메모 추가. AI는 다음 분석에서 사용자 변경을 존중합니다. 특히 `## 사용자 메모` 섹션은 AI가 절대 안 건드립니다.
 
 **Q. PDF 원문을 봐야 할 때 어떻게 하나요?**
 A. `papers/collected/{Author_Year}.pdf` 를 PDF 리더(Preview·Acrobat·Skim 등)로 직접 엽니다. 그래프·표·이미지·방법론 디테일은 원문에서만 보입니다.
 
-**Q. consensus 검색에 없는 논문을 추가하고 싶어요.**
-A. `papers/candidates/`에 PDF 떨어뜨리고 `"논문 처리해줘"`. 시스템이 자동으로 (a)(b)(c) 주석 + 카테고리 분류 후 consensus에 합쳐줍니다 (MANUAL 처리).
+**Q. Consensus 검색에 없는 논문을 추가하고 싶어요.**
+A. 현재 작업 단계의 candidates 폴더 (`papers/candidates/research-gap/` 또는 `papers/candidates/flow/`)에 PDF 떨어뜨리고 `"논문 처리해줘"`. 시스템이 단계 frame에 맞춰 자동 분류·분석.
 
 **Q. AI가 잘못된 인용을 만들면?**
 A. ⑩-2 `"인용 확인해줘"` 가 자동으로 잡습니다. 또는 사용자가 paper 분석 파일을 직접 수정해도 됩니다.
@@ -572,16 +707,19 @@ A. ⑩-2 `"인용 확인해줘"` 가 자동으로 잡습니다. 또는 사용자
 A. 아니요. `"리서치 시작해"`, `"논문 좀 찾아줘"`, `"이 글 어디가 약한지 봐줘"` 같은 자연어로도 알아듣습니다.
 
 **Q. flow.md를 잘 못 쓰겠어요.**
-A. `flow/FLOW-TEMPLATE.md` 가이드 참고. 또는 한 문단만 써놓고 `"내용 분석해줘"` → AI가 약점 알려주면 그 기반으로 보강.
+A. `skills/FLOW-TEMPLATE.md` 가이드 참고. 또는 한 문단만 써놓고 `"flow 평가해줘"` → AI가 약점 알려주면 그 기반으로 보강. thesis가 흐릿하면 ⓪ research-gap 단계부터 시작해도 좋습니다.
+
+**Q. research-gap 단계는 꼭 거쳐야 하나요?**
+A. 아니요, **선택입니다.** thesis가 이미 명확하면 바로 ②부터 시작하세요. 분야 anchor를 잘 모르거나 thesis가 흐릿할 때만 ⓪ research-gap을 추천합니다.
 
 **Q. PDF가 분석 안 됩니다.**
 A. 빈 PDF·손상 PDF는 자동으로 격리됩니다. 다른 PDF로 다시 시도.
 
 **Q. output 단계로 갔는데 flow를 더 보강하고 싶어요.**
-A. flow.md는 그대로 두고 `"flow 업데이트해줘"`를 호출하세요. flow-refiner가 변경 제안을 만들고 승인 후 반영합니다. 그 후 `"flow 평가해줘"`로 다시 분석 가능합니다.
+A. flow.md는 그대로 두고 `"flow 업데이트해줘"`를 호출하세요. flow-refiner가 변경 제안을 만들고 승인 후 반영합니다. 그 후 `"flow 평가해줘"`로 다시 평가 가능합니다.
 
-**Q. 카드(work-plan)가 너무 많이 쌓여요.**
-A. 정상입니다. 한꺼번에 다 처리할 필요 X. `"작업 추천해줘"`로 우선순위 높은 것부터.
+**Q. 작업 항목이 너무 많이 쌓여요.**
+A. 정상입니다. 한꺼번에 다 처리할 필요 X. `"작업 추천해줘"`로 우선순위 높은 것부터. 작업 항목은 각 단계의 `evaluation.md`에서 관리됩니다 (work-plan 별도 파일 X).
 
 **Q. 백업은 자동인가요?**
 A. 네. 시스템이 변경 직전 `history/` 폴더에 자동 백업합니다. 망쳐도 복구 가능 (필요 시 AI에 `"이전 버전 보여줘"`).
@@ -615,8 +753,8 @@ A. 네. 시스템이 변경 직전 `history/` 폴더에 자동 백업합니다. 
 > **연구자는 평소처럼 읽고·메모하고·생각합니다. AI는 검색·일차 분석·인용 정리를 대신해 시간을 벌어줍니다. 글의 방향과 최종 판단은 항상 연구자.**
 
 핵심 5가지만 기억:
-1. `"X 프로젝트 만들어줘"` 시작
+1. `"X 프로젝트 만들어줘"` 시작 (thesis가 흐릿하면 → `"리서치 갭 분석해줘"`로 ⓪부터)
 2. `flow.md` 줄글로 작성
-3. `"레퍼런스 분석해줘"` + `"내용 분석해줘"` → 약점 진단·논문 검색
-4. PDF 다운로드 → `"논문 처리해줘"` → `analyzed/[A]` 정독·메모 추가
-5. `"초안 작성해줘"` → 분석·수정 반복 → 마무리
+3. `"flow 평가해줘"` → 약점 진단·필요 논문 R-NN 발급 (한 명령에 통합)
+4. PDF 다운로드 → `"논문 처리해줘"` → `analyzed/flow/[A]` 정독·메모 추가
+5. `"초안 작성해줘"` → `"output 평가해줘"` 반복 → `"final 평가해줘"`로 마무리

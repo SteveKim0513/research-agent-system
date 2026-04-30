@@ -126,7 +126,7 @@
 
 **구현**:
 - `claim-extractor`가 Over-claim / Under-claim 경고 생성
-- `gap-finder`가 방법론·응용·데이터·이론·시간 5종 Gap 탐색으로 사각지대 노출
+- `output-gap-finder`가 방법론·응용·데이터·이론·시간 5종 Gap 탐색으로 사각지대 노출
 - `peer-reviewer` Mode A가 심사자 페르소나로 "이 주장에 대한 반대 증거는?" 시뮬레이션
 
 ---
@@ -209,7 +209,7 @@ Top-tier 저널 심사자의 핵심 태도는 "이 주장이 틀렸다면 어떻
 **구현**:
 - `writing-architect` Conclusion 전략: "What Next?" 섹션 필수
 - `peer-reviewer` Mode A가 한계 처리 품질 평가
-- `gap-finder`가 발견한 분야 Gap을 한계 섹션과 연결
+- `output-gap-finder`가 발견한 분야 Gap을 한계 섹션과 연결
 
 #### 3-4. Reviewer Attack Surface — 심사자 예상 공격 대응
 
@@ -410,23 +410,39 @@ mode 옵션 사용 시 기존 6-axis·holistic·claim-extractor 모두 skip — 
 연구는 선형적이지 않습니다. 초안 쓰다 논문 더 찾기, 평가 보고 flow 재설계, 챕터 수정 중 근본 재검토. 이 모든 전이를 **안전하게** 지원:
 
 - **output/archive/**: 덮어쓰기 전 자동 스냅샷 → 구버전 복구 가능
-- **{stage}/history/{stage}/evaluations/**: 평가 스냅샷 → delta 추적
+- **{stage}/history/**: 평가·flow·output 스냅샷 → delta 추적
 - **papers/archived/**: 논문 제거 시 보관 → dangling citation 자동 탐지
-- **analyzed/*.md의 v1/v2/v3 append 모드**: 재분석 시 덮어쓰지 않음 → 분석 진화 이력 보존
+- **analyzed/{단계}/*.md의 v1/v2/v3 append 모드**: 재분석 시 덮어쓰지 않음 → 분석 진화 이력 보존
 - **.sync-state.json**: 아티팩트 간 의존성 추적 → stale 자동 감지 + priority 기반 순차 해소
 
 ---
 
 ## 🏛 시스템 설계 철학
 
-### 1. Single Source of Truth (SSOT)
+### 1. Single Source of Truth (SSOT) — 폴더 자체가 SSOT
 
 각 정보는 **한 곳에만** 있어야 한다. 중복은 불일치의 원천.
 
 - `flow.md`: RQ·Thesis·논증 구조의 SSOT
-- `analyzed/*.md`: 각 논문의 섹션별 인용 재료 SSOT
-- `{stage}/evaluations/latest/`: 현재 평가 상태 SSOT
+- `analyzed/{단계}/*.md`: 각 논문의 단계 frame별 인용 재료 SSOT
+- `{stage}/evaluation.md`: 현재 단계의 평가 + 작업 항목 통합 SSOT
 - `.sync-state.json`: 아티팩트 간 관계 SSOT
+
+**근본 원칙 — "폴더가 SSOT"** (2026-04-30 리팩터):
+- 별도 status/manifest 파일을 두지 않는다. 파일 존재·이름·구조 자체가 상태를 나타낸다.
+- 예: `analyzed/research-gap/[R].Smith_2024.md`가 존재하면 → 이 논문은 research-gap frame으로 분석되었다는 사실 자체.
+- main agent는 매번 폴더를 **스캔**해 분기. stage flag 같은 별도 추적 변수를 두지 않는다.
+
+**왜 stage flag 추적을 폐기했나**:
+- stage flag(`current_stage: flow`)는 **파일 시스템과 별개의 상태**를 만들어 sync 어긋남의 원천이 됐다.
+- 사용자가 폴더를 직접 편집하거나(예: candidates/에 PDF 추가) 다른 단계 작업과 병행하면 flag가 거짓을 말한다.
+- 폴더를 매번 스캔하는 비용 < flag 거짓말로 인한 디버깅 비용.
+
+**왜 work-plan.md를 폐기했나** (2026-04-30):
+- **사용자가 안 보는 파일**: 관찰 결과 사용자는 evaluation.md를 보고 직접 수정 명령을 내린다. work-plan.md는 중간 산출물에 그쳤다.
+- **카드 lifecycle 복잡성**: ready → in_progress → blocked → completed 상태 + card_registry dedup + reactivation 이력 — 4계층 추적이 필요해 코드가 비대해졌다.
+- **이중 SSOT 위험**: evaluation.md의 작업 항목과 work-plan.md의 카드가 동기화 어긋날 때 어느 것이 진실인지 불명.
+- **해결**: 작업 항목을 evaluation.md 안에 통합. 식별자는 claim-extractor의 R-NN, gap-analyzer의 H-NN으로 단순화. R-NN/(자연어 권고) 카드 ID 시스템 폐기.
 
 ### 2. Automatic Invalidation
 
@@ -467,7 +483,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 | 모델 | 대상 작업 | 에이전트 예시 |
 |------|----------|-------------|
 | **opus** | 심사자 엄격도 판단·패러다임 분석·글쓰기 품질 결정·Critical Reading | evaluation-orchestrator, axis2-logic-scorer, axis3-defense-scorer, axis4-originality-scorer, axis6-critical-scorer, **final-holistic-reviewer, final-coursework-evaluator, final-dissertation-evaluator, coursework 위원회 5인 (marker-1, marker-2, third-marker, external-examiner, chair)**, critical-companion, writing-architect, output-editor, output-en-translator, flow-refiner, peer-reviewer, **paper-analyst anchor 분석 (+ Mode C critique_target)** |
-| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst non-anchor 분석 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-checker, axis1-reference-scorer, axis5-concept-scorer, gap-finder, methodology-advisor |
+| **sonnet** | 구조화된 분석·규칙 기반 검증·카운팅 | **paper-analyst non-anchor 분석 + Mode B 재분석** (frontmatter 기본값), claim-extractor, citation-checker, axis1-reference-scorer, axis5-concept-scorer, output-gap-finder, methodology-advisor |
 | **haiku** | 기계적·대량·저창의 작업 | abstract-translator, **paper-analyst Pass 1 (triage)** |
 
 **판단 기준**:
@@ -481,6 +497,34 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 - **axis1 (sonnet)**: Coverage·Accuracy·Authority·Balance는 claim-extraction 집계 + PDF spot-check로 규칙 기반. 대부분 카운팅 + 간단 대조이므로 sonnet 충분.
 - **axis2·3·4·6 (opus)**: 논증 품질·반박 질·독창성·비판적 시각은 미묘한 판단을 요구 — sonnet으로 다운그레이드 시 감점 사유 식별 품질 하락.
 - **axis5 (sonnet)**: 정의 존재·조작화·경계·범주형 여부는 체크리스트 기반. 판단보다 구조 확인이 주.
+
+### 5b. research-gap 단계의 분리 (2026-04-30 신설)
+
+**왜 research-gap을 별도 단계로 분리했나**:
+
+원래 시스템은 사용자가 **이미 thesis를 가진 상태**에서 시작한다고 가정했다 (flow.md 작성). 그러나 실제 학위논문·에세이 작성 초기에는:
+
+- thesis가 흐릿하다 (분야의 어디에 기여할 수 있는지 모름)
+- 분야의 anchor(핵심 논문·논쟁 지점)를 파악 못 한 상태에서 thesis를 쓰면 → orthodox 재진술이 되거나, 이미 답이 있는 질문을 묻는다
+- "분야 지도 그리기"와 "thesis 정련"은 **다른 인지 작업**이다 — 전자는 발산적 탐색, 후자는 수렴적 결정
+
+**해결**: thesis 형성 *전*의 분야 anchor 탐색 단계를 별도 폴더로 분리.
+
+```
+research-gap/                       (선택, opt-in)
+├── research-gap.md                 — 사용자 작성 (분야·관심·아는 지형)
+├── research-plan.md                — gap-analyzer 산출 (H-NN 가설)
+└── gap-report.md                   — gap-synthesizer 산출 (통합 갭)
+```
+
+**이 단계의 frame이 flow와 다른 이유**:
+- research-gap 분석은 `[R]` (gap 발견) / `[D]` (비판·dialectic) — *분야가 어디서 막혔나*에 집중
+- flow 분석은 `[A]` (anchor) / `[N]` (normal) — *내 thesis를 어떻게 뒷받침하나*에 집중
+- 같은 논문이 두 frame에서 다른 측면을 드러낸다. 그래서 PDF는 단일 hub(`collected/`)에 두고, 분석만 단계별 서브폴더(`analyzed/{단계}/`)로 분리.
+
+**격상 메커니즘**: research-gap에서 분석한 핵심 논문을 flow 단계 anchor로 사용하고 싶을 때 `"이 논문 flow anchor로 분석해줘 X"` — PDF 재다운로드 없이 frame만 새로 분석.
+
+**왜 opt-in인가**: 모든 사용자가 thesis 흐릿한 상태로 시작하지는 않는다. thesis가 명확한 사용자에게 research-gap을 강제하면 불필요한 작업. 사용자가 자기 상태에 맞게 선택.
 
 ### 6. Prose over Template
 
@@ -523,7 +567,7 @@ flow.md 변경 → analyzed/ RESEARCH(reanalyze) 권장
 | **output-editor** | 기존 구조 보존 + writing 원칙 유지 + commitment 충돌 검증 | 수정 과정의 구조 붕괴, commitment 후퇴 |
 | **flow-refiner** | 4-2 Novelty Positioning, 3-1 Steelman 보강 | Novelty 드리프트 |
 | **citation-checker** | 1-2 Accuracy (PDF 원문 대조) | #1 Over-claim (실시간 탐지), misattribution |
-| **gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
+| **output-gap-finder** | 1-4 Balance (disconfirming evidence 발굴) | #9 Confirmation bias |
 | **methodology-advisor** | (empirical 전용) 방법론 정당화 | 방법론 임의 선택 |
 | **peer-reviewer** | 3-1 Steelman, 3-4 Reviewer Attack Surface, Iconoclast (timidity 지적) | #2 Strawman, reject 유발 major issue, 자기 배신 미탐지 |
 | **abstract-translator** | 모델 라우팅 (원칙 5a): 번역은 haiku에 위임 | 메인 opus 세션의 기계적 번역 낭비 |
@@ -746,8 +790,10 @@ archive를 통해 과거 상태 **조회**는 가능하되 **자동 복원**은 
 이 시스템은 **좋은 논문이 되기 위한 모든 고려사항**을 다음 세 층위로 구현합니다:
 
 1. **철학 층 (이 문서)**: 왜 이 기준들이 좋은 논문의 본질인가
-2. **평가 층 (`evaluations/`)**: 이 기준들을 어떻게 측정하고 작업 지시서로 환원하는가
-3. **실행 층 (12 에이전트 + sync 시스템)**: 이 지시를 어떻게 안전하게 반복·개선하는가
+2. **평가 층 (`{stage}/evaluation.md`)**: 이 기준들을 어떻게 측정하고 작업 항목으로 환원하는가 (work-plan 별도 파일 폐기, evaluation.md 내 통합)
+3. **실행 층 (서브에이전트 + sync 시스템)**: 이 지시를 어떻게 안전하게 반복·개선하는가
+
+**4 단계 흐름**: `research-gap (선택)` → `flow` → `output` → `final`. 각 단계는 자체 폴더가 SSOT — 별도 stage flag·status 추적 없음.
 
 사용자가 시스템을 의심할 때 — "왜 이 에이전트가 이걸 지적하지?", "왜 이 순서로 해야 하지?" — 답은 대부분 이 문서 안에 있습니다. 이 시스템을 잘 쓰는 유일한 방법은 **top-tier 저널 심사자처럼 생각하는 것**이며, 이 문서는 그 사고의 지도입니다.
 

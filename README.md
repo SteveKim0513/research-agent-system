@@ -53,7 +53,7 @@ Claude Code 스킬로 동작하며, 줄글(prose)로 쓴 flow를 문장 단위�
 **논문 처리 통합 (1)**: paper-analyst (단순화 v3 — 정규화·markdown 캐시 → anchor 선언 → 분기 분석)
 **생성·수정 (5)**: paper-analyst (anchor opus / non-anchor sonnet / Mode B 재분석 / Mode C critique_target), writing-architect, output-editor, flow-refiner, citation-checker
 **Critical Mode 전용 (1)**: critical-companion (axis6-critical-scorer가 축 6 심사 담당)
-**보조 (3)**: gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
+**보조 (3)**: output-gap-finder, methodology-advisor, peer-reviewer (Iconoclast 페르소나 포함)
 **유틸리티 (1)**: abstract-translator (haiku — RESEARCH·PDF abstract 한글 번역)
 **출고 번역 (1)**: output-en-translator (opus — 완성된 한글 chapter를 학술 영어로, 인용·hedging 보존)
 
@@ -123,12 +123,18 @@ Claude에서:
 > "my-essay 프로젝트 만들어줘"
 ```
 
-그다음 `projects/my-essay/flow/flow.md`를 열어 자유 줄글로 연구 방향을 작성하고:
+**4 단계 흐름**: `research-gap (선택)` → `flow` → `output` → `final`. 분야 anchor 탐색이 필요하면 research-gap부터, thesis가 이미 잡혔으면 flow부터 시작.
+
 ```
-> "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"      ← 5축 평가 + 작업지시서 생성
-> "리서치 진행해줘" ← RESEARCH 과제 자동 Consensus 검색
-> "새 논문 처리해줘" ← PDF 처리 + 심층 분석
-> "초안 작성해줘" ← writing-architect가 구조 설계 → 초안
+> "리서치 갭 분석해줘"   ← (선택) research-gap.md → research-plan.md (분야 anchor 탐색, H-NN 발급)
+> "리서치 진행해줘"      ← 두 plan(research-gap·flow)의 미해결 H/R 모두 Consensus 검색
+> "논문 처리해줘"        ← papers/candidates/{research-gap,flow}/ PDF 자동 스캔 → collected/ + analyzed/{research-gap,flow}/
+> "갭 리포트 만들어줘"   ← (research-gap) analyzed/research-gap/[R][D].*.md → gap-report.md
+> "이 논문 flow anchor로 분석해줘 X"  ← research-gap에서 분석한 논문을 flow anchor로 추가 분석 ([A] 분석 생성)
+> "flow 평가해줘"        ← 5축 평가 + 다음 액션·미해결 R-NN을 evaluation.md에 통합
+> "초안 작성해줘"        ← writing-architect가 구조 설계 → 초안
+> "output 평가해줘"      ← 인용·논리 통합 진단
+> "final 평가해줘"       ← holistic / coursework / dissertation 모드
 ```
 
 **빠른 사용법은 [GUIDE.md](./GUIDE.md) (3분) 참고.**
@@ -148,7 +154,11 @@ research-agent/
 ├── skills/
 │   ├── SKILL.md              (메인 스킬 정의)
 │   ├── FLOW-TEMPLATE.md      (줄글 flow 작성 가이드)
-│   └── agents/               (20개 에이전트)
+│   ├── RESEARCH-GAP-TEMPLATE.md  (research-gap.md 작성 가이드 — 분야 anchor 탐색 단계)
+│   ├── GAP-REPORT-FORMAT.md      (gap-report.md 포맷 스펙)
+│   ├── EVALUATION-FORMAT.md      (evaluation.md 포맷 스펙)
+│   ├── BLIND-PROTOCOL.md         (평가 anchoring 차단 규약)
+│   └── agents/               (서브 에이전트)
 │       ├── evaluation-orchestrator.md
 │       ├── claim-extractor.md
 │       ├── axis1-reference-scorer.md ~ axis6-critical-scorer.md
@@ -160,13 +170,16 @@ research-agent/
 │       ├── coursework-third-marker.md         ← 위원회 모드 blind tie-breaker
 │       ├── coursework-external-examiner.md    ← 위원회 모드 cross-field
 │       ├── coursework-chair.md                ← 위원회 모드 final 결정
+│       ├── gap-analyzer.md                    ← 🆕 research-gap.md 분해 → research-plan.md (H-NN 발급)
+│       ├── gap-paper-analyst.md               ← 🆕 갭 frame 논문 분석 ([R][D])
+│       ├── gap-synthesizer.md                 ← 🆕 통합 갭 리포트
 │       ├── critical-companion.md         (Critical Mode — Socratic 질문)
-│       ├── paper-analyst.md              (단순화 v3 — anchor/non-anchor 이진)
+│       ├── paper-analyst.md              (단순화 v3 — anchor/non-anchor 이진, flow anchor [A]/[N])
 │       ├── writing-architect.md
 │       ├── output-editor.md
 │       ├── flow-refiner.md
 │       ├── citation-checker.md
-│       ├── gap-finder.md
+│       ├── output-gap-finder.md
 │       ├── methodology-advisor.md
 │       ├── peer-reviewer.md              (+ Iconoclast persona)
 │       ├── abstract-translator.md        (영→한 abstract, haiku)
@@ -174,7 +187,7 @@ research-agent/
 ├── scripts/                   (시스템 스크립트 — sync·평가 delta/aggregator·논문 triage·마이그레이션·활동 로그)
 │   ├── sync_state.py          (아티팩트 sync 상태·스냅샷)
 │   ├── evaluation_delta.py    (stage-aware 축별 stale 감지)
-│   ├── evaluation_aggregator.py (axis 리포트 → evaluation.md + work-plan 대시보드)
+│   ├── evaluation_aggregator.py (axis 리포트 → evaluation.md 단일 갱신)
 │   ├── paper_reanalysis_delta.py (flow 변경 기반 영향 논문 필터)
 │   ├── activity_log.py + activity_log_async.sh (활동 로그·hook)
 │   ├── research_postcheck.py      (RESEARCH 4-stage 파이프라인 검증)
@@ -182,23 +195,23 @@ research-agent/
 │   └── archive/               (일회성 migration: migrate_v2, backfill_axis_tags, rename_to_full_title)
 ├── projects/                  (사용자 작업 공간 — gitignore)
 │   └── {project-name}/
-│       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + history/)
-│       ├── output/          (0N-*.md + claim-extraction-output.md 통합 + history/{chapter_id}/)
-│       ├── work-plan.md       (RESEARCH·WRITE 단일 ID 발급처)
-│       ├── history/work-plan/ (변경 시에만 스냅샷)
-│       ├── activity.log                (📓 모든 명령 자동 로그)
+│       ├── research-gap/      🆕 (선택) 분야 anchor 탐색 단계 — research-gap.md + research-plan.md + gap-report.md + history/
+│       ├── flow/              (flow.md + FLOW-TEMPLATE.md + claim-extraction-flow.md + evaluation.md + history/)
+│       ├── output/            (0N-*.md + claim-extraction-output.md + evaluation.md + history/{chapter_id}/)
+│       ├── activity.log       (📓 모든 명령 자동 로그)
 │       ├── {stage}/critical/questions.md       (🎭 사용자가 답하는 Socratic 질문)
-│       ├── history/{stage}/critical/ (🎭 질문·답변 버전 히스토리)
+│       ├── history/{stage}/critical/           (🎭 질문·답변 버전 히스토리)
 │       ├── {stage}/critical/commitments.md     (🎭 답변에서 자동 추출한 actionable 사양)
-│       ├── history/{stage}/critical/ (🎭 commitment 상태 히스토리)
-│       ├── evaluations/       (latest/ + archive/{NNN}/ + manifest.json 증분)
-│       ├── papers/            (candidates/ + collected/ + analyzed/ + archived/
-│       │                       + .research-raw/      — Stage A MCP 원본 JSON (SSOT)
-│       │                       + .translations/  — Stage B haiku 한글 번역
-│       │                       + .curation/      — Stage C 6-카테고리 curation per RESEARCH
-│       │                       + .context-pack.md — workers 공용 입력
-│       │                       + consensus-results.md — Stage D concat + 누적 요약
-│       │                       + consensus-results.archive/ 주요 버전 스냅샷)
+│       ├── papers/            (단일 hub + 단계별 서브폴더)
+│       │   ├── candidates/{research-gap,flow}/  ← PDF 입구 (단계별)
+│       │   ├── collected/                       ← 정규화 PDF (단일, 단계 공유)
+│       │   ├── analyzed/{research-gap,flow}/    ← 단계별 frame 분석 ([R][D] gap / [A][N] flow)
+│       │   ├── search-results/{research-gap,flow}.md  ← Consensus 검색 결과 (단계별)
+│       │   ├── archived/                        ← 제거된 PDF 보관
+│       │   ├── .research-raw/      — Stage A MCP 원본 JSON (SSOT)
+│       │   ├── .translations/      — Stage B haiku 한글 번역
+│       │   ├── .curation/          — Stage C 6-카테고리 curation per RESEARCH
+│       │   └── .context-pack.md    — workers 공용 입력
 │       └── final/
 ├── install.sh
 ├── README.md                  (이 파일 — 설치·개요)
