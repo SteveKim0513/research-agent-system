@@ -57,13 +57,13 @@ flow.md는 **자유로운 줄글**로 작성하세요. 구조적 템플릿을 �
 
 ## 📋 작성 후 흐름
 
-1. `flow.md` 작성 완료 → **"flow 레퍼런스 분석해줘"** + **"flow 내용 분석해줘"** 입력
+1. `flow.md` 작성 완료 → **"flow 평가해줘"** 입력
 2. 시스템이 자동으로:
-   - 문장 단위 주장 추출 (claim-extractor)
+   - 문장 단위 주장 추출 (claim-extractor → R-NN 식별)
    - 5축 냉정 평가 (evaluation-orchestrator가 axis1~6 scorer 병렬 디스패치 → aggregator 집계)
-   - `evaluation.md` + `work-plan.md` 생성
-3. `work-plan.md` 확인 후 **"리서치 진행해줘"** 입력
-4. 시스템이 work-plan.md의 RESEARCH 과제 목록을 따라 Consensus 자동 검색
+   - `flow/evaluations/latest/evaluation.md` 생성 (다음 액션 + 미해결 R-NN + WRITE 권고 통합)
+3. `evaluation.md` 검토 후 **"리서치 진행해줘"** 입력
+4. 시스템이 미해결 R-NN을 따라 Consensus 자동 검색 → `papers/search-results/flow.md`
 
 ---
 

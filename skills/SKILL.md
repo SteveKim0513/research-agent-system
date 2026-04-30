@@ -10,18 +10,25 @@ description: "Academic research project management with AI agents. Creates proje
 ## 전체 작업 흐름 (5축 평가 기반)
 
 ```
-[프로젝트 생성 + flow.md 작성]
+[프로젝트 생성]
    ↓
-[🎯 평가해줘] ← 5축 냉정 평가 + 작업 계획서 생성 (핵심 진입점)
+[(opt-in) research-gap.md 작성 → 갭 탐색 → anchor 발견]
+   ↓
+[flow.md 작성]
+   ↓
+[🎯 flow 평가해줘] ← 5축 냉정 평가 (핵심 진입점)
    ↓
 ┌──────────┬──────────┬──────────┬──────────┐
 │ 📚 리서치 │ ✍️ 1차작성 │ 🔧 수정   │ ✅ 최종  │
-│ Stage 1  │ Stage 2  │ Stage 3  │ Stage 4  │
+│ flow      │ output    │ output   │ final    │
 └──────────┴──────────┴──────────┴──────────┘
-   ↑ 각 단계 완료 후 [🎯 평가해줘] 재실행하여 진척 확인
+   ↑ 각 단계 완료 후 [🎯 {stage} 평가해줘] 재실행하여 진척 확인
 ```
 
-**핵심 원칙**: flow.md가 완성되면 반드시 `평가해줘`를 먼저 실행한다. 평가에서 나온 **work-plan.md**가 이후 4단계(리서치→1차작성→수정→최종)의 작업 순서를 결정한다.
+**핵심 원칙**:
+1. (선택) research-gap 단계 — thesis가 아직 형성 중일 때 분야 anchor 탐색 + 갭 발견. 이미 thesis가 명확하면 건너뜀.
+2. flow.md 완성 → `flow 평가해줘` 실행 → `evaluation.md`가 다음 액션을 안내 (work-plan.md는 폐기됨, evaluation.md가 단일 진입 파일).
+3. **폴더 = 진실의 원천(SSOT)**. stage flag 없음. main agent는 매번 폴더를 스캔해 무엇이 있는지 보고 분기.
 
 ## 🧱 Sub-agent 운영 규율
 
@@ -34,12 +41,92 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 5. **간결한 복귀** — 거대한 결과 markdown을 리턴 메시지에 담지 말 것 (context 낭비 + main이 파싱하는 실수 유발). 디스크 경로 + 상태 한 줄만.
 6. **idempotent** — 같은 worker를 재호출해도 같은 결과. 출력 파일이 이미 있으면 skip 또는 덮어쓰기 명시적 결정.
 7. **사용자 승인 폭주 방지** — main이 parallel Agent 호출을 한꺼번에 대량 투입하지 않는다. 3개 이상 parallel은 한 배치씩 나눠서. 각 배치 완료 확인 후 다음 배치.
-8. **파일 쓰기 원자성** — `.curation/RESEARCH-NNN.md`, `.translations/RESEARCH-NNN.md`, `.research-raw/RESEARCH-NNN.json` 등 최종 출력 파일은 **`.tmp.{pid}` 임시 경로에 먼저 쓴 뒤 `mv`로 원자 교체**. sub-agent 중단 시 반쪽 파일이 남지 않도록. Bash 예시:
+8. **파일 쓰기 원자성** — `.curation/{R-id}.md`, `.translations/{R-id}.md`, `.research-raw/{R-id}.json` 등 최종 출력 파일은 **`.tmp.{pid}` 임시 경로에 먼저 쓴 뒤 `mv`로 원자 교체**. sub-agent 중단 시 반쪽 파일이 남지 않도록. Bash 예시:
    ```bash
-   python3 -c "open('.curation/RESEARCH-001.md.tmp.$$', 'w').write(content)" && \
-     mv .curation/RESEARCH-001.md.tmp.$$ .curation/RESEARCH-001.md
+   python3 -c "open('.curation/R-01.md.tmp.$$', 'w').write(content)" && \
+     mv .curation/R-01.md.tmp.$$ .curation/R-01.md
    ```
    Write 도구로 `.tmp.{pid}` 경로에 쓴 뒤 Bash `mv`로 교체. 또는 Python `tempfile.NamedTemporaryFile(dir=target_dir) + os.replace`. post-check(`research_postcheck.py`)가 부분 파일 탐지하면 재실행 유도.
+
+## 💬 사용자 인터페이스 패러다임 — GPT 대화창처럼
+
+사용자는 이 시스템을 **GPT 대화창 쓰듯** 사용합니다 — 자연어로 의도 표현, 응답에서 다음 단계 힌트 자연스럽게 받음, 명령어 외우지 않음. main agent는 이를 다음 운영 원칙으로 지원합니다.
+
+### 1. 자연어 의도 매칭 (rigid pattern X, intent extraction O)
+
+사용자 발화 → 의도 파싱 → 작업 분기. 정확한 명령어가 아니어도 의도가 명확하면 진행.
+
+| 사용자 발화 (예시) | 의도 추출 → 작업 |
+|---|---|
+| "이거 어떻게 보강해야 할까?" | 현재 단계 evaluation.md 안 봤으면 → 평가 / 봤으면 → 추천 |
+| "근거 좀 더 찾아줘" | "리서치 진행해줘" 동등 |
+| "이 부분 좀 다듬어줘 X" | output-editor (대상 자동 추론) |
+| "비판 받고 싶어" | 비판 시뮬 3종 선택지 (§비판 시뮬 활용 가이드) |
+| "어디까지 왔지?" | 진척 라인 + 다음 권장 |
+| "갭 한번 보고 싶다" | 폴더 컨텍스트로 분기 (research-gap 진입 / output-gap-finder / 선택지) |
+
+### 2. 응답 끝 진척 라인 자동 출력 ⭐
+
+**모든 작업 완료 응답 끝에** main agent가 다음 1-2줄을 자동 부착. 사용자가 별도 `"현재 상태"` 명령 없이도 *항상 위치*를 인지하도록.
+
+**형식**:
+```
+📍 {stage 진척} · {축별 핵심 상태}
+👉 다음 권장: {백틱 명령 또는 자연어 힌트} — {짧은 이유}
+```
+
+**예시**:
+```
+📍 research-gap ✓ · flow 평가 ✓ (🟠 axis3) · output 미진입 · final 미진입
+👉 다음 권장: "리서치 진행해줘" — R-04·R-07·R-12 미해결 (axis1 보강)
+```
+
+```
+📍 flow 작성 중 (101자) · 평가 미실행
+👉 다음 권장: flow.md를 좀 더 채운 후 "평가해줘" — RQ·thesis 1문장씩 명시 권고
+```
+
+```
+📍 output 평가 ✓ (🟢 모든 축) · final 미진입
+👉 다음 권장: "최종 완성했어" — 통합본 머지 후 final 평가 가능
+```
+
+**진척 라인 산출 규칙** (main agent 매 응답 시):
+1. `research-gap/research-gap.md` 존재? → research-gap ✓ / 없음
+2. `flow/flow.md` 100자 이상 + `flow/evaluations/latest/evaluation.md` 존재? → flow 평가 ✓ + 최저 axis 상태 / 미실행
+3. `output/0N-*.md` 1개 이상? + output 평가? → output 진척 표시
+4. `final/complete-draft.md` 존재? → final 표시
+5. **다음 권장 우선순위**:
+   - 미해결 R-NN/H-NN 있음 → "리서치 진행해줘"
+   - candidates에 PDF 있음 → "논문 처리해줘"
+   - evaluation에 🔴/🟠 있음 → 해당 축 보강 (자연어 힌트)
+   - 모든 축 🟢/🟡 → 다음 stage 진입 권유
+   - 막힌 곳 없음 → "현재 잘 진행 중"
+
+**제외 대상** (진척 라인 안 붙이는 응답):
+- 정보 조회만 (예: "현재 상태", "버전 체크" — 이미 진척이 본문)
+- 단순 질문 답변 (작업 수행 X)
+- 에러·blocked 응답 (이미 다음 행동 본문에)
+
+### 3. 모호 시 conversational confirmation (선택지 대신 질문)
+
+기계적인 선택지보다 자연어 확인:
+- ❌ "어느 작업을 의도하셨나요? 1. flow 평가 / 2. output 평가"
+- ✅ "지금 flow.md 보강 후 첫 평가인 것 같은데, flow 평가로 진행할까요? 아니면 output 쪽인가요?"
+
+진짜 모호할 때만. 폴더 컨텍스트로 자명하면 그냥 진행 + 진척 라인에 무엇 했는지 표시.
+
+### 4. 응답 톤 — 대화체 유지
+
+- ❌ rigid 시스템 메시지 ("⚠️ 단계를 명시해주세요")
+- ✅ 친근한 대화체 ("flow 쪽 평가 진행할게요. 결과는 evaluation.md에 정리됩니다.")
+- 사용자가 *작업 도구*가 아닌 *대화 상대*로 느끼도록
+
+### 5. 결과를 응답 안에 충분히
+
+매번 사용자가 evaluation.md를 *열어야* 알 수 있게 강요 X. 핵심 결과 (verdict, 시급한 약점 1-3개, 다음 권장)는 응답 본문에 요약. 상세는 파일 참조.
+
+---
 
 ## 🎯 핵심 데이터 흐름 — writing-spec.md 중심
 
@@ -74,7 +161,7 @@ generated_at: {ISO}
 round: N
 based_on:
   flow_md_hash: {hash}
-  generative_outputs: [thesis-developer, cross-paper-insight-finder, steelman-dialectic, field-positioning-oracle]
+  generative_outputs: [thesis-developer, output-cross-paper-insights, steelman-dialectic, field-positioning-oracle]
   adversarial: outline-critique + chapter-critique
   peer-review: peer-review-simulation
   user_answers: feedback.md (이전 round)
@@ -185,31 +272,35 @@ final/
 3. 답변 작성 → "다음 단계 진행" → writing-spec carry-over → 자동 revise
 4. (반복) → "완성본 만들어줘" → final/
 
-## 🚫 단방향 진행 원칙 (flow → output, 역방향 금지)
+## 🚫 단방향 진행 원칙 (research-gap → flow → output → final, 역방향 금지)
 
-프로젝트는 두 단계: **flow 단계** (논증 구조·연구 질문·thesis outline) → **output 단계** (실제 chapter 작성·수정).
+프로젝트는 4 단계: **research-gap** (선택, 분야 anchor 탐색·갭 발견) → **flow** (논증 구조·연구 질문·thesis outline) → **output** (실제 chapter 작성·수정) → **final** (통합본).
+
+폴더가 곧 단계 — 폴더의 존재·내용으로 무엇이 진행 중인지 결정. **stage flag 추적 안 함**.
 
 ### 절대 규칙
 
-**output 단계 진입 후 flow.md 수정 X**.
+**다음 단계 진입 후 이전 단계 작성 파일 수정 X**.
 
 - output 단계 진입 = `output/`에 chapter 파일 존재 OR `초안 작성해줘` 명령으로 진입
 - 그 시점부터 `flow/flow.md`는 *frozen* — agent·main agent 모두 *수정 권장 X·실제 수정 X*
+- 마찬가지로 flow 단계 진입 후 `research-gap/research-gap.md`도 *frozen*
 - 수정 가이드·diff 제안·"flow.md 업데이트하시겠어요?" 같은 권유 모두 **금지**
 
 ### 왜 단방향인가
 
-1. **버전 관리 일관성** — flow → output → final 누적 진행. output 작성 중 flow 변경하면 chapter들의 base가 흔들림.
+1. **버전 관리 일관성** — research-gap → flow → output → final 누적 진행. 후속 단계 작성 중 이전 단계 변경하면 base가 흔들림.
 2. **Generative phase 결과 처리 명확성** — thesis-developer / cross-paper-insight / steelman-dialectic / field-positioning 산출은 *output 단계 input*. flow에 반영하지 않고 직접 작성에 활용.
-3. **사용자 의도 보호** — flow 단계에서 사용자가 정한 thesis structure를 작성 중간에 LLM이 흔들지 않음.
+3. **사용자 의도 보호** — 이전 단계에서 사용자가 정한 구조를 후속 작성 중간에 LLM이 흔들지 않음.
 
-### 산출물 위치 표준
+### 산출물 위치 표준 (폴더가 SSOT)
 
 | 단계 | 산출 위치 |
 |------|---------|
-| flow 단계 | `flow/flow.md`, `flow/claim-extraction-flow.md`, `flow/critical/critical-questions.md`, `flow/critical/archive/{date}-{trigger}/` |
+| research-gap (opt-in) | `research-gap/research-gap.md`, `research-gap/research-plan.md`, `research-gap/gap-report.md`, `papers/candidates/research-gap/`, `papers/analyzed/research-gap/[R]\|[R][D].*.md`, `papers/search-results/research-gap.md` |
+| flow 단계 | `flow/flow.md`, `flow/claim-extraction-flow.md`, `flow/critical/critical-questions.md`, `flow/critical/archive/{date}-{trigger}/`, `papers/candidates/flow/`, `papers/analyzed/flow/[A]\|[N].*.md`, `papers/search-results/flow.md` |
 | output 단계 | `output/0N-{section}.md`, `output/00-positioning.md`, `output/generative/{agent}.md` (internal), `output/outline-critique.md`, `output/chapter-critique-0N.md`, `output/peer-review-simulation.md`, `output/claim-extraction-output.md`, `output/critical/critical-questions.md`, `output/critical/archive/{date}-{trigger}/` |
-| Cross-stage | `critical-commitments.md` (프로젝트 루트, 양 단계에서 누적) |
+| Cross-stage | `critical-commitments.md` (프로젝트 루트, 양 단계에서 누적), `papers/collected/{Author_Year}.pdf` (모든 단계 공유 PDF), `activity.log` |
 | 최종 | `final/complete-draft.md`, `final/complete-draft.docx` |
 
 ### Critical 파일 단계별 분리
@@ -238,6 +329,7 @@ final/
 - **adversarial-reviewer**: critique는 chapter 수정 input. flow.md 수정 X.
 - **peer-reviewer**: simulated review는 chapter revision 권장. flow.md 수정 X.
 - **flow-refiner**: 유일하게 flow.md 수정 가능 — 단 *flow 단계*에서만. `flow 업데이트해줘` 명령은 output 단계에서 reject.
+- **gap-analyzer / gap-paper-analyst / gap-synthesizer**: research-gap 단계 전용. flow 단계 진입 후 호출 안 됨.
 
 ## 🚫 실행 중 리팩터링 금지 원칙
 
@@ -257,10 +349,12 @@ final/
 
 **≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
 
-- `평가해줘` — claim-extract → 축별 dispatch → aggregator → (stage=final 한정) final-holistic-reviewer → delta mark-done → sync update → work-plan 갱신 (≥6 단계 / final은 +1)
-- `리서치 진행해줘` (RESEARCH) — raw 캐시 → MCP 실행 → 번역 → consensus-results 갱신 → post-check → claim-extraction/work-plan 갱신 (≥6 단계). RESEARCH 자체가 실행 단위 (claim-extractor가 이미 R을 병합해 제안).
-- `새 논문 처리해줘` — triage → tier 분배 → paper-analyst × N → sync update (≥4 단계)
-- `초안 작성해줘` — (옵션) generative phase (thesis-developer / cross-paper-insight-finder / steelman-dialectic / field-positioning-oracle) → writing-architect Phase 0/1 → adversarial-reviewer (Phase 1.5) → writing-architect Phase 2 (chapter별) + adversarial-reviewer (Phase 2.5) + output-editor (자동 수정) → peer-reviewer (Phase 3) → claim-extract → 평가 (≥6 단계)
+- `{stage} 평가해줘` — claim-extract → 축별 dispatch → aggregator → (stage=final 한정) final-holistic-reviewer → delta mark-done → sync update → evaluation.md 갱신 (≥6 단계 / final은 +1)
+- `리서치 갭 분석해줘` (research-gap 진입) — research-gap.md 검증 → gap-analyzer → research-plan.md 작성 → claim-extraction에 H-NN 등록 (≥3 단계)
+- `리서치 진행해줘` — 두 plan 폴더 스캔 (research-gap·flow) → 미해결 R/H 발견 시 사용자 1회 확인 → raw 캐시 → MCP 실행 → 번역 → search-results/{stage}.md 갱신 → post-check → claim-extraction 갱신 (≥6 단계).
+- `논문 처리해줘` — `papers/candidates/{research-gap,flow}/` 양쪽 스캔 → 각 폴더 PDF triage → tier 분배 → 폴더에 따라 gap-paper-analyst (research-gap) / paper-analyst (flow) × N → sync update (≥4 단계)
+- `갭 리포트 만들어줘` — `papers/analyzed/research-gap/[R][D].*.md` 1개 이상 확인 → gap-synthesizer → research-gap/gap-report.md (≥2 단계)
+- `초안 작성해줘` — (옵션) generative phase (thesis-developer / output-cross-paper-insights / steelman-dialectic / field-positioning-oracle) → writing-architect Phase 0/1 → adversarial-reviewer (Phase 1.5) → writing-architect Phase 2 (chapter별) + adversarial-reviewer (Phase 2.5) + output-editor (자동 수정) → peer-reviewer (Phase 3) → claim-extract → 평가 (≥6 단계)
 - `Chapter X 수정해줘` — snapshot → output-editor → citation-checker → claim-extract (≥4 단계)
 - `flow 업데이트해줘` — snapshot → flow-refiner → 사용자 승인 → 반영 → 평가 (≥4 단계)
 - `영어로 번역해줘` (출고 단계) — 사전 조건 점검 (writing-architect Phase 2 + adversarial-reviewer + output-editor + citation-checker 통과) → output-en-translator dispatch (chapter별 ≤4 병렬) → 영문 파일 저장 (`output/en/*.en.md`) (≥3 단계)
@@ -345,7 +439,7 @@ claim-extractor는 *평가의 input*. 평가 명령 (`평가해줘`)에서만 �
 - `snapshot-flow {P} pre-refine` — flow-refiner가 사용자 승인 직전
 - `snapshot-output {P} pre-redraft {chapter}` — output 전면 재작성 직전
 - `snapshot-evaluation {P} pre-respin` — 평가 시스템 큰 변경 전 (manifest 기반 증분)
-- `snapshot-work-plan {P} {trigger}` — work-plan 큰 재구성 전
+- `snapshot-research-gap {P} pre-replan` — research-plan.md 재생성 직전
 
 **Critical 질문 자동 재생성 규칙** (always-on, ambition 무관):
 
@@ -368,14 +462,16 @@ ambition은 **강도 조절**만 (게이트 X):
 | `critical-questions.md` mtime > `critical-commitments.md` mtime | `"답변 반영해줘"` 자동 → critical-companion Phase 6 호출 | `critical-commitments.md` 갱신·신규 생성 |
 | `초안 작성해줘` / `Chapter X 수정해줘` 실행 직전 | 위 mtime 비교 prehook → 필요 시 Phase 6 | commitment 최신화 후 실제 작업 진행 |
 
-**RESEARCH·WRITE ID 단일 발급**: claim-extractor는 UNMATCHED를 식별하고 PROPOSAL 라벨로 제안. evaluation-orchestrator가 호출한 `evaluation_aggregator.py`가 **RESEARCH registry (`papers/.registry.json`)** 를 single source of truth로 사용해 번호 발급 + 중복 방지 + completed 관리 수행. claim-extraction 파일의 PROPOSAL 라벨을 확정 ID로 치환.
+**R-NN 식별자 (단순화)**: claim-extractor가 UNMATCHED를 식별하고 R-01, R-02… 로 번호 부여. work-plan.md·card_registry·R-NN/WRITE-NNN ID 시스템은 **모두 폐기**. R-NN은 `claim-extraction-{stage}.md` 파일 안에 그대로 보존되며, 같은 R이 다음 평가에서 재식별되면 같은 번호로 매칭(자연어 dedup_key — claim 텍스트 정규화 기반).
 
-**Card registry 동작** (WORK-PLAN-FORMAT.md §4.2 참조):
-- **2-domain SSOT**: `projects/{P}/papers/.registry.json` (RESEARCH) + `projects/{P}/output/.registry.json` (WRITE). 각각 `card_type` + mode 조합으로 dedup.
-- **중복 방지**: 정규화 dedup_key가 일치하는 기존 카드 있을 시 (a) 활성이면 skip (b) completed면 reactivation
-- **RESEARCH mode=search 완료 시 work-plan에서 삭제**: 🟢 Recent completed 섹션 도달 후 다음 aggregator 실행 시 work-plan에서 완전 제거 (4-stage curation 산출물이 별도 파일에 남음). 그 외 카드(reanalyze/create/modify)는 work-plan 보존.
-- **Reactivation**: completed 카드와 동일 dedup_key가 재제안되면 자동 부활 (status=ready + work-plan 재삽입 + reactivated_count 증가)
-- **CLI**: `python3 scripts/card_registry.py {list|stats|bootstrap|issue} {PROJECT} <research|write>`
+**검색 dedup**:
+- `papers/search-results/{stage}.md`에 R-NN 섹션이 이미 있으면 같은 R 재검색 skip
+- `papers/analyzed/{stage}/[A]\|[N]\|[R]\|[R][D].{Author_Year}.md` 존재 → 같은 PDF 재분석 skip
+- 폴더 자체가 dedup state. 별도 registry JSON 없음.
+
+**research-gap 단계의 H-NN**:
+- gap-analyzer가 H-01, H-02… 형태로 가설 식별. `research-gap/research-plan.md`에 보존.
+- 같은 H가 재식별되면 같은 번호 유지. 새 H면 다음 번호.
 
 ## 🔒 프로젝트 컨텍스트 규약 (세션 추적)
 
@@ -398,7 +494,7 @@ ambition은 **강도 조절**만 (게이트 X):
 - `mode_manager` 폐기와 같은 원칙: hidden state 추측 대신 명시 신호 강제.
 
 **프로젝트 격리 보장**:
-- 디스크 수준: 각 `projects/{X}/` 폴더가 자기 papers·flow·output·final·work-plan·registry를 가짐 — 폴더 간 cross-contamination 없음.
+- 디스크 수준: 각 `projects/{X}/` 폴더가 자기 research-gap·flow·output·final·papers를 가짐 — 폴더 간 cross-contamination 없음. 폴더 = SSOT (registry·work-plan 같은 별도 state 파일 없음).
 - 명령 수준: 위 우선순위로 라우팅 → conversation 컨텍스트가 깨지지 않는 한 추적 유지.
 
 **옛 버전 프로젝트 폴더 가져왔을 때**:
@@ -415,142 +511,136 @@ python3 scripts/migrate_project.py {PROJECT}
 
 또는 사용자가 `"프로젝트 마이그레이션해줘 {P}"`라고 말하면 Claude가 위 명령을 실행. 이미 최신 구조면 모든 단계 skip 메시지로 끝남.
 
-## work-plan.md 사용 사이클 (공통)
+## evaluation.md 사용 사이클 (공통, work-plan 대체)
 
-`projects/{P}/work-plan.md`는 **현재 해야 할 일 + 담당 명령 + 진행 로그**의 단일 소스입니다. 모든 명령이 이 파일을 참조·갱신합니다. **포맷 규율은 `skills/WORK-PLAN-FORMAT.md` 필수 준수**.
+`projects/{P}/{stage}/evaluations/latest/evaluation.md`가 사용자 진입 단일 파일입니다. work-plan.md는 **폐기**. 평가 결과·다음 액션·축별 상태·미해결 RESEARCH 항목·WRITE 권고가 모두 이 파일에 통합. **포맷 규율은 `skills/EVALUATION-FORMAT.md` 필수 준수**.
 
-### 명령어 체계 (분석 / 실행 / 메타, 9종)
+### 명령어 체계
 
-| 카테고리 | 명령어 | 동작 | 카드 발급 |
-|---------|-------|------|----------|
-| **분석** | `"flow 레퍼런스 분석해줘"` ≡ `"flow 레퍼런스 평가해줘"` | flow/flow.md 문장 분석 + axis1 → flow/evaluations/latest/axis1 | RESEARCH (search/reanalyze) |
-| **분석** | `"flow 내용 분석해줘"` ≡ `"flow 내용 평가해줘"` | flow/flow.md axis2~6 → flow/evaluations/latest/axis{2-6} | WRITE (create/modify) |
-| **분석** | `"output 레퍼런스 분석해줘"` ≡ `"output 레퍼런스 평가해줘"` | output/*.md 문장 분석 + axis1 → output/evaluations/latest/axis1 | RESEARCH |
-| **분석** | `"output 내용 분석해줘"` ≡ `"output 내용 평가해줘"` | output/*.md axis2~6 → output/evaluations/latest/axis{2-6} | WRITE |
-| **분석** | `"final 레퍼런스 분석해줘"` ≡ `"final 레퍼런스 평가해줘"` | final/complete-draft.md 문장 분석 + axis1 → final/evaluations/latest/axis1 + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md (통합본 부재 시 에러) | RESEARCH |
-| **분석** | `"final 내용 분석해줘"` ≡ `"final 내용 평가해줘"` | final/complete-draft.md axis2~6 → final/evaluations/latest/axis{2-6} + **final-holistic-reviewer**(통합 adjudication) → holistic-review.md + work-plan WRITE 카드에 holistic_verdict 부여 | WRITE (verdict 게이팅) |
-| **분석** | `"final 평가해줘 --mode coursework"` | Oxford Coursework rubric (8 criteria × 6-band) — `final-coursework-evaluator` 단독 LLM 채점 → coursework-evaluation.md. 빠름(~3분). | — |
-| **분석** | `"final 평가해줘 --mode coursework --committee"` | 위 rubric + **5인 페르소나 위원회 절차** (PDF §3.3): Marker 1·2 blind → reconciliation → Third Marker → External → Chair → coursework-committee-evaluation.md + committee/*.md. 적중률↑, 시간·토큰 ~5×. | — |
-| **분석** | `"final 평가해줘 --mode dissertation"` | Oxford MSc Education **Dissertation** rubric (10 criteria × 6-band, methodology stack 포함) — `final-dissertation-evaluator` 단독 → final/evaluations/latest/dissertation-evaluation.md. 기존 6-axis·holistic 미사용. | — (work-plan 미관여) |
-| **실행** | `"리서치 진행해줘"` | work-plan의 RESEARCH 카드만 실행 (search + reanalyze 모두) | — |
-| **실행** | `"논문 처리해줘"` | 단순화 v2: 수집·정규화·markdown 캐시 → anchor 선언 (대화형) → 분기 분석 (anchor 깊은 / non-anchor 가벼운) | — |
-| **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) | — |
-| **실행** | `"비판적으로 분석해줘 X"` | critique_target=true → analyzed/{X}.md에 비판 섹션 추가 (Mode C) | — |
-| **실행** | `"초안 작성해줘"` | flow → output 신규 작성 (WRITE create 카드 처리) | — |
-| **실행** | `"output {파일명} 수정해줘: WRITE-NNN"` | WRITE modify 카드 처리 | — |
-| **실행** | `"최종 완성했어"` ≡ `"최종 완성해줘"` | output/*.md → final/complete-draft.md 머지 (`finalize_draft.py`). final/ 폴더는 이때만 생성 | — |
-| **실행** | `"적대적 리뷰 해줘"` | adversarial-reviewer 학파별 반박 시뮬 → adversarial-review.md | — |
-| **실행** | `"인용 확인해줘"` | citation_check output ↔ analyzed/*.md 정합성 → output/.citation-check-report.md | — |
-| **실행** | `"참고문헌 만들어줘"` | analyzed/*.md frontmatter → bibliography.md (APA/MLA/Chicago/BibTeX) | — |
-| **메타** | `"현재 상태"` | 폴더 상태·진행도·버전/싱크 한눈 출력 | — |
-| **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 | — |
-| **메타** | `"프로젝트 마이그레이션해줘 {P}"` ≡ `"프로젝트 정리해줘 {P}"` | 옛 버전 폴더(`.current-mode` / `chapters/` / `evaluations/latest/` 잔존)를 v3.2 구조로 정리. `scripts/migrate_project.py` 호출. 멱등 — 이미 최신이면 모두 skip. `--dry-run` 옵션 지원 | — |
-| **Flow 보강** | `"flow 업데이트해줘"` | flow-refiner interactive diff (사용자 승인 후 즉시 반영, 카드 없음) | — |
+| 카테고리 | 명령어 | 동작 |
+|---------|-------|------|
+| **research-gap (opt-in)** | `"리서치 갭 분석해줘"` | research-gap.md → gap-analyzer → research-plan.md (가설 H-NN별 anchor 검색 계획) |
+| **research-gap** | `"갭 리포트 만들어줘"` | analyzed/research-gap/[R][D].*.md 통합 → gap-synthesizer → gap-report.md |
+| **분석** | `"flow 평가해줘"` | flow/flow.md 통합 평가 (claim-extractor + axis1~6 병렬 + aggregator) → flow/evaluations/latest/evaluation.md |
+| **분석** | `"output 평가해줘"` | output/*.md 통합 평가 → output/evaluations/latest/evaluation.md |
+| **분석** | `"final 평가해줘"` | final/complete-draft.md 6-axis + final-holistic-reviewer (통합 adjudication) → final/evaluations/latest/{evaluation,holistic-review}.md (통합본 부재 시 에러) |
+| **분석** | `"final 평가해줘 --mode coursework"` | Oxford Coursework rubric (8 criteria × 6-band) — `final-coursework-evaluator` 단독 → coursework-evaluation.md (~3분) |
+| **분석** | `"final 평가해줘 --mode coursework --committee"` | rubric + 5인 페르소나 위원회 절차 → coursework-committee-evaluation.md + committee/*.md |
+| **분석** | `"final 평가해줘 --mode dissertation"` | Dissertation rubric (10 criteria) — `final-dissertation-evaluator` 단독 |
+| **실행** | `"리서치 진행해줘"` | `research-gap/research-plan.md`(H-NN)·`flow/claim-extraction-flow.md`(R-NN) 양쪽 스캔 → 미해결 발견 시 사용자 1회 확인 후 Consensus 4-stage 파이프라인 → 결과를 `papers/search-results/{stage}.md`에 저장 |
+| **실행** | `"논문 처리해줘"` | `papers/candidates/{research-gap,flow}/` 양쪽 스캔 → research-gap PDF는 gap-paper-analyst, flow PDF는 paper-analyst → `papers/analyzed/{stage}/[R][D]\|[A]\|[N].*.md` |
+| **실행** | `"논문 재분석해줘"` | flow.md 변경 영향 paper에 v2 append (Mode B) |
+| **실행** | `"비판적으로 분석해줘 X"` | critique_target=true → analyzed/{stage}/{X}.md에 비판 섹션 추가 (Mode C) |
+| **실행** | `"이 논문 flow anchor로 분석해줘 Author_Year"` | research-gap 분석된 논문을 flow anchor frame으로 추가 분석 → `papers/analyzed/flow/[A].Author_Year.md` 신규 생성 (research-gap 분석은 보존) |
+| **실행** | `"초안 작성해줘"` | flow → output 신규 작성 |
+| **실행** | `"output {파일명} 수정해줘: ..."` | output-editor 자연어 수정 |
+| **실행** | `"최종 완성했어"` ≡ `"최종 완성해줘"` | output/*.md → final/complete-draft.md 머지 |
+| **실행** | `"적대적 리뷰 해줘"` | adversarial-reviewer 학파별 반박 시뮬 |
+| **실행** | `"인용 확인해줘"` | citation_check output ↔ analyzed/*.md 정합성 |
+| **실행** | `"참고문헌 만들어줘"` | analyzed/*.md frontmatter → bibliography.md |
+| **메타** | `"현재 상태"` | 폴더 스캔 → 진행도·다음 권장 명령 한눈 |
+| **메타** | `"버전 체크"` | 모든 파일 frontmatter version + based_on sync 검증 |
+| **메타** | `"프로젝트 마이그레이션해줘 {P}"` | 옛 버전 폴더 구조 정리 (`scripts/migrate_project.py`) |
+| **Flow 보강** | `"flow 업데이트해줘"` | flow-refiner interactive diff (사용자 승인 후 즉시 반영) |
 
 **중요 원칙**:
 
-1. **명령어 prefix 필수** — `"레퍼런스 분석해줘"` (prefix 없음) 금지. `flow` / `output` / `final` 중 하나 명시 필요. 미입력 시 에러:
-   > "단계를 명시해주세요: `flow`, `output`, 또는 `final`"
+1. **명령어 prefix는 옵션** — 사용자가 `flow` / `output` / `final` 명시 시 의도 우선 사용. 미명시 시 main agent가 폴더 컨텍스트로 자동 추론 (위 §"폴더 자동 추론 + 모호 시 선택지" 참조). 모호하면 1회 선택지 제시.
 
 2. **분석 ≡ 평가**(혼용) — 두 표현 어느 쪽이든 같은 명령으로 인식. 사용자 자연스러운 표현 그대로.
 
-3. **mode 시스템 폐기** — `.current-mode` 파일·`mode_manager.py`·`"output으로 진행"`·`"현재 모드"` 모두 폐기. stage는 명령마다 사용자가 prefix로 명시.
+3. **평가 명령 통합** — 이전의 `"X 레퍼런스 분석해줘"` + `"X 내용 분석해줘"` 두 명령은 **`"X 평가해줘"` 단일**로 통합. 내부적으로 claim-extractor(axis1 input) + axis1~6 병렬 모두 자동 dispatch. 별도 입력 줄일 필요 없음.
 
-4. **`final` stage 사전 조건** — `final/complete-draft.md`가 없으면 `final 평가해줘` 거부. 사용자가 먼저 `"최종 완성했어"`로 통합본을 만들어야 함.
+4. **stage flag 폐기, 폴더가 SSOT** — 명령어 prefix가 폴더를 지정. `mode_manager.py`·`.current-mode` 같은 hidden state 없음.
 
-5. **Final stage 통합 평가 의무 (Coherence Prior)** — `최종 완성했어`로 통합본을 만들었다는 건 사용자가 *"이 글은 한 덩어리로서 정합성·흐름·메시지가 살아있다"*고 선언한 상태. 따라서 final 평가는:
-   - 6축 결과는 *국소 진단*. 그것만으로 work-plan을 actionable로 보지 않음.
+5. **`final` stage 사전 조건** — `final/complete-draft.md`가 없으면 `final 평가해줘` 거부. 사용자가 먼저 `"최종 완성했어"`로 통합본을 만들어야 함.
+
+6. **Final stage 통합 평가 의무 (Coherence Prior)** — `최종 완성했어`로 통합본을 만들었다는 건 사용자가 *"이 글은 한 덩어리로서 정합성·흐름·메시지가 살아있다"*고 선언한 상태. 따라서 final 평가는:
+   - 6축 결과는 *국소 진단*. 그것만으로 actionable로 보지 않음.
    - `final-holistic-reviewer`가 통합본 척추(메시지·thesis·논증 backbone·voice)를 prior로 받아 axis 카드를 adjudicate.
    - 5개 verdict로 분류: 🟢 APPLY · 🟡 APPLY-SCOPED · 🟠 DEFER · 🔵 REROUTE-{output|flow} · 🔴 REJECT(veto).
    - REJECT는 "결함은 있으나 적용 시 척추 net harm" → veto. REROUTE는 "결함이 thesis·구조 수준이라 final 본문 수정으로는 못 고침 → output/flow로 backtrack 필요" → 사용자 결정 사안.
-   - 후속 명령(`Chapter X 수정해줘` 등)은 카드의 `holistic_verdict` 필드를 점검 후 적용. REJECT/DEFER/REROUTE 카드는 사용자 명시 override 없으면 skip.
+   - 후속 명령(`Chapter X 수정해줘` 등)은 evaluation.md의 `holistic_verdict` 필드를 점검 후 적용. REJECT/DEFER/REROUTE 권고는 사용자 명시 override 없으면 skip.
 
-6. **Final 평가 `--mode` 옵션 (Oxford rubric 단독 평가)** — `final 평가해줘`에 `--mode coursework` 또는 `--mode dissertation` 옵션 부착 시:
+7. **Final 평가 `--mode` 옵션 (Oxford rubric 단독 평가)**:
    - 기존 6-axis · holistic-reviewer · claim-extractor · aggregator **모두 skip**
    - 해당 mode evaluator 단독 dispatch — Oxford MSc Education marking rubric 적용
    - 산출: `final/evaluations/latest/{coursework|dissertation}-evaluation.md` (단일 파일)
-   - work-plan 미관여, 카드 미발급 (rubric은 *summative grading*)
    - mode evaluator는 `final/complete-draft.md`만 읽음. analyzed papers·flow·claim-extraction 일절 사용 X.
    - mode 옵션 없는 `final 평가해줘`는 기존 파이프라인 그대로 (6-axis + holistic). 두 모드는 완전 격리.
-   - **언제 사용**: coursework essay·dissertation 제출 직전 채점 시뮬레이션. Distinction/Merit/Pass/Fail 등급 + actionable feedback이 목표일 때.
 
 ⛔ **Blind Protocol (모든 평가에 적용)** — `skills/BLIND-PROTOCOL.md` 준수. 모든 evaluator (axis 1-6 · claim-extractor · final-holistic · mode evaluators · 위원회 5인)는:
    - 같은 session에서 *이전 essay context · prior conversation history* 사용 X
    - 다른 essay와의 *anchoring · comparative reasoning · "한 칸 위/아래 등급"* 식 추론 X
    - 각 mark는 *rubric descriptor 직접 비교*만으로 결정 (어느 descriptor 매칭됐는지 명시)
-   - Width 신호 (refs 수·paradigm 수·beyond-field 언급)만으로 70+/80+ 부여 X — Oxford rubric의 distinguisher는 *depth*
    - **사용자 권고**: 한 conversation session = 한 essay 평가. 여러 essay는 각각 fresh conversation에서 실행
 
-7. **Coursework 위원회 모드 (`--mode coursework --committee`, opt-in)** — Oxford PDF §3.3 절차를 그대로 모델링한 5-Phase 채점:
-   - 5인 페르소나: **Marker 1** (Internal, methods-leaning) · **Marker 2** (Internal, theory-leaning) · **Third Marker** (Senior Generalist, blind 합의 실패 시 발동) · **External Examiner** (cross-field calibration) · **Chair of Examiners** (reconciliation·최종 결정)
-   - 강하게 차별화된 페르소나 — 단일 LLM의 systematic bias를 분극으로 노출 → 적중률 향상 디자인 (election prediction의 multi-source aggregation 원리와 동일)
-   - Phase 1 (blind 병렬) → Phase 2 (reconciliation 자동 판정 — 66/68 자동 / 같은 band discussion / 다른 band escalate) → Phase 3 (Third blind, 조건부) → Phase 4 (External calibration) → Phase 5 (Chair final)
-   - 산출: `coursework-committee-evaluation.md` (메인) + `committee/marker-{1,2}.md`, `third-marker.md`, `external-examiner.md`, `chair-decision.md`
-   - 비용: ~5× token, ~3-4× wall time vs 단일 모드. 제출 직전 정밀 채점 시뮬레이션 시 권장.
-   - 단일 모드 (`--committee` 부재)는 그대로 유지 — 두 모드 산출 파일 분리되어 충돌 없음.
-
-4. **레퍼런스 vs 내용 분리**:
-   - 레퍼런스 분석: 문장↔논문 매칭. claim-extractor + axis1만. **RESEARCH 카드 발급**.
-   - 내용 분석: 논리·반박·독창성·구성개념·비판. axis2~6만. **WRITE 카드 발급**.
-   - 두 작업이 독립이라 사용자가 필요한 것만 선택 호출.
-
-5. **카드는 분석의 산출물** — `card_registry` 경유 자동 발급. 평가 외 시점 단발 발급은 citation-checker/peer-reviewer가 CLI 호출.
+8. **Coursework 위원회 모드 (`--mode coursework --committee`, opt-in)** — Oxford PDF §3.3 절차를 그대로 모델링한 5-Phase 채점:
+   - 5인 페르소나: Marker 1 (methods-leaning) · Marker 2 (theory-leaning) · Third Marker · External Examiner · Chair
+   - Phase 1 (blind 병렬) → Phase 2 (reconciliation) → Phase 3 (Third, 조건부) → Phase 4 (External) → Phase 5 (Chair final)
+   - 산출: `coursework-committee-evaluation.md` + `committee/*.md`
+   - 비용: ~5× token, ~3-4× wall time. 제출 직전 정밀 채점 시뮬레이션 시 권장.
 
 ### 공통 실행 사이클
 
-모든 실행 명령(분석·메타 제외)은 다음 6단계를 따릅니다:
+work-plan 카드 lifecycle은 폐기됨. 모든 실행 명령은 다음 단계:
 
 ```
-① work-plan.md 읽기 → 🟡 Active 중 담당 카드 식별
-② 대상 카드 상태 전환: 🟡 → 🔵 in-progress + 진행 로그 append
-③ 실제 작업 (에이전트 실행)
-④ 결과:
-   - 성공 → 🔵 → 🟢 Recent completed + 결과 요약 로그
-   - 근본 문제 → 🔵 → 🔴 Blocked + 사유 로그
-   - 일시 실패 → 🔵 → 🟡 active + 재시도 메모
-⑤ 대시보드 재계산 (상태별 카운트, Stage 진척도, 축별 잔여, 다음 권장 명령)
-⑥ 필요 시 sync_state.py snapshot-work-plan (내용 변경 시)
+① 폴더 스캔 — 입력 파일·미해결 항목 식별 (예: candidates/{stage}/*.pdf, search-results/*.md, claim-extraction-{stage}.md의 R-NN)
+② 사용자 확인 (필요 시) — 양 폴더에 작업 있을 때 1회 확인
+③ 실제 작업 (에이전트 dispatch)
+④ 결과 파일 작성 — 약속된 경로에 원자 쓰기
+⑤ evaluation.md 갱신 (평가 명령일 때) — 다음 액션 + 축별 상태 + 미해결 R-NN 반영
+⑥ activity.log append
 ```
 
-### 파싱 규칙 (에이전트가 읽을 때)
+### 파싱 규칙
 
-- 🟡 Active 섹션은 `## 🟡 Active` 헤더부터 다음 `---` 또는 `## ` 전까지
-- 카드는 `### [RESEARCH-NNN]` 또는 `### [WRITE-NNN]`로 시작
-- 담당 명령 매칭: 각 카드 내 `**담당 명령**:` 라인의 백틱 안 문자열
-- ID 발급: **반드시 `card_registry.py issue` CLI 또는 모듈 API 경유** (self-grep max+1 금지 — race + dedup 우회)
-
-### 상태 이모지 5종 (고정)
-
-🟡 active · 🔵 in-progress · 🔴 blocked · 🟢 completed · ⚪ deferred
-
-**다른 이모지 사용 금지** (상태 전이 파서가 이 5종만 인식).
+- `claim-extraction-{stage}.md`: `### R-NN —` 헤더로 R 섹션 식별
+- `evaluation.md`: `## 🧭 다음 액션` 섹션 안 백틱 명령 추출
+- `papers/search-results/{stage}.md`: `## R-NN` 헤더로 검색 완료 dedup
+- `papers/analyzed/{stage}/[X].{name}.md`: 파일명 prefix가 분석 진행 상태 (`[R]` 대기 / `[R][D]` 완료 / `[A]` anchor / `[N]` normal)
 
 ### 자세한 포맷 규율
 
-`skills/WORK-PLAN-FORMAT.md` 참조. 모든 에이전트가 work-plan 조작 전 반드시 읽을 것.
+- `skills/EVALUATION-FORMAT.md` — evaluation.md 포맷 (work-plan 대체)
+- `skills/RESEARCH-GAP-TEMPLATE.md` — research-gap.md 작성 가이드
+- `skills/GAP-REPORT-FORMAT.md` — gap-report.md 포맷
+- `skills/FLOW-TEMPLATE.md` — flow.md 작성 가이드
+- `skills/BLIND-PROTOCOL.md` — 평가 blind 프로토콜
 
 ## 에이전트 시스템
 
-이 스킬은 **25개의 에이전트**를 사용합니다. 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
+이 스킬은 **36개의 에이전트**를 사용합니다 (research-gap 단계용 3개 포함). 각 에이전트의 상세 프롬프트와 노하우는 `skills/agents/` 폴더에 정의되어 있습니다. 에이전트를 호출할 때는 해당 파일의 전체 내용을 읽어서 Agent 도구의 prompt에 포함하세요.
 
-**에이전트 분류 (3 차원)**:
-- **Generative agents** (작성 *전* — 새 시각·thesis 발전): thesis-developer / cross-paper-insight-finder / steelman-dialectic / field-positioning-oracle
-- **Reactive writing agents** (작성·수정·리뷰): writing-architect / output-editor / adversarial-reviewer / peer-reviewer / flow-refiner
-- **Analysis·evaluation agents** (분석·평가): paper-analyst / claim-extractor / citation-checker / evaluation-orchestrator + axis 1-6 / final-holistic-reviewer (final stage 전용) / final-coursework-evaluator (--mode coursework) / final-dissertation-evaluator (--mode dissertation) / critical-companion / gap-finder / methodology-advisor / research-processor / abstract-translator
-- **Output translation agents** (출고 영문화): output-en-translator
+**에이전트 분류 (5 카테고리, MECE)**:
+
+1. **🧬 Synthesis** — 줄글 분해·thesis 발전·multi-paper 종합 (8): claim-extractor / gap-analyzer / gap-synthesizer / output-cross-paper-insights / thesis-developer / field-positioning-oracle / methodology-advisor / critical-companion
+2. **✍️ Writing** — 작성·수정·번역 (4): writing-architect / output-editor / flow-refiner / output-en-translator
+3. **⚔️ Critique** — 비판 시뮬 (3, 명령 분리 유지 — 사용자 mental model 보호): adversarial-reviewer (학파별 반박) / peer-reviewer (reviewer 채점) / steelman-dialectic (full dialectic loop)
+4. **🎯 Evaluation** — axis 채점·verdict (15): evaluation-orchestrator + axis 1-6 + final-holistic-reviewer + final-coursework-evaluator + final-dissertation-evaluator + coursework 위원회 5인
+5. **📚 Paper Processing** — PDF·검색·인용 (6): paper-analyst (flow) / gap-paper-analyst (research-gap) / output-gap-finder / research-processor / abstract-translator / citation-checker
+
+**카테고리 원칙**:
+- 단계별로 sweet spot이 다른 작업은 **별도 agent로 분리** (예: paper-analyst ↔ gap-paper-analyst, claim-extractor ↔ gap-analyzer). 통합하지 않음.
+- 통합 X 이유: 분리가 frame leakage 방지·prompt 단순성·sweet spot 최적화·테스트 격리 측면에서 우위.
+- MECE는 **카테고리·이름·문서화**로 달성. 코드 통합으로 달성하지 않음.
 
 **모델 라우팅 원칙**: 작업 성격에 따라 서브에이전트를 다른 모델로 실행하여 비용·속도 최적화. 평가·글쓰기는 opus, 분석·검증은 sonnet, 번역 같은 기계적 작업은 haiku. 각 에이전트 정의 파일의 frontmatter `model` 필드에 기본값 표기. Agent 도구 호출 시 `model` 파라미터로 오버라이드 가능.
 
 | 에이전트 | 파일 | 호출 시점 | 방식 |
 |----------|------|-----------|------|
-| **evaluation-orchestrator** 🎯 | `skills/agents/evaluation-orchestrator.md` | "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" — delta 감지 + 병렬 디스패치 + aggregate | 자동 (평가 진입점) |
+| **gap-analyzer** 🔬 | `skills/agents/gap-analyzer.md` | "리서치 갭 분석해줘" — research-gap.md → H-NN 분해 → research-plan.md (opus). **claim-extractor와 분리 — sweet spot 다름**: gap-discovery frame ("어디에 anchor가 비어 있나?", thesis 형성 *전* 가정) | 수동 (research-gap 진입점) |
+| **gap-paper-analyst** 🔬 | `skills/agents/gap-paper-analyst.md` | research-gap PDF 갭 frame 분석 → [R][D].*.md (opus). **paper-analyst와 분리 — sweet spot 다름**: gap-discovery frame ("이 논문이 *무엇을 안 했나*?", 정량 추출표 8개) | 자동 ("논문 처리해줘"의 research-gap 분기) |
+| **gap-synthesizer** 🔬 | `skills/agents/gap-synthesizer.md` | "갭 리포트 만들어줘" — 모든 [R][D] 통합 → 가설 매트릭스·분포 분석·갭 식별 (opus). **output-cross-paper-insights와 분리 — 분석 목적 정반대**: 이쪽은 *없는 것 찾기*, 그쪽은 *있는 것 찾기 (emergent pattern)* | 수동 |
+| **evaluation-orchestrator** 🎯 | `skills/agents/evaluation-orchestrator.md` | "flow 평가해줘" — delta 감지 + 병렬 디스패치 + aggregate | 자동 (평가 진입점) |
 | **axis1-reference-scorer** | `skills/agents/axis1-reference-scorer.md` | 축 1 레퍼런스 충실도 (sonnet) | 자동 (orchestrator dispatch) |
 | **axis2-logic-scorer** | `skills/agents/axis2-logic-scorer.md` | 축 2 논리 전개 완성도 (opus) | 자동 |
 | **axis3-defense-scorer** | `skills/agents/axis3-defense-scorer.md` | 축 3 반박·강화 논리 (opus, steelman tag 논문) | 자동 |
 | **axis4-originality-scorer** | `skills/agents/axis4-originality-scorer.md` | 축 4 독창성·기여도 (opus, delta tag 논문) | 자동 |
 | **axis5-concept-scorer** | `skills/agents/axis5-concept-scorer.md` | 축 5 구성개념 정의 정밀도 (sonnet) | 자동 |
 | **axis6-critical-scorer** 🎭 | `skills/agents/axis6-critical-scorer.md` | 축 6 비판적 시각 (opus, minority tag 논문, ambition ≥ critical) | 자동 |
-| **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). work-plan WRITE 카드에 `holistic_verdict` 필드·prefix 부여 (opus) | 자동 (final stage orchestrator) |
+| **final-holistic-reviewer** 🛡 | `skills/agents/final-holistic-reviewer.md` | **stage=final 전용**. aggregator 직후 dispatch. 통합본 척추 articulation (Phase A) + 통합 전용 검사 (Phase B) + 6축 카드 adjudication (Phase C, 5 verdict) + protected revision plan (Phase D). evaluation.md WRITE 권고에 `holistic_verdict` prefix 부여 (opus) | 자동 (final stage orchestrator) |
 | **final-coursework-evaluator** 🎓 | `skills/agents/final-coursework-evaluator.md` | **`final 평가해줘 --mode coursework` 한정**. Oxford Coursework rubric (8 criteria × 6-band). `--committee` 없으면 단독 평가, 있으면 5-Phase orchestrator로 작동 (opus) | 자동 (--mode coursework) |
 | **coursework-marker-1** 👤 | `skills/agents/coursework-marker-1.md` | **위원회 모드 한정**. Internal Examiner, methods-leaning 페르소나. Phase 1 blind 채점. 구조·rigour·체계 strict (opus) | 자동 (위원회 Phase 1) |
 | **coursework-marker-2** 👤 | `skills/agents/coursework-marker-2.md` | **위원회 모드 한정**. Internal Examiner, theory-leaning 페르소나. Phase 1 blind 채점. 이론·비판·독창성 strict (opus) | 자동 (위원회 Phase 1) |
@@ -558,20 +648,20 @@ python3 scripts/migrate_project.py {PROJECT}
 | **coursework-external-examiner** 👤 | `skills/agents/coursework-external-examiner.md` | **위원회 모드 한정**. External Examiner 페르소나. Phase 4 cross-field calibration. raw mark 미부여 (opus) | 자동 (위원회 Phase 4) |
 | **coursework-chair** 👤 | `skills/agents/coursework-chair.md` | **위원회 모드 한정**. Chair of Examiners. Phase 5 reconciliation·최종 mark 결정. PDF §3.3 절차 준수 (opus) | 자동 (위원회 Phase 5) |
 | **final-dissertation-evaluator** 🎓 | `skills/agents/final-dissertation-evaluator.md` | **`final 평가해줘 --mode dissertation` 한정**. Oxford MSc Education Dissertation rubric (10 criteria × 6-band, methodology stack 포함). 통합본 단독 평가. 6-axis·holistic·claim-extractor 미사용 (opus) | 자동 (--mode dissertation) |
-| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow.md 문장 주장 추출 (axis1 선행) | 자동 |
-| **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 (stage 마일스톤마다 자동) | 자동/수동 |
-| **paper-analyst** | `skills/agents/paper-analyst.md` | v3.2 — anchor (opus, 깊은) / non-anchor (sonnet, 가벼운) / Mode B 재분석 / Mode C critique_target. 정책 거부 fallback v3.2 (opus → sonnet 강등 정식 step), [X][D] 마커, index_fields, INDEX.md 자동 빌드 | `논문 처리해줘` 진입점 |
+| **claim-extractor** 📝 | `skills/agents/claim-extractor.md` | 줄글 flow/output 문장 주장 추출 → R-NN 식별 (axis1 선행). **gap-analyzer와 분리 — sweet spot 다름**: thesis-supportive frame ("이 주장의 근거는?") | 자동 |
+| **critical-companion** 🤔 | `skills/agents/critical-companion.md` | Socratic 질문 생성 + commitment 추출 (마일스톤마다 자동). **steelman-dialectic과 분리** — 이쪽은 *질문→답변→commitment*, steelman은 *full dialectic loop (critic→답변→재반박→thesis 정교화)* | 자동/수동 |
+| **paper-analyst** | `skills/agents/paper-analyst.md` | flow PDF 분석 (Mode A 분석 / B 재분석 / C 비판). **gap-paper-analyst와 분리 — sweet spot 다름**: thesis-supportive frame (anchor [A]/normal [N], "이 논문을 본 글에 어떻게 활용?") | `논문 처리해줘` 진입점 |
 | **thesis-developer** 🌱 | `skills/agents/thesis-developer.md` | "thesis 발전시켜줘" — implicit assumption·tension·extension·operationalization (generative phase) | 자동/수동 |
-| **cross-paper-insight-finder** 🔍 | `skills/agents/cross-paper-insight-finder.md` | "cross-paper insight 찾아줘" — N편 paper emergent pattern·field-level implicit assumption·citation silence (generative phase) | 자동/수동 |
-| **steelman-dialectic** ⚔️ | `skills/agents/steelman-dialectic.md` | "steelman 해줘" — 최강 critic 구축 + 사용자 답변 + critic 재반박 + thesis 정교화 (generative phase) | 자동/수동 |
+| **output-cross-paper-insights** 🔍 | `skills/agents/output-cross-paper-insights.md` | "cross-paper insight 찾아줘" — output 단계 N편 paper emergent pattern·field-level implicit assumption·citation silence. **gap-synthesizer와 분리 — 정반대 목적**: 이쪽은 *있는 패턴 발견*, 그쪽은 *없는 갭 발견* | 자동/수동 |
+| **steelman-dialectic** ⚔️ | `skills/agents/steelman-dialectic.md` | "steelman 해줘" — 최강 critic 구축 + 사용자 답변 + critic 재반박 + thesis 정교화. **critical-companion과 분리** — 이쪽은 *full dialectic loop*, 그쪽은 *질문→답변→commitment* | 자동/수동 |
 | **field-positioning-oracle** 🧭 | `skills/agents/field-positioning-oracle.md` | "field positioning 분석해줘" — 학파 좌표 + thesis novel positioning 옵션 + 추천 (generative phase, writing-architect Phase 0 직전) | 자동/수동 |
 | **writing-architect** ✍️ | `skills/agents/writing-architect.md` | "초안 작성" Phase 0 (positioning) / Phase 1 (outline) / Phase 1.5 (adversarial review) / Phase 2 (chapter별 작성 + self-critique loop) / Phase 2.5 (chapter critique) / Phase 3 (peer-review 시뮬). Elite Scholarly 패턴 (layered argumentation·counterargument anticipation·quote framing·scholarly voice·novel synthesis·self-critique). | 자동 |
 | **output-editor** ✏️ | `skills/agents/output-editor.md` | "Chapter X 수정해줘" (기존 챕터 국소 수정 + adversarial-reviewer Phase 2.5 결과 자동 적용) | 자동 |
 | **flow-refiner** 📝 | `skills/agents/flow-refiner.md` | "flow 업데이트해줘" (flow.md diff 제안만) | 자동 |
 | **citation-checker** | `skills/agents/citation-checker.md` | chapter 수정 후 자동 + 평가(output/final stage) 자동 체이닝 (Stage별 샘플→전량 escalate) | 자동 |
-| **gap-finder** | `skills/agents/gap-finder.md` | "gap 분석해줘" (분야의 빈틈 탐색) | 수동 |
+| **output-gap-finder** | `skills/agents/output-gap-finder.md` | output 단계 — 분야 빈틈 탐색 (방법론·응용·데이터·이론·시간 5종 Gap). **research-gap 단계의 gap-analyzer/gap-paper-analyst/gap-synthesizer와 분리**: 이쪽은 *output 글*에서 약점 위치 찾기, 그쪽은 *thesis 형성 전*의 분야 anchor 탐색 | 수동 |
 | **methodology-advisor** | `skills/agents/methodology-advisor.md` | "방법론 추천/검증해줘" (empirical 프로젝트 전용) | 수동 |
-| **peer-reviewer** | `skills/agents/peer-reviewer.md` | "리뷰 체크/답변 도와줘" (Iconoclast 페르소나 ambition ≥ critical 시 자동 추가) | 수동 |
+| **peer-reviewer** ⚔️ | `skills/agents/peer-reviewer.md` | **저널 reviewer 채점** 시뮬 + reviewer comment 답변 연습. Iconoclast 페르소나 ambition ≥ critical 시 자동 추가 | 수동 ("리뷰 체크해줘") |
 | **abstract-translator** 🌐 | `skills/agents/abstract-translator.md` | RESEARCH 결과/PDF abstract 한글 번역 (haiku 모델) | 자동 (RESEARCH 단계 2 내장) |
 | **output-en-translator** 🇬🇧 | `skills/agents/output-en-translator.md` | 한글 chapter/output을 학술 영어로 번역 — 인용·hedging·voice 보존, 분야 컨벤션(APA 등) 적용 (opus 모델). 사전 조건: writing-architect Phase 2 + adversarial-reviewer + output-editor + citation-checker 통과 후 | 수동 ("영어로 번역해줘") |
 
@@ -586,6 +676,68 @@ python3 scripts/migrate_project.py {PROJECT}
    - 처리할 대상 파일 경로
 3. Agent 도구로 실행 (독립된 컨텍스트에서 작업)
 4. 결과를 지정된 파일에 저장
+
+### ⚔️ 비판 시뮬 3종 활용 가이드
+
+세 agent는 **비판을 시뮬레이션**하지만 sweet spot이 다릅니다. 단일 명령으로 통합하지 않은 이유: 각자의 활용 시점·결과가 명확히 달라야 사용자가 *언제 무엇을 부를지* 의식적으로 선택 가능 (mental model 보호).
+
+| 상황 | 호출 명령 | Agent | 산출 |
+|---|---|---|---|
+| Section 결론 직전 — *학파별 반박을 미리 막기* | `"적대적 리뷰 해줘"` | adversarial-reviewer | 학파(예: Vygotskyan)별 단락 단위 반박 + 선제 차단 권고 |
+| 출고 직전 — *저널 reviewer가 채점한다면?* | `"리뷰 체크해줘"` | peer-reviewer | reviewer 시뮬 채점 + reviewer comment 답변 연습 |
+| Thesis 정교화 — *가장 강한 반론을 만들어 보강* | `"steelman 해줘"` | steelman-dialectic | full dialectic loop (critic 구축 → 답변 → 재반박 → thesis 정교화) |
+
+main agent가 사용자 의도를 파악하지 못하면 위 표를 기반으로 **선택지 제시**:
+> "비판 시뮬 종류가 3가지인데 어느 것이 필요하신가요?
+> 1. 학파별 반박 (adversarial)
+> 2. reviewer 채점 (peer)
+> 3. thesis 정교화 (steelman)"
+
+### 🤔 critical-companion vs ⚔️ steelman-dialectic 명문화
+
+둘 다 *비판적 사고를 자극*하지만 도구가 다름.
+
+| | critical-companion | steelman-dialectic |
+|---|---|---|
+| 카테고리 | 🧬 Synthesis | ⚔️ Critique |
+| 입력 | flow/output + 직전 평가 | thesis 명제 |
+| 출력 | 질문 리스트 + commitment 추출 | full dialectic loop (critic 답변 재반박) |
+| 호출 | 마일스톤 자동 (initial / post-research / post-draft / pre-final) | 사용자 명시 (`"steelman 해줘"`) |
+| 사용자 부담 | 답변 작성 → commitment 자동 추출 | dialectic 라운드 참여 |
+| 결과 파일 | `critical/critical-questions.md` + `critical-commitments.md` | `output/.internal/generative/steelman-dialectic.md` |
+
+→ **둘은 다른 도구. 통합 안 함**.
+
+### 🗺 폴더 자동 추론 + 모호 시 선택지 (사용자 인터페이스 핵심)
+
+**원칙**: 사용자는 *작업 의도*만 자연어로 입력. main agent가 폴더 컨텍스트로 단계를 추론. 모호하면 선택지 제시.
+
+폴더 자체가 SSOT — agent·script·main agent 모두 stage flag 추적 안 함. metadata에 `stage:` 같은 field 저장도 금지 (이전 폐기 결정 — LLM이 누락하거나 세션 종료 시 휘발).
+
+**자동 추론 규칙** (main agent가 매 명령마다 폴더 스캔):
+
+| 명령 패턴 | main agent 분기 |
+|---|---|
+| `"평가해줘"` (prefix 없음) | `flow.md` 있고 `flow/evaluations/latest/` 부재 → flow / `output/0N-*.md` 있고 flow 평가 후 → output / `final/complete-draft.md` 있음 → final / 동시 진행 모호 → 선택지 |
+| `"X 평가해줘"` (prefix 있음, X = flow/output/final) | 명시 의도 우선, 그대로 실행 (옵션 — 강제 아님) |
+| `"논문 처리해줘"` | `papers/candidates/{research-gap, flow}/` 양쪽 스캔 → 한쪽만 → 자동 / 양쪽 다 → 1회 확인 |
+| `"리서치 진행해줘"` | `research-gap/research-plan.md` H-NN + `flow/claim-extraction-flow.md` R-NN 양쪽 스캔 → 미해결 발견 시 사용자 1회 확인 |
+| `"갭 분석해줘"` | `research-gap/research-gap.md` 있고 미실행 → gap-analyzer (research-gap 진입점) / `output/0N-*.md` 있음 → output-gap-finder / 둘 다 → 선택지 |
+| `"비판 시뮬해줘"` (페르소나 미명시) | 위 §"비판 시뮬 3종 활용 가이드" 표 기반 선택지 |
+| `"수정해줘"` (대상 미명시) | `output/0N-*.md` 있음 → output-editor / `flow/flow.md`만 있음 → flow-refiner / 모호 → 선택지 |
+
+**선택지 제시 패턴** (모호 시):
+```
+어느 작업을 의도하셨나요?
+1. {옵션 1} — {짧은 설명}
+2. {옵션 2} — {짧은 설명}
+숫자 입력 또는 자연어로 답변.
+```
+
+**stage prefix는 옵션** (강제 X):
+- 사용자가 명시하면 그 의도 우선 사용
+- 미명시면 폴더 추론 + 모호 시 선택지
+- "X 평가해줘 prefix 누락 에러"식 강제 폐기 — 의도 명시 시 효율↑, 안 해도 무난
 
 ### 🛡 LLM 정책 거부 (Usage Policy false positive) Fallback v3.2
 
@@ -623,7 +775,7 @@ python3 scripts/migrate_project.py {PROJECT}
 
 ### 적용 대상
 
-paper-analyst (Mode A-anchor·B·C), gap-finder, peer-reviewer (Iconoclast 페르소나), critical-companion, axis6-critical-scorer.
+paper-analyst (Mode A-anchor·B·C), output-gap-finder, peer-reviewer (Iconoclast 페르소나), critical-companion, axis6-critical-scorer.
 
 ### Main agent 동작
 
@@ -665,34 +817,41 @@ mkdir -p projects
 프로젝트 이름을 추출하여 다음 폴더 구조를 생성하세요:
 
 ```bash
+# papers/ — 모든 단계가 공유하는 paper 자산 단일 hub
+mkdir -p projects/{PROJECT_NAME}/papers/candidates/research-gap
+mkdir -p projects/{PROJECT_NAME}/papers/candidates/flow
 mkdir -p projects/{PROJECT_NAME}/papers/collected
-mkdir -p projects/{PROJECT_NAME}/papers/candidates
-mkdir -p projects/{PROJECT_NAME}/papers/analyzed
+mkdir -p projects/{PROJECT_NAME}/papers/analyzed/research-gap
+mkdir -p projects/{PROJECT_NAME}/papers/analyzed/flow
+mkdir -p projects/{PROJECT_NAME}/papers/search-results
 mkdir -p projects/{PROJECT_NAME}/papers/.research-raw
 mkdir -p projects/{PROJECT_NAME}/papers/.translations
 mkdir -p projects/{PROJECT_NAME}/papers/.curation
-mkdir -p projects/{PROJECT_NAME}/papers/consensus-results.archive
+
+# 단계별 작성 폴더
+mkdir -p projects/{PROJECT_NAME}/research-gap
 mkdir -p projects/{PROJECT_NAME}/flow
-mkdir -p projects/{PROJECT_NAME}/chapters
 mkdir -p projects/{PROJECT_NAME}/output/history
 mkdir -p projects/{PROJECT_NAME}/final
-mkdir -p projects/{PROJECT_NAME}/work-plan.archive
+mkdir -p projects/{PROJECT_NAME}/history
 ```
 
 ### 단계 2b: evaluations 폴더 구조 생성
 
 ```bash
-mkdir -p projects/{PROJECT_NAME}/evaluations/latest
-mkdir -p projects/{PROJECT_NAME}/evaluations/archive
+mkdir -p projects/{PROJECT_NAME}/flow/evaluations/latest
+mkdir -p projects/{PROJECT_NAME}/output/evaluations/latest
+mkdir -p projects/{PROJECT_NAME}/final/evaluations/latest
 ```
 
-**v2 경로 규약** (2026-04-23 리팩터 이후):
-- **`flow/`**: flow.md, FLOW-TEMPLATE.md, claim-extraction-flow.md, history/
-- **`output/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-output.md (**통합 1개**), history/{chapter_id}/
-- **`evaluations/latest/`**: evaluation.md + axis1~6-*.md만 (claim-extraction 파일은 여기 두지 않음)
-- **`history/{stage}/evaluations/{NNN}/`**: 증분 스냅샷 + manifest.json (변경 없는 축은 이전 경로 참조)
-- **`work-plan.md`**: **루트** 위치 (RESEARCH/WRITE ID 단일 발급처)
-- **`history/work-plan/`**: 변경 시에만 스냅샷 (매 평가마다 복사 아님)
+**경로 규약**:
+- **`research-gap/`** (opt-in): research-gap.md, research-plan.md, gap-report.md, history/
+- **`flow/`**: flow.md, FLOW-TEMPLATE.md, claim-extraction-flow.md, evaluations/, history/
+- **`output/`**: 실제 챕터 파일(`0N-*.md`), claim-extraction-output.md, evaluations/, history/{chapter_id}/
+- **`final/`**: complete-draft.md, evaluations/, .docx (최종)
+- **`papers/`**: 모든 단계의 PDF·분석·검색 결과 — 단계별 서브폴더로 frame 격리
+- **`{stage}/evaluations/latest/`**: evaluation.md (work-plan 대체) + axis1~6-*.md
+- **work-plan.md 폐기** — 평가 결과·다음 액션·미해결 R-NN 등 모두 evaluation.md로 통합. card_registry·status JSON 없음 (폴더 자체가 SSOT).
 
 ### 단계 2c: .sync-state.json 초기화
 
@@ -702,12 +861,14 @@ python3 scripts/sync_state.py init {PROJECT_NAME}
 
 이 파일은 flow.md·papers·chapters·evaluations·final 간 의존성을 추적하여 아티팩트가 조용히 어긋나는 것을 방지한다. 모든 주요 명령이 실행 전 `check`, 실행 후 `update-*`로 이 파일을 갱신한다.
 
-### 단계 3: FLOW-TEMPLATE.md (가이드) 및 flow.md (작성용) 생성
+### 단계 3: 작성 가이드 및 시작 파일 생성
+
+#### 3a. flow 단계용 (필수)
 
 projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/flow.md 두 파일을 생성하세요.
 
 - **FLOW-TEMPLATE.md**: `skills/FLOW-TEMPLATE.md`의 내용을 복사. 줄글(prose) 작성 가이드.
-- **flow.md**: **빈 파일** 또는 메타데이터 골격만 있는 파일로 생성:
+- **flow.md**: 빈 파일 + 메타데이터 골격:
   ```markdown
   # [과제명]
 
@@ -720,10 +881,29 @@ projects/{PROJECT_NAME}/flow/FLOW-TEMPLATE.md 와 projects/{PROJECT_NAME}/flow/f
   ---
 
   (여기에 줄글로 자유롭게 작성. 연구 질문과 핵심 주장은 반드시 한 문장씩 명시.
-   작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 입력.)
+   작성법은 FLOW-TEMPLATE.md 참고. 완료 후 "flow 평가해줘" 입력.)
   ```
 
-**작성 방식**: 사용자가 자유 줄글(prose)로 작성하면 `평가해줘` 단계에서 claim-extractor가 문장 단위로 자동 분석합니다. 구조적 템플릿을 강요하지 않습니다.
+#### 3b. research-gap 단계용 (opt-in, 사용자 요청 시만)
+
+사용자가 `"research-gap 시작"` 또는 `"리서치 갭 분석 단계로 시작"` 명령을 줄 때만 생성:
+
+- **RESEARCH-GAP-TEMPLATE.md**: `skills/RESEARCH-GAP-TEMPLATE.md` 내용 복사 (참고용)
+- **research-gap.md**: 빈 파일 + 메타데이터 골격:
+  ```markdown
+  # [주제명]
+
+  주제명: 
+  필드: 
+  잠정 마감: YYYY-MM-DD
+
+  ---
+
+  (여기에 줄글로 자유롭게 작성. 문제의식·잠정 thesis·확인하고 싶은 것·본인 가정을 자연스럽게.
+   작성법은 RESEARCH-GAP-TEMPLATE.md 참고. 완료 후 "리서치 갭 분석해줘" 입력.)
+  ```
+
+**작성 방식**: 사용자가 자유 줄글(prose)로 작성하면 시스템이 가설 H-NN(research-gap) 또는 R-NN(flow) 단위로 자동 분석합니다. 구조적 템플릿을 강요하지 않습니다.
 
 ### 단계 4: .paper-metadata.json 생성
 
@@ -740,7 +920,7 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
 }
 ```
 
-`research_type`은 사용자가 flow.md 작성 후 첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시 자동 판별하여 채워진다:
+`research_type`은 사용자가 flow.md 작성 후 첫 `"flow 평가해줘"` + `"flow 평가해줘"` 실행 시 자동 판별하여 채워진다:
 - `"theoretical"` — 이론·개념 에세이 (기존 개념 비판, 새 프레임워크 제안)
 - `"empirical"` — 경험 연구 (데이터 수집·분석·해석)
 
@@ -775,50 +955,70 @@ projects/{PROJECT_NAME}/.paper-metadata.json 파일을 다음 내용으로 생�
    research-agent/
    └── projects/
        └── {PROJECT_NAME}/
+           ├── research-gap/                    (opt-in, "리서치 갭 분석해줘" 명령으로 진입)
+           │   ├── research-gap.md              (사용자 줄글)
+           │   ├── RESEARCH-GAP-TEMPLATE.md     (가이드 — 수정 금지)
+           │   ├── research-plan.md             (gap-analyzer 산출 H-NN별 검색 계획)
+           │   ├── gap-report.md                (gap-synthesizer 통합 리포트)
+           │   └── history/
            ├── flow/
-           │   ├── flow.md                      (실제 작성용 — 이 파일을 수정)
+           │   ├── flow.md                      (실제 작성용)
            │   ├── FLOW-TEMPLATE.md             (가이드 — 수정 금지)
-           │   ├── claim-extraction-flow.md     (flow 문장 단위 분석 — 자동 생성)
-           │   └── history/                     (flow 수정 직전 쌍 보존)
+           │   ├── claim-extraction-flow.md     (R-NN 자동 생성)
+           │   ├── evaluations/latest/          (evaluation.md + axis1~6)
+           │   ├── critical/                    (🎭 critical-questions.md)
+           │   └── history/
            ├── output/
            │   ├── 0N-*.md                      (초안 각 섹션)
-           │   ├── claim-extraction-output.md    (전체 챕터 통합 분석 — 자동 생성)
-           │   └── history/{chapter_id}/        (챕터별 수정 직전 쌍 보존)
-           ├── work-plan.md                     (RESEARCH·WRITE 단일 발급처, 루트)
-           ├── history/work-plan/                (변경 시에만 스냅샷)
-           ├── critical-questions.md            (🎭 Critical Mode 활성 시 생성)
-           ├── history/{stage}/critical/      (🎭 질문·답변 버전 히스토리)
-           ├── critical-commitments.md          (🎭 답변에서 추출한 actionable spec)
-           ├── history/{stage}/critical/    (🎭 commitment 상태 히스토리)
-           ├── evaluations/
-           │   ├── latest/                      (최신 평가 산출물 — 명령이 참조)
-           │   └── archive/                     (과거 평가 스냅샷)
-           ├── papers/
-           │   ├── candidates/                  (다운로드 후 처리 대기)
-           │   ├── collected/                   (처리 완료된 PDF)
-           │   ├── analyzed/                    (paper-analyst 분석 v1/v2/v3/[critical])
-           │   ├── archived/                    ("논문 제거해줘"로 이동된 PDF·분석)
-           │   ├── .research-raw/                   (Stage A — MCP 원본 응답 JSON, 카드별 1파일, SSOT)
-           │   ├── .translations/               (Stage B — haiku 한글 번역 markdown, 카드별 1파일)
-           │   ├── .curation/                   (Stage C — 6 카테고리 curated 블록, 카드별 1파일)
-           │   ├── .context-pack.md             (main이 RESEARCH 시작 전 1회 생성, workers 공유 입력)
-           │   ├── consensus-results.md         (Stage D — .curation/*.md concat + 누적 요약)
-           │   └── consensus-results.archive/   (pre-respin 등 주요 버전 스냅샷)
+           │   ├── claim-extraction-output.md   (자동 생성)
+           │   ├── evaluations/latest/
+           │   ├── critical/
+           │   ├── feedback.md                  (사용자 피드백)
+           │   ├── .internal/                   (writing-spec.md 등 internal)
+           │   └── history/{chapter_id}/
            ├── final/
+           │   ├── complete-draft.md            ("최종 완성했어" 후 생성)
+           │   └── evaluations/latest/
+           ├── papers/                          (모든 단계 paper 자산 단일 hub)
+           │   ├── candidates/
+           │   │   ├── research-gap/            (research-gap PDF 입구)
+           │   │   └── flow/                    (flow PDF 입구)
+           │   ├── collected/                   (논문당 1개 PDF, 단계 공유)
+           │   ├── analyzed/
+           │   │   ├── research-gap/            ([R].* 대기, [R][D].* 완료)
+           │   │   └── flow/                    ([A].* anchor, [N].* normal)
+           │   ├── search-results/
+           │   │   ├── research-gap.md          (anchor 검색 결과)
+           │   │   └── flow.md                  (thesis-supportive 검색 결과)
+           │   ├── .research-raw/                   (Stage A — MCP 원본 응답 JSON)
+           │   ├── .translations/               (Stage B — haiku 한글 번역)
+           │   ├── .curation/                   (Stage C — 6 카테고리 curated)
+           │   └── .context-pack.md             (workers 공유 입력)
+           ├── critical-commitments.md          (🎭 답변에서 추출한 actionable spec, cross-stage)
            ├── activity.log                     (모든 명령 자동 로그)
            ├── .paper-metadata.json             (메타데이터 + intellectual_ambition)
-           └── .sync-state.json                 (아티팩트 의존성·버전 추적)
+           └── history/                          (단계 변경·snapshot 보관)
 
 👉 다음 단계:
-   1. projects/{PROJECT_NAME}/flow/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
-      - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
-      - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
-      - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
-   2. "flow 레퍼런스 분석해줘" 입력 → claim-extractor(stage=flow, 문장 단위 주장 추출) + 6축 평가 실행
-      - 생성 파일: evaluations/latest/evaluation.md + axis1~6-*.md, work-plan.md (루트), flow/claim-extraction-flow.md
-   3. "리서치 진행해줘" 입력 → work-plan.md의 RESEARCH 과제로 Consensus 자동 검색
-   4. "새 논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
-   5. "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 재실행 → 점수 변화 확인 후 Stage 2(초안 작성) 진행
+   - 옵션 A (thesis 명확): 바로 flow.md로
+     1. projects/{PROJECT_NAME}/flow/flow.md 파일을 열어서 **자유 줄글로** 과제 방향 작성
+        - 최소: 과제 메타데이터 + 연구 질문(RQ) 1문장 + 핵심 주장(Thesis) 1문장
+        - 권장: 문제 설정 → 기존 비판 → 자기 제안 → 반론 → 함의를 에세이처럼 서술
+        - 참고: FLOW-TEMPLATE.md (줄글 작성 가이드)
+     2. "flow 평가해줘" 입력 → claim-extractor + 6축 평가 → flow/evaluations/latest/evaluation.md
+     3. "리서치 진행해줘" → 미해결 R-NN로 Consensus 자동 검색 → papers/search-results/flow.md
+     4. "논문 처리해줘" → PDF 처리 + paper-analyst 자동 분석
+     5. "flow 평가해줘" 재실행 → 진척 확인 후 "초안 작성해줘"
+
+   - 옵션 B (thesis 형성 중): research-gap 단계 먼저
+     1. "리서치 갭 시작해줘" → research-gap/research-gap.md 빈 파일 생성
+     2. research-gap.md를 자유 줄글로 작성 (문제의식·잠정 thesis·확인하고 싶은 것)
+     3. "리서치 갭 분석해줘" → research-plan.md (H-NN별 anchor 검색 계획)
+     4. "리서치 진행해줘" → papers/search-results/research-gap.md (anchor 후보)
+     5. PDF 다운로드 → papers/candidates/research-gap/ 에 떨어뜨림
+     6. "논문 처리해줘" → papers/analyzed/research-gap/[R][D].*.md
+     7. "갭 리포트 만들어줘" → research-gap/gap-report.md (한눈에 보는 갭)
+     8. flow.md 작성 시작 → 옵션 A 흐름으로
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -831,14 +1031,16 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 ## 🎯 6축 평가 (evaluation-orchestrator, 병렬 delta 아키텍처)
 
-사용자가 분석 명령을 말하면 (3 stage × 2 종류 = 6 명령):
-- `"flow 레퍼런스 분석해줘"` / `"flow 내용 분석해줘"`
-- `"output 레퍼런스 분석해줘"` / `"output 내용 분석해줘"`
-- `"final 레퍼런스 분석해줘"` / `"final 내용 분석해줘"`
+평가는 **stage별 단일 통합 명령**:
+- `"flow 평가해줘"` (= `"flow 분석해줘"`)
+- `"output 평가해줘"`
+- `"final 평가해줘"`
 
-**stage prefix 필수**: 단독 `"평가해줘"` (prefix 없음) → 에러 (`flow / output / final 명시`).
+이전의 `"X 레퍼런스 분석해줘"` + `"X 내용 분석해줘"` 분리는 폐기. 단일 명령이 claim-extractor(axis1 input) + axis1~6 병렬 모두 자동 dispatch.
 
-**플래그 지원** (prefix와 함께):
+**stage prefix는 옵션**: 사용자 명시 시 그대로 사용. 미명시 시 main agent가 폴더 추론 (예: flow.md 있고 flow/evaluations/latest 없음 → flow 평가). 모호하면 1회 선택지 제시.
+
+**플래그 지원**:
 - `"output 평가해줘"` — delta 모드 (변경된 축만 재계산, 기본)
 - `"output 평가해줘 --full"` — 전체 6축 강제 재실행
 - `"output 평가해줘 axis3,4"` — 명시 축만 실행 (쉼표 구분)
@@ -863,7 +1065,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "프로젝트 생성" "sta
 
 현재: {체크 결과}
 
-"flow/flow.md"를 먼저 채운 후 다시 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"를 실행하세요.
+"flow/flow.md"를 먼저 채운 후 다시 "flow 평가해줘"를 실행하세요.
 `flow/FLOW-TEMPLATE.md`를 참고하세요.
 ```
 
@@ -997,9 +1199,11 @@ python3 scripts/evaluation_delta.py mark-done {PROJECT_NAME} axis2,axis3
 python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 ```
 
-### 단계 12: work-plan.md 갱신
+### 단계 12: evaluation.md 종합 갱신
 
-각 축의 감점 사유에서 actionable을 뽑아 `work-plan.md`에 반영. 완료된 카드는 `[x]`로 체크.
+aggregator(`scripts/evaluation_aggregator.py`)가 단계 7에서 이미 `evaluation.md`를 생성. 이 단계에서는 다음 액션 섹션·미해결 R-NN 섹션·WRITE 권고 섹션을 채워 사용자가 한 파일만 보면 다음 무엇을 할지 알 수 있게 한다 (포맷: `skills/EVALUATION-FORMAT.md`).
+
+work-plan.md 갱신·card_registry 호출 등은 모두 폐기. evaluation.md가 단일 진입 파일.
 
 ### 단계 13: 사용자 보고
 
@@ -1022,41 +1226,27 @@ python3 scripts/sync_state.py update-evaluation {PROJECT_NAME}
 2. ...
 
 📂 축별 상세: axis1-reference.md ~ axis5-concept.md
-📋 작업 계획: work-plan.md
+📋 다음 액션: evaluation.md "🧭 다음 액션" 섹션
 ⏱ 소요: {N}분 (재계산 {N}축, 캐시 {M}축)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📚 Stage 1 (리서치): {N}개 작업
-✍️ Stage 2 (1차 작성): {N}개 작업
-🔧 Stage 3 (수정): {N}개 작업
-✅ Stage 4 (최종): {N}개 작업
-
 💾 저장 결과:
-   ✓ evaluations/latest/evaluation.md              (종합 요약·aggregator)
-   ✓ evaluations/latest/axis1-reference.md         (축 1)
-   ✓ evaluations/latest/axis2-logic.md             (축 2)
-   ✓ evaluations/latest/axis3-defense.md           (축 3)
-   ✓ evaluations/latest/axis4-originality.md       (축 4)
-   ✓ evaluations/latest/axis5-concept.md           (축 5)
-   ✓ evaluations/latest/axis6-critical.md          (축 6, Critical Mode 활성 시)
-   ✓ work-plan.md                                   (루트, RESEARCH·WRITE ID 단일 발급처)
-   ✓ flow/claim-extraction-flow.md                  (stage=flow 시)
-   ✓ output/claim-extraction-output.md             (stage=output 시)
-   📦 이전 평가 → history/{stage}/evaluations/{NNN}-{date}-{stage}/ 증분 스냅샷 (manifest.json)
-   📦 work-plan 변경 시 → history/work-plan/{NNN}-{date}-{stage}.md
+   ✓ {stage}/evaluations/latest/evaluation.md      (종합 요약 + 다음 액션 + 미해결 R-NN)
+   ✓ {stage}/evaluations/latest/axis1-reference.md ~ axis6-critical.md
+   ✓ {stage}/claim-extraction-{stage}.md           (stage 변경 시)
+   📦 이전 평가 → {stage}/evaluations/{NNN}-{date}/ 증분 스냅샷 (manifest.json)
 
 👉 다음 단계:
-   1. work-plan.md 검토
-   2. Stage 1부터 순차 진행:
-      - "리서치 진행해줘" → RESEARCH(reanalyze) + RESEARCH(search) 자동 실행
-      - "새 논문 처리해줘" → PDF 처리
-      - "초안 작성해줘" → Stage 2
-      - "Chapter X 수정해줘" → Stage 3
-   3. Stage 1 후엔 "레퍼런스 점검해줘"(경량, 축 1만) 권장
-   4. 전체 5축 재평가는 flow 업데이트/초안/수정 후에만 실효적
+   1. evaluation.md 검토 (특히 "🧭 다음 액션" 섹션)
+   2. 다음 액션 실행:
+      - "리서치 진행해줘" → 미해결 R-NN로 Consensus 검색
+      - "논문 처리해줘" → PDF 처리
+      - "초안 작성해줘" → output stage 진입
+      - "Chapter X 수정해줘" → output 수정
+   3. 변경 후 같은 "{stage} 평가해줘" 재실행 → delta 모드로 빠르게 재진단
 ```
 
-### 단계 14: 자동 권장 — flow-refiner · gap-finder · adversarial-reviewer
+### 단계 14: 자동 권장 — flow-refiner · output-gap-finder · adversarial-reviewer
 
 평가 결과가 특정 패턴이면 후속 agent 자동 권장 (자동 호출 X — 사용자에게 묻기). 활용 미흡 agent 보장 메커니즘.
 
@@ -1080,7 +1270,7 @@ flow-refiner는 flow.md diff 제안만 (직접 수정 X) — 사용자가 채택
 호출하시겠어요? (yes / 나중에)
 ```
 
-#### b. gap-finder 자동 권장 트리거
+#### b. output-gap-finder 자동 권장 트리거
 
 다음 조건 시:
 - axis4 (독창성) verdict 결과에 "gap 보강 필요" 또는 "기여 약함" 진단
@@ -1089,13 +1279,13 @@ flow-refiner는 flow.md diff 제안만 (직접 수정 X) — 사용자가 채택
 
 권장 출력:
 ```
-🔍 gap-finder 호출 권장
+🔍 output-gap-finder 호출 권장
 
 평가에서 분야 gap 추가 탐색이 필요한 것으로 진단됨.
-다음 명령으로 gap-finder 호출 가능:
+다음 명령으로 output-gap-finder 호출 가능:
   "gap 분석해줘"
 
-gap-finder는 분야의 빈틈 탐색 → gap-analysis.md 산출.
+output-gap-finder는 output 단계의 분야 빈틈 탐색 → gap-analysis.md 산출 (research-gap 단계의 gap-analyzer/gap-paper-analyst/gap-synthesizer와 분리).
 
 호출하시겠어요? (yes / 나중에)
 ```
@@ -1135,17 +1325,17 @@ adversarial-reviewer는 학파별 simulated reviewer로 단락 단위 반박 + �
 응답: "all 호출" / "1,2번만" / "건너뛰기"
 ```
 
-이 단계는 활용 미흡 agent (flow-refiner / gap-finder / adversarial-reviewer)가 *주기적으로 사용자 시야에 들어오게* 하는 보장 메커니즘.
+이 단계는 활용 미흡 agent (flow-refiner / output-gap-finder / adversarial-reviewer)가 *주기적으로 사용자 시야에 들어오게* 하는 보장 메커니즘.
 
 ### 단계 6: 반복 평가 규칙
 
-- **각 Stage 완료 시 재평가 권장 (차별화)**:
-  - Stage 1 (리서치) 후 → `"레퍼런스 점검해줘"` (축 1 경량)
-  - Stage 2 (초안) 후 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (전체 5축)
-  - Stage 3 (수정) 후 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (전체 5축)
-  - Stage 4 (최종) 전 → `"output 레퍼런스 분석해줘"` + `"output 내용 분석해줘"` (최종 5축)
-- **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시, `evaluation.md`에 이전 점수 대비 변화(+X, −X)를 함께 표시
-- **목표 달성 확인**: 각 축이 90점 이상이면 🟢, 70-89점이면 🟡, 70점 미만이면 🔴
+- **각 Stage 완료 시 재평가 권장**:
+  - 리서치 후 → `"flow 평가해줘"` (delta 모드로 변경된 axis1만 재계산)
+  - 초안 작성 후 → `"output 평가해줘"` (전체 6축 첫 평가)
+  - 수정 후 → `"output 평가해줘"` (delta — 변경 chapter 영향 축만)
+  - 최종 머지 후 → `"final 평가해줘"` (6축 + holistic-reviewer)
+- **이전 평가 대비 delta 추적**: 두 번째 이후 평가 시 `evaluation.md`에 이전 round 대비 카테고리 변화 표시
+- **카테고리 기반 verdict**: 점수 평균 폐기. 카테고리 룰만 사용 (§5축 평가 기준 참조)
 
 ### 단계 7: 활동 로그 기록 (MD Layer 4)
 
@@ -1159,23 +1349,34 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "평가 완료" "stage={fl
 
 ## 논문 처리 (2-pass + Tier)
 
-사용자가 "논문 처리해줘"를 말하면 **`paper-analyst`** 에이전트가 진입점이 된다 (단순화 v3 — orchestration 흡수). 본 섹션은 그 흐름의 메인 세션 담당 부분을 기술한다.
+사용자가 `"논문 처리해줘"`를 말하면 main agent가 **두 candidates 폴더를 병렬 스캔**:
+- `papers/candidates/research-gap/*.pdf` → `gap-paper-analyst` (갭 frame, 결과 → `papers/analyzed/research-gap/[R][D].*.md`)
+- `papers/candidates/flow/*.pdf` → `paper-analyst` (anchor/normal frame, 결과 → `papers/analyzed/flow/[A]|[N].*.md`)
+
+폴더 = SSOT. PDF가 어느 candidates 서브폴더에 있느냐로 처리 frame이 결정.
 
 **명령 플래그**:
-- `새 논문 처리해줘` → 2-pass 기본 (triage → tier1/2/3 분배 분석)
-- `새 논문 처리해줘 --batch=N` → 배치 크기 오버라이드
-- `"논문 처리해줘"` (단순화 v3.1) → consensus-results.md 매핑 기반 자동 분류 (anchor/non-anchor 이진)
-   · 🎯 최우선 OR 🔴 Steelman → analyzed/[A].{name}.md (anchor)
-   · 그 외 매칭 → analyzed/[N].{name}.md (non-anchor)
-   · 매칭 없음 → analyzed/[?].{name}.md (paper-analyst가 MANUAL curation)
+- `"논문 처리해줘"` → 두 폴더 모두 자동 처리
+- `"논문 처리해줘 --batch=N"` → 배치 크기 오버라이드
+- (특정 단계만) `"flow 논문 처리해줘"` / `"research-gap 논문 처리해줘"` → 한쪽만 처리
 
-### 단계 1: 현재 프로젝트 + candidates 확인
+flow 단계 처리는 매핑 기반 자동 분류 (anchor/non-anchor 이진):
+- `papers/search-results/flow.md`의 🎯 최우선 OR 🔴 Steelman → `[A].{name}.md` (anchor)
+- 그 외 매칭 → `[N].{name}.md` (non-anchor)
+- 매칭 없음 → `[?].{name}.md` (paper-analyst가 MANUAL curation)
+
+research-gap 단계 처리는 단순:
+- 모든 PDF → `[R].{name}.md` placeholder 생성 → gap-paper-analyst 분석 → `[R][D].{name}.md`로 rename
+- gap frame 분석: 대상 연령·통제 변인·종속 변수·갭 시그널 (skills/agents/gap-paper-analyst.md 참조)
+
+### 단계 1: 두 candidates 폴더 스캔
 
 ```bash
-ls projects/{PROJECT_NAME}/papers/candidates/*.pdf
+ls projects/{PROJECT_NAME}/papers/candidates/research-gap/*.pdf 2>/dev/null
+ls projects/{PROJECT_NAME}/papers/candidates/flow/*.pdf 2>/dev/null
 ```
 
-0개면 "candidates가 비어 있습니다" 메시지 후 종료.
+양쪽 모두 0이면 "candidates 비어 있습니다" 메시지 후 종료. 한쪽만 있으면 그쪽만 처리. 양쪽 다 있으면 사용자에게 1회 보고 후 양쪽 진행.
 
 ### 단계 2: 파일명 정규화 + 메타 추출
 
@@ -1259,31 +1460,31 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 처리" "stage=sta
 
 ---
 
-## Consensus 검색 (작업 시작) — work-plan.md 기반 자동 실행
+## Consensus 검색 (작업 시작) — 폴더 기반 자동 실행
 
-사용자가 "리서치 진행해줘", "논문 검색해줘", "RESEARCH 실행" 등을 말하면:
+사용자가 `"리서치 진행해줘"`, `"논문 검색해줘"` 등을 말하면 main agent가 **두 plan 폴더를 병렬 스캔**:
+- `research-gap/research-plan.md`의 H-NN (gap-analyzer 산출, anchor 검색)
+- `flow/claim-extraction-flow.md`의 R-NN (claim-extractor 산출, thesis-supportive 검색)
 
-### 단계 1: 선행 조건 확인
+### 단계 1: 폴더 스캔 + 미해결 항목 수집
 
-1. `projects/{PROJECT_NAME}/work-plan.md` 존재 여부 확인
-   - 없으면: "먼저 `평가해줘`를 실행하여 work-plan.md를 생성하세요"로 안내 후 중단
-2. work-plan.md의 `Stage 1: 논문 리서치` 섹션에서 **두 mode의 RESEARCH 카드**를 파싱:
-   - `[RESEARCH-NNN]` (mode=reanalyze) 블록 — 보유 PDF 재스캔
-   - `[RESEARCH-NNN]` (mode=search) 블록 — Consensus 신규 검색
-3. 미완료 체크박스(`- [ ]`)만 수집
+1. `research-gap/research-plan.md` 존재 시 → H-NN 중 `papers/search-results/research-gap.md`에 아직 없는 항목 수집
+2. `flow/claim-extraction-flow.md` 존재 시 → R-NN 중 `papers/search-results/flow.md`에 아직 없는 항목 수집 + UNMATCHED-INTERNAL (보유 PDF 재스캔 대상) 수집
+3. 양쪽 다 비어 있으면 "검색 대상 없음. 먼저 `'리서치 갭 분석해줘'` 또는 `'flow 평가해줘'` 실행하세요" 안내
+4. 양쪽 다 있으면 사용자에게 1회 확인: "research-gap H-{N}건, flow R-{M}건. 모두 진행 / 한쪽만 / 취소"
+5. 사용자 선택대로 진행. 결과는 `papers/search-results/research-gap.md` / `papers/search-results/flow.md`에 각각 저장.
 
-### 단계 2a: RESEARCH mode=reanalyze 먼저 실행 (내부 재활용 우선)
+### 단계 2a: UNMATCHED-INTERNAL 먼저 처리 (보유 PDF 재스캔, flow 단계만)
 
-각 미완료 reanalyze 카드마다:
+flow 단계에 한해, claim-extractor가 표시한 UNMATCHED-INTERNAL R-NN 각각:
 
-1. 해당 논문의 `papers/analyzed/{파일명}-analysis.md` 읽기 (v1 존재 확인)
+1. 해당 논문의 `papers/analyzed/flow/[A]|[N].{name}.md` 읽기 (v1 존재 확인)
 2. `skills/agents/paper-analyst.md` 읽기
 3. Agent 도구로 paper-analyst를 **Mode B**로 호출:
    - 전달: PDF 경로 + 현재 flow.md + 기존 analyzed/*.md + 재분석 각도 지시
    - 수행: PDF 재스캔 → analyzed/*.md에 `## [v2 — {date}] 재분석: {각도}` append
 4. `python3 scripts/sync_state.py update-paper {PROJECT} {파일명}` 실행
-5. `claim-extraction-flow.md / claim-extraction-output.md` (stage에 맞게)에서 해당 문장의 분류를 UNMATCHED-INTERNAL → MATCHED로 전환
-6. `work-plan.md`의 RESEARCH(reanalyze) 체크박스를 `- [x]`로 갱신
+5. `claim-extraction-flow.md`에서 해당 R-NN을 INTERNAL→MATCHED 후보로 전환 (사용자 확정 시 MATCHED). work-plan 갱신 단계 없음.
 
 ### 단계 2b: Context pack 사전 빌드 (main 세션, ~30s)
 
@@ -1313,16 +1514,16 @@ main 세션이 다음 3개 파일을 읽고 `projects/{P}/papers/.context-pack.m
 각 미완료 RESEARCH 카드마다 main 세션이 직접:
 
 1. `mcp__consensus__search` 호출 (RESEARCH 카드의 `query` 필드 사용)
-2. 응답 전체를 `papers/.research-raw/RESEARCH-NNN.json`에 즉시 저장 — **SSOT**. 다음 스테이지는 여기만 읽음:
+2. 응답 전체를 `papers/.research-raw/R-NN.json`에 즉시 저장 — **SSOT**. 다음 스테이지는 여기만 읽음:
    ```json
-   {"card_id": "RESEARCH-001", "covers": ["R-01", "R-04"], "query": "...", "executed_at": "...",
+   {"card_id": "R-01", "covers": ["R-01", "R-04"], "query": "...", "executed_at": "...",
     "papers": [{"url": "...", "title": "...", "authors": "...", "year": 2025,
                 "journal": "...", "citations": 2, "abstract": "<full English text>"}]}
    ```
 3. 429 시 sleep 30 후 단일 직렬로 강등 재시도
-4. **즉시 research-processor worker dispatch (`run_in_background=true`)** — RESEARCH-NNN의 B+C 수행. 반환 기다리지 않고 다음 카드의 Stage A로 진행.
+4. **즉시 research-processor worker dispatch (`run_in_background=true`)** — R-NN의 B+C 수행. 반환 기다리지 않고 다음 카드의 Stage A로 진행.
 
-**중단 복구**: 이미 `.research-raw/RESEARCH-NNN.json` 존재하면 재검색 스킵 (단 `.curation/RESEARCH-NNN.md` 없으면 B+C worker는 재디스패치).
+**중단 복구**: 이미 `.research-raw/R-NN.json` 존재하면 재검색 스킵 (단 `.curation/R-NN.md` 없으면 B+C worker는 재디스패치).
 
 ### 단계 2d: Stage B+C — research-processor combo worker (background, 각 3-5분)
 
@@ -1332,22 +1533,22 @@ main 세션이 다음 3개 파일을 읽고 `projects/{P}/papers/.context-pack.m
 
 Worker 한 개의 단일 책임 (내부 2-phase):
 1. `papers/.context-pack.md` 읽기 (단계 2b 산출, 공용)
-2. `papers/.research-raw/RESEARCH-NNN.json` 로드
+2. `papers/.research-raw/R-NN.json` 로드
 3. **Phase B (번역)** — `skills/agents/abstract-translator.md` 규칙 따름:
    - 각 abstract 한글 전문 번역 (요약 금지, `> `-quoted 블록)
-   - `papers/.translations/RESEARCH-NNN.md`에 원자 저장 (`.tmp.{pid}` → `mv`)
+   - `papers/.translations/R-NN.md`에 원자 저장 (`.tmp.{pid}` → `mv`)
 4. **Phase C (curation)**:
    - 논문 필터링 (off-topic 제거)
    - 6 카테고리 분류 (🎯 최우선 / 🟢 보조 / 🔴 Steelman / 🌏 발달·횡문화 / ⚙️ 방법론 비판 / 🔗 Cross-RESEARCH)
    - 논문마다 3줄 주석 (claim / 본 에세이 활용 섹션·S-NNN / 인용 강도 suggest/indicate/demonstrate)
    - 📌 액션 아이템 `[ ]` 3+개
-   - `papers/.curation/RESEARCH-NNN.md`에 원자 저장
-5. "OK: RESEARCH-NNN (translations={K}, curation={M} papers)" 한 줄 반환
+   - `papers/.curation/R-NN.md`에 원자 저장
+5. "OK: R-NN (translations={K}, curation={M} papers)" 한 줄 반환
 
 **프롬프트 길이 제한**: worker 프롬프트는 800 토큰 이하 (`skills/agents/research-processor.md` 경로 참조만, 스펙 copy-paste 금지).
 
 **중단 복구**:
-- `.translations/RESEARCH-NNN.md` 이미 존재 & `.curation/RESEARCH-NNN.md` 없음 → curation만 재수행
+- `.translations/R-NN.md` 이미 존재 & `.curation/R-NN.md` 없음 → curation만 재수행
 - 양쪽 모두 존재 → 스킵
 - 거부/실패된 worker만 재디스패치
 
@@ -1364,23 +1565,23 @@ Stage A를 완료한 main은 `TaskList`로 남은 research-processor worker들�
 python3 scripts/assemble_consensus_results.py {PROJECT}
 ```
 이 스크립트가:
-- `.curation/RESEARCH-NNN.md`를 RESEARCH 번호 순으로 concat
+- `.curation/R-NN.md`를 RESEARCH 번호 순으로 concat
 - Cross-RESEARCH URL dedup 자동 처리 (첫 등장 full + 재등장은 `⚠️ 중복 — RESEARCH-XXX #N 참조` one-liner)
-- `# RESEARCH-NNN Curation — topic` → `## [RESEARCH-NNN] topic` 헤딩 강등 (post-check 요건)
+- `# R-NN Curation — topic` → `## [R-NN] topic` 헤딩 강등 (post-check 요건)
 - 마스터 헤더(생성 시각·유니크 URL 수·dedup 수) prepend
-- `papers/consensus-results.md` 원자 저장 + JSON stats 출력
+- `papers/search-results/{stage}.md` 원자 저장 + JSON stats 출력
 
 **Step 2 — 누적 요약 4섹션 append (thin sonnet subagent, ~1-2분)**:
-생성된 `consensus-results.md`를 읽고 끝에 아래 4섹션만 **append** (기존 RESEARCH 블록 수정 금지):
+생성된 `search-results/{stage}.md`를 읽고 끝에 아래 4섹션만 **append** (기존 RESEARCH 블록 수정 금지):
 - 🏆 최중요 발견 Top-10 (각 카드의 🎯에서 thesis 영향도 기준)
 - 📥 PDF 다운로드 우선순위 10편 (각 카드의 📌 액션 아이템 통합)
 - 🔗 Cross-RESEARCH 교차 논문 표 (Step 1에서 생성된 `⚠️ 중복` 라인을 grep해 표로 렌더링)
 - 👉 다음 단계 권장
 
 **Step 3 — 상태 파일 업데이트 (main 직접 Edit)**:
-- `work-plan.md`: Active 섹션 RESEARCH → 🟢 Recent completed 이동, 대시보드·진행 로그 갱신
-- `papers/.registry.json`: `card_registry.mark_completed(...)` 호출 (Python)
-- `activity.log`: Stage 1 완료 엔트리 append
+- `papers/search-results/{stage}.md`: 새로 검색된 R-NN/H-NN 섹션 추가
+- `evaluation.md`의 다음 액션 섹션 갱신 — 미해결 R-NN 줄어든 만큼 반영
+- `activity.log`: 검색 완료 엔트리 append
 
 ⚠️ **claim-extraction-flow.md의 UNMATCHED는 RESEARCH 완료로 자동 전환되지 않는다**. RESEARCH는 논문 *후보* 확보 단계이고, MATCHED는 사용자가 PDF를 읽고 특정 문장에 특정 논문을 인용하기로 확정한 상태. 이 둘을 합치면 추적 불가능. MATCHED 전환은 Stage 2(초안 작성) 이후 writing-architect의 섹션별 인용 매핑에서 이루어진다. RESEARCH Stage 1 완료 시 claim-extraction은 그대로 둘 것.
 
@@ -1392,16 +1593,16 @@ python3 scripts/research_postcheck.py {PROJECT}
 
 이 스크립트가 다음을 모두 확인 (하나라도 실패 시 "완료" 보고 차단):
 
-1. work-plan.md의 active/completed RESEARCH 수 == `.research-raw/*.json` 수 == `.curation/*.md` 수 (1:1:1)
+1. 처리 대상 R-NN/H-NN 수 == `.research-raw/*.json` 수 == `.curation/*.md` 수 (1:1:1)
 2. 각 `.curation/*.md`에 6 카테고리 헤더 모두 존재 + 액션 아이템 3+개
-3. `consensus-results.md`에 `번역 대기` 0건
-4. `consensus-results.md`의 RESEARCH 블록 수 == `.curation/*.md` 수
+3. `search-results/{stage}.md`에 `번역 대기` 0건
+4. `search-results/{stage}.md`의 RESEARCH 블록 수 == `.curation/*.md` 수
 
 **검증 실패 시 재진입**: 누락 카드만 개별 단계로 재개 (Stage A 필요하면 1개만, Stage B or C는 해당 worker만).
 
 ### 단계 2h: Curation 출력 포맷 스펙
 
-**단계 2b에서 consensus-results.md에 쓰는 각 RESEARCH 블록은 다음 구조를 반드시 따른다.** 단순 번호 리스트 금지. curation(판단·분류·주석) 없이는 사용자가 225편 raw 리스트를 직접 훑어야 하는 상황이 재발한다 (2026-04-24 1차 실행 사례).
+**단계 2b에서 search-results/{stage}.md에 쓰는 각 RESEARCH 블록은 다음 구조를 반드시 따른다.** 단순 번호 리스트 금지. curation(판단·분류·주석) 없이는 사용자가 225편 raw 리스트를 직접 훑어야 하는 상황이 재발한다 (2026-04-24 1차 실행 사례).
 
 **Sub-agent 입력**: RESEARCH 실행 전 다음 파일을 **반드시 읽어** "synthesize context"를 확보:
 - `flow/flow.md` (thesis + argument chain)
@@ -1412,7 +1613,7 @@ python3 scripts/research_postcheck.py {PROJECT}
 **각 RESEARCH 블록 포맷**:
 
 ```markdown
-## [RESEARCH-NNN] (covers R-NN, R-MM) {topic from search[].topic}
+## [R-NN] (covers R-NN, R-MM) {topic from search[].topic}
 
 **검색 쿼리**: `{query}`
 **실행일**: YYYY-MM-DD
@@ -1490,7 +1691,7 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 1. PDF 우선순위 10편 수동 다운로드 → `papers/candidates/`
 2. `"새 논문 처리해줘"` → paper-analyst 일괄 분석
 3. `"flow 업데이트해줘"` → `(레퍼런스)` 자리 실제 인용 교체
-4. `"flow 레퍼런스 분석해줘"` 재실행 → 축 1 점수 복원 확인
+4. `"flow 평가해줘"` 재실행 → 축 1 점수 복원 확인
 ```
 
 **카테고리 배정 원칙**:
@@ -1508,7 +1709,7 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
 
 ### 단계 3: 결과 보고
 
-각 RESEARCH 결과는 `papers/consensus-results.md`에 `[RESEARCH-NNN]` 태그로 누적 저장된다 (단계 2b에서 이미 수행). 각 논문은 클릭 가능한 마크다운 링크 (`[제목](URL)`) 형식으로 포함.
+각 RESEARCH 결과는 `papers/search-results/{stage}.md`에 `[R-NN]` 태그로 누적 저장된다 (단계 2b에서 이미 수행). 각 논문은 클릭 가능한 마크다운 링크 (`[제목](URL)`) 형식으로 포함.
 
 화면 요약 예시:
 ```
@@ -1519,11 +1720,11 @@ Stage 1 → 2 전환을 위해 **최우선 10편** (인용수·역할 가중):
    🔍 RESEARCH: {K}개 완료 ({L}편 신규 후보 확보)
    ⚠️  재검색 권장: {R}개 (기대 프로필 미달)
 
-📄 papers/consensus-results.md에 {L}편 추가
+📄 papers/search-results/{stage}.md에 {L}편 추가
 🔄 flow/claim-extraction-flow.md 또는 output/claim-extraction-output.md 매칭 갱신: {T}건
 
 👉 다음 단계:
-   1. consensus-results.md 링크에서 필요한 논문 PDF 다운로드
+   1. search-results/{stage}.md 링크에서 필요한 논문 PDF 다운로드
    2. papers/candidates/에 저장 → "새 논문 처리해줘"
 ```
 
@@ -1541,14 +1742,14 @@ RESEARCH 전량 완료 후, 사용자에게 다음 두 옵션을 제시:
 
   [A] "레퍼런스 점검해줘"  → 축 1만 빠르게 재평가 (권장, 가벼움)
   [B] "flow 업데이트해줘"  → 새 논문 반영하여 flow.md 보강 제안
-                            (이 후 "flow 내용 분석해줘" 시 축 3·4도 유의미하게 움직임)
+                            (이 후 "flow 평가해줘" 시 축 3·4도 유의미하게 움직임)
   [C] "초안 작성해줘"      → Stage 2로 바로 진입 (flow가 이미 충분하다면)
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "RESEARCH 실행" "stage=stage1" "target=consensus-results.md" "result={N_search} RESEARCH(search) + {N_reanalyze} RESEARCH(reanalyze) done"
+python3 scripts/activity_log.py append {PROJECT_NAME} "RESEARCH 실행" "stage=stage1" "target=search-results/{stage}.md" "result={N_search} RESEARCH(search) + {N_reanalyze} RESEARCH(reanalyze) done"
 ```
 
 ---
@@ -1678,7 +1879,7 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} pre-redraft
 
 자동:
 - thesis-developer → `output/generative/thesis-development-notes.md`
-- cross-paper-insight-finder → `output/generative/cross-paper-insights.md`
+- output-cross-paper-insights → `output/generative/cross-paper-insights.md`
 - steelman-dialectic → `output/generative/steelman-dialectic.md`
 - field-positioning-oracle → `output/generative/field-positioning.md`
 
@@ -1830,14 +2031,14 @@ projects/{PROJECT_NAME}/final/complete-draft.docx          # Word (docx skill)
 
 👉 다음 단계:
    - chapter 수정: "Chapter X 수정해줘: [구체 지시]"
-   - 평가 실행: "flow 내용 분석해줘"
+   - 평가 실행: "flow 평가해줘"
    - 적대적 리뷰 추가: "X 학파 입장에서 반박해줘"
 ```
 
 ### 단계 11: 활동 로그 기록
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=output" "target=output/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect,adversarial-reviewer,peer-reviewer{,thesis-developer,cross-paper-insight-finder,steelman-dialectic,field-positioning-oracle}" "commits={fulfilled}/{total}"
+python3 scripts/activity_log.py append {PROJECT_NAME} "초안 작성" "stage=output" "target=output/*" "result={N}챕터 {W}단어" "ref=ref:ch-{NNN}" "agents=writing-architect,adversarial-reviewer,peer-reviewer{,thesis-developer,output-cross-paper-insights,steelman-dialectic,field-positioning-oracle}" "commits={fulfilled}/{total}"
 ```
 
 ---
@@ -1924,7 +2125,7 @@ python3 scripts/sync_state.py snapshot-output {PROJECT_NAME} ch{X}-edit-{규모}
 ```
 [Generative phase 재실행] (옵션, 사용자 선택 — 권장)
   ├ thesis-developer — 새 입장의 implicit assumption 재점검
-  ├ cross-paper-insight-finder — emergent pattern 재평가
+  ├ output-cross-paper-insights — emergent pattern 재평가
   ├ steelman-dialectic — 새 입장에 대한 critic 재구축
   └ field-positioning-oracle — 새 positioning 좌표
 
@@ -1973,12 +2174,12 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=out
 
 사용자가 "gap 분석해줘", "연구 gap 찾아줘", "뭐가 안 다뤄졌어?" 등을 말하면:
 
-### 단계 1: 🤖 gap-finder 에이전트 호출
+### 단계 1: 🤖 output-gap-finder 에이전트 호출
 
-1. `skills/agents/gap-finder.md` 파일을 읽는다
+1. `skills/agents/output-gap-finder.md` 파일을 읽는다
 2. 현재 프로젝트의 `flow.md`와 `papers/analyzed/` 전체를 읽는다
-3. Agent 도구로 gap-finder를 실행한다:
-   - 전달: flow.md + 모든 analyzed/*.md + gap-finder.md 지침
+3. Agent 도구로 output-gap-finder를 실행한다:
+   - 전달: flow.md + 모든 analyzed/*.md + output-gap-finder.md 지침
    - 수행: 방법론/응용/데이터/이론/시간 Gap 5종 탐색
 4. 결과를 `projects/{PROJECT_NAME}/gaps-analysis.md`에 저장한다
 
@@ -2003,7 +2204,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "챕터 수정" "stage=out
 ### 단계 3: 활동 로그 기록 (MD Layer 4)
 
 ```bash
-python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}개 gap" "agents=gap-finder"
+python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}개 gap" "agents=output-gap-finder"
 ```
 
 ---
@@ -2017,7 +2218,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "gap 분석" "result={N}�
 | 시점 | 제안 메시지 |
 |------|-----------|
 | 프로젝트 생성 직후 flow.md 저장 시 | "empirical 프로젝트로 감지됨. 방법론 추천을 받아보시겠습니까? → `방법론 추천해줘`" |
-| 첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시 | "이 프로젝트는 empirical이지만 방법론이 flow.md에 아직 명시되지 않음. `방법론 추천해줘` 권장" |
+| 첫 `"flow 평가해줘"` + `"flow 평가해줘"` 실행 시 | "이 프로젝트는 empirical이지만 방법론이 flow.md에 아직 명시되지 않음. `방법론 추천해줘` 권장" |
 | `"리서치 진행해줘"` 실행 시 | "Stage 1 리서치 전 방법론 방향 확정 권장. `방법론 추천해줘` 또는 `방법론 검증해줘`" |
 | Stage 2 초안 작성 직전 | "초안 작성 전 `방법론 검증해줘`로 최종 점검 권장" |
 
@@ -2147,7 +2348,7 @@ sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ord
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. [flow_changed] flow.md 변경됨 (score: 30)
    영향: analyzed/*.md 일부 구버전, evaluations/latest/ 재생성 필요
-   → "논문 재분석해줘" 후 "flow 레퍼런스 분석해줘"
+   → "논문 재분석해줘" 후 "flow 평가해줘"
 
 2. [paper_removed] Zelazo_2022.pdf 제거됨 (score: 40, dangling 2챕터)
    영향: Chapter 2, 4에 dangling citation 3건
@@ -2178,7 +2379,7 @@ sync_state.py의 JSON 응답에서 `tier_counts`, `stales` (긴급도 순), `ord
 3. "논문 재분석해줘" (flow_changed 전파)                 — P1
 4. "Chapter 3 수정해줘", "Chapter 4 수정해줘" (drift 해소) — P2
 5. "최종 통합해줘" (final 재빌드)                        — P3
-6. "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘" (전체 재평가 마지막)                       — P3
+6. "flow 평가해줘" (전체 재평가 마지막)                       — P3
 
 ⚠️ 이 순서로 진행하지 않으면 후속 단계에서 같은 stale이 다시 감지됩니다
    (예: Chapter 수정 전에 평가해도 여전히 구버전 기반 경고).
@@ -2411,7 +2612,7 @@ python3 scripts/paper_reanalysis_delta.py {PROJECT_NAME}
 👉 다음 단계:
    - "Chapter X 수정해줘: 새 분석 반영"
    - 모든 sync 확인: "sync 확인해줘"
-   - 평가 갱신: "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘"
+   - 평가 갱신: "flow 평가해줘"
 ```
 
 ### 단계 6: 활동 로그 기록 (MD Layer 4)
@@ -2494,12 +2695,12 @@ flow.md 분석 결과:
   "비판 모드 incremental로 설정해줘"
 
 다음 단계:
-  "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"로 Critical Mode 포함 전체 평가 실행
+  "flow 평가해줘"로 Critical Mode 포함 전체 평가 실행
 ```
 
 ### 자동 제안 트리거
 
-첫 `"flow 레퍼런스 분석해줘"` + `"flow 내용 분석해줘"` 실행 시, intellectual_ambition이 `incremental`이고 flow.md에서 critical 신호 ≥ 3개 감지되면 evaluation-orchestrator가 사용자에게 자동 제안:
+첫 `"flow 평가해줘"` + `"flow 평가해줘"` 실행 시, intellectual_ambition이 `incremental`이고 flow.md에서 critical 신호 ≥ 3개 감지되면 evaluation-orchestrator가 사용자에게 자동 제안:
 
 ```
 💡 제안: 이 프로젝트는 "critical" 성향이 강합니다.
@@ -2560,7 +2761,7 @@ critical-companion의 Phase 1-5는 스킵하고 **Phase 6 (commitment 추출)만
 👉 다음 단계:
   1. UNFULFILLED 해소: "Chapter 5 수정해줘: [C-003] 급진적 대안 steelman 강화"
   2. 또는 답변 자체를 재고: critical-questions.md 답변 수정 후 다시 "답변 반영해줘"
-  3. 전체 평가: "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"
+  3. 전체 평가: "flow 평가해줘"
 ```
 
 **이 명령의 가치**: 사용자가 답변만 쓰고 끝내는 것이 아니라, **답변이 시스템에 actionable하게 등록되었음을 즉시 확인**. writing 작업 전에 commitment 추출을 보장.
@@ -2615,7 +2816,7 @@ trigger 예: `post-research`, `post-draft`, `post-revision`, `manual-update`
 
 ⚠️ 중요: 시스템이 답변하지 않습니다. 직접 작성하세요.
     답변 작성이 새로운 관점의 발견 과정입니다.
-    답변 후 "flow 레퍼런스 분석해줘" / "flow 내용 분석해줘" 재실행하면 axis6-critical-scorer가 반영합니다.
+    답변 후 "flow 평가해줘" 재실행하면 axis6-critical-scorer가 반영합니다.
 
 👉 다음 단계:
    1. critical-questions.md 열어 질문에 자기 언어로 답변
@@ -2700,7 +2901,7 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "논문 Mode C" "target={�
 사용자가 "독창성 평가해줘", "contribution 평가", "novelty 확인해줘" 등을 말하면:
 
 1. `skills/agents/axis4-originality-scorer.md` 파일을 읽는다
-2. 현재 프로젝트의 평가 대상(flow.md 또는 초안) + `papers/analyzed/*.md` + `papers/consensus-results.md`를 전달하여 Agent 실행
+2. 현재 프로젝트의 평가 대상(flow.md 또는 초안) + `papers/analyzed/*.md` + `papers/search-results/{stage}.md`를 전달하여 Agent 실행
 3. 결과를 `projects/{PROJECT_NAME}/evaluations/latest/axis4-originality.md`에 저장
 
 **주요 출력**: Novelty Delta Map (선행 연구 3편 대비 차별점 테이블) + "So What?" 명시 여부 + 심사자 예상 공격.
@@ -2733,22 +2934,33 @@ python3 scripts/activity_log.py append {PROJECT_NAME} "축 5 심층" "axis5_stat
 
 사용자가 `"작업 추천해줘"`, `"뭘 해야 해?"`, `"next step"`, `"추천해줘"` 등을 말하면:
 
-**입력 소스 3종 통합**:
-1. `work-plan.md`의 최상단 "사용자 브리핑" 섹션 + 대시보드 "다음 권장 명령" (aggregator가 이미 계산) ← **primary**
-2. `activity.log` 기반 최근 활동 (보강)
-3. `sync_state.py check` 기반 stale 항목 (주의사항)
+**입력 소스 4종 통합**:
+1. **폴더 스캔** — 어떤 단계에 무엇이 있는지 직접 확인 (research-gap·flow·output·final + papers/) ← **primary**
+2. 각 단계의 `evaluation.md` 다음 액션 섹션 (있으면) ← **primary**
+3. `activity.log` 기반 최근 활동 (보강)
+4. `sync_state.py check` 기반 stale 항목 (주의사항)
 
-### 단계 1: work-plan.md 읽기 (primary)
+### 단계 1: 폴더 스캔으로 진척 상태 파악
 
-`projects/{P}/work-plan.md` 최상단의 "🧭 현재 당신이 해야 할 일"과 "📊 대시보드 → 🎯 다음 권장 명령" 추출. **이것이 추천의 뼈대.**
+main agent가 다음을 직접 확인:
+- `research-gap/research-gap.md` 존재? `research-plan.md` 존재? `gap-report.md` 존재?
+- `flow/flow.md` 존재 + 본문 100자 이상? `flow/evaluations/latest/evaluation.md` 존재 + 최신?
+- `output/0N-*.md` 존재? `output/evaluations/latest/evaluation.md` 존재?
+- `final/complete-draft.md` 존재?
+- `papers/candidates/{research-gap,flow}/` 미처리 PDF?
+- `papers/search-results/{research-gap,flow}.md`의 R-NN/H-NN 미처리?
 
-### 단계 2: activity.log 기반 보강
+### 단계 2: evaluation.md 다음 액션 추출
+
+존재하는 모든 `evaluation.md`의 `## 🧭 다음 액션` 섹션 읽기. 이것이 추천의 1차 뼈대.
+
+### 단계 3: activity.log 기반 보강
 
 ```bash
 python3 scripts/activity_log.py recommend {PROJECT_NAME} 14
 ```
 
-반환 JSON에서 `current_state` (마지막 활동·stage·점수) 추출. work-plan 추천에 "로그 근거" 추가.
+반환 JSON에서 `current_state` (마지막 활동·stage·평가 결과) 추출.
 
 ### 단계 3: sync check
 
@@ -2777,7 +2989,7 @@ JSON을 파싱하여 아래 형식으로 출력:
    예상 효과: critical-lens 축 6 +12점, commitment 커버리지 60%→80%
    🔗 근거 로그: [2026-04-20 14:30] 답변 반영 | ... | 2 UNFULFILLED
 
-2. 🟡 "flow 레퍼런스 분석해줘" + "flow 내용 분석해줘"
+2. 🟡 "flow 평가해줘"
    이유: 초안 후 3일 경과, 전체 5축 재평가 시점
    예상 효과: delta 기준으로 어느 축이 움직였는지 확인
    🔗 근거 로그: [2026-04-20 11:00] 초안 작성 | ...
@@ -2824,8 +3036,7 @@ python3 scripts/activity_log.py resolve-ref {PROJECT_NAME} ref:{kind}-{NNN}
 
 ### 단계 3: 사용자 요청에 따라 파일 조회·출력
 
-- "work-plan 보여줘" → `archive/{folder}/work-plan.md` Read 후 출력
-- "evaluation 보여줘" → `archive/{folder}/evaluation.md`
+- "evaluation 보여줘" → `archive/{folder}/evaluation.md` Read 후 출력
 - "상태 요약" → 해당 폴더 모든 파일 짧게 요약
 - "되돌려줘" / "복원" → **거부**: "archive는 읽기 전용입니다. 직접 `cp archive/{path}/* {dest}/`로 복사하시면 됩니다."
 
