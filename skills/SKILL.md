@@ -175,6 +175,66 @@ Sub-agent는 **하나의 좁은 작업**만 담당하며 다음 규칙을 지킨
 
 ---
 
+## 🎓 research-gap 단계 — 박사생 Hybrid 워크플로 (anchor discovery)
+
+research-gap은 *분야 anchor 탐색·갭 발견*. flow 단계의 광범위 thesis-supportive 검색과 다름. **사용자가 anchor 판단의 주체**, AI는 후보 추천 사서 역할.
+
+### 핵심 원칙
+
+1. **양 < 질** — 1 H에 결정적 anchor 3-5편. 광범위 20편 노이즈 검색 X.
+2. **Narrow query** — 좁은 3-4 keyword. 광범위 6+ keyword X.
+3. **AI 추천 / 사용자 채택** — AI는 abstract 평가로 후보 리스트만, anchor 채택은 사용자 정독 후.
+4. **Iterative loop** — anchor 부족 시 사용자가 research-gap.md '6) 앵커 논문 리서치 방향' 수정 → 재검색.
+
+### 워크플로 (사용자 시점)
+
+```
+1. research-gap.md 작성 (5+6 요소 — '6) 앵커 논문 리서치 방향' 포함)
+       ↓
+2. "리서치 갭 분석해줘"  → research-plan.md (gap-analyzer)
+       ↓
+3. "앵커 논문 찾아줘"  → anchor-candidates.md (anchor-recommender)
+       AI: narrow 검색 + abstract 정합 평가 + 후보 리스트 추천 (채택 X)
+       ↓
+4. 사용자: 추천 paper 다운로드 → 정독 → anchor 선별
+       선별한 paper → papers/candidates/research-gap/ 이동
+       나머지 폐기 또는 별도
+       ↓
+5. "논문 분석해줘"  → [R][D].*.md (gap-paper-analyst, 옮긴 PDF만)
+       ↓
+6. 검토:
+   (a) 충분 → "갭 리포트 만들어줘" → gap-report.md → flow 단계로
+   (b) 부족 → research-gap.md '6) 앵커 논문 리서치 방향' 수정 → step 2 재진입
+```
+
+### 사용자 결정 포인트 (의사결정 부담 최소화)
+
+- ① research-gap.md 작성 (5+6 요소)
+- ④ anchor 판단·이동 (정독 후 본인 thesis 기준)
+- ⑥ 충분 여부 + 부족 시 6) 섹션 수정
+
+명령은 단순 (2·3·5·6번 — 4-5회). 매 step confirmation 부담 X.
+
+### flow 단계 검색과 분리
+
+| | research-gap (anchor discovery) | flow (thesis-supportive) |
+|---|---|---|
+| 목적 | 분야 anchor·갭 발견 | thesis 보강 인용 |
+| 쿼리 | narrow 3-4 keyword | 광범위 5-8 keyword |
+| 결과 | 5점 5-10편 후보 | 20편 6 카테고리 curation |
+| Anchor 채택 | 사용자 정독 후 | claim-extraction 자동 매칭 |
+| Loop | 6) 섹션 수정 → 재검색 | 1회 (UNMATCHED → search) |
+| Agent | anchor-recommender | research-processor (4-stage) |
+
+### Anchor 부재 = valuable signal
+
+검색 결과 정합 5점 0편 ≠ 실패. **anchor 부재가 본 thesis의 contribution 기회 신호**.
+
+이 경우 anchor-candidates.md에 명시:
+> "H-04에 대해 narrow 검색 결과 5점 anchor 부재. 본 thesis가 *분야 dry spot*에 위치할 가능성. 6) 섹션 수정으로 frame 재검토 권장 OR contribution으로 강조."
+
+---
+
 ## 🎯 핵심 데이터 흐름 — writing-spec.md 중심
 
 **문제 진단**: 기존엔 agent 결과 → 사용자 피드백 → 본문 반영. 사용자 부담 큼 + 결과 누수 발생 → quality 저하.
@@ -397,9 +457,10 @@ final/
 **≥3단계 파이프라인**에서는 실행 시작 시점에 반드시 `TaskCreate`로 각 단계를 태스크화한다. 대상:
 
 - `{stage} 평가해줘` — claim-extract → 축별 dispatch → aggregator → (stage=final 한정) final-holistic-reviewer → delta mark-done → sync update → evaluation.md 갱신 (≥6 단계 / final은 +1)
-- `리서치 갭 분석해줘` (research-gap 진입) — research-gap.md 검증 → gap-analyzer → research-plan.md 작성 → claim-extraction에 H-NN 등록 (≥3 단계)
-- `리서치 진행해줘` — 두 plan 폴더 스캔 (research-gap·flow) → 미해결 R/H 발견 시 사용자 1회 확인 → raw 캐시 → MCP 실행 → 번역 → search-results/{stage}.md 갱신 → post-check → claim-extraction 갱신 (≥6 단계).
-- `논문 처리해줘` — `papers/candidates/{research-gap,flow}/` 양쪽 스캔 → 각 폴더 PDF triage → tier 분배 → 폴더에 따라 gap-paper-analyst (research-gap) / paper-analyst (flow) × N → sync update (≥4 단계)
+- `리서치 갭 분석해줘` (research-gap 진입) — research-gap.md 검증 → gap-analyzer → research-plan.md (사용자 6) 섹션 carry-over) (≥3 단계)
+- `앵커 논문 찾아줘` ⭐ (research-gap, anchor discovery) — research-plan.md + 사용자 6) → anchor-recommender → narrow 검색 → abstract 정합 평가 → anchor-candidates.md (후보만, 채택 X) (≥4 단계)
+- `리서치 진행해줘` (flow 단계용) — `flow/claim-extraction-flow.md`의 미해결 R-NN → Consensus 4-stage 파이프라인 → search-results/flow.md (≥6 단계). research-gap 단계는 `앵커 논문 찾아줘` 사용 권장.
+- `논문 처리해줘`·`논문 분석해줘` — `papers/candidates/{research-gap,flow}/` 양쪽 스캔 → 폴더에 따라 gap-paper-analyst (research-gap, [R][D]) / paper-analyst (flow, [A]/[N]) × N (≥4 단계). research-gap PDF는 *사용자가 anchor라고 판단해서 옮긴 것*만 분석.
 - `갭 리포트 만들어줘` — `papers/analyzed/research-gap/[R][D].*.md` 1개 이상 확인 → gap-synthesizer → research-gap/gap-report.md (≥2 단계)
 - `초안 작성해줘` — (옵션) generative phase (thesis-developer / output-cross-paper-insights / steelman-dialectic / field-positioning-oracle) → writing-architect Phase 0/1 → adversarial-reviewer (Phase 1.5) → writing-architect Phase 2 (chapter별) + adversarial-reviewer (Phase 2.5) + output-editor (자동 수정) → peer-reviewer (Phase 3) → claim-extract → 평가 (≥6 단계)
 - `Chapter X 수정해줘` — snapshot → output-editor → citation-checker → claim-extract (≥4 단계)
@@ -566,7 +627,9 @@ python3 scripts/migrate_project.py {PROJECT}
 
 | 카테고리 | 명령어 | 동작 |
 |---------|-------|------|
-| **research-gap (표준 시작점)** | `"리서치 갭 분석해줘"` | research-gap.md → gap-analyzer → research-plan.md (가설 H-NN별 anchor 검색 계획) |
+| **research-gap (표준 시작점)** | `"리서치 갭 분석해줘"` | research-gap.md → gap-analyzer → research-plan.md (H-NN + 사용자 6) 검색 방향 반영) |
+| **research-gap** | `"앵커 논문 찾아줘"` ⭐ | research-plan.md + research-gap.md '6) 앵커 논문 리서치 방향' → anchor-recommender → research-gap/anchor-candidates.md (후보 추천만, 채택 X). 사용자 정독 후 anchor 선별·이동 |
+| **research-gap** | `"논문 분석해줘"` | 사용자가 papers/candidates/research-gap/으로 옮긴 PDF만 → gap-paper-analyst → papers/analyzed/research-gap/[R][D].*.md |
 | **research-gap** | `"갭 리포트 만들어줘"` | analyzed/research-gap/[R][D].*.md 통합 → gap-synthesizer → gap-report.md |
 | **분석** | `"flow 평가해줘"` | flow/flow.md 통합 평가 (claim-extractor + axis1~6 병렬 + aggregator) → flow/evaluations/latest/evaluation.md |
 | **분석** | `"output 평가해줘"` | output/*.md 통합 평가 → output/evaluations/latest/evaluation.md |

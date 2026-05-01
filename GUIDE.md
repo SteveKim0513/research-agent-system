@@ -141,39 +141,49 @@ claude
 
 ### ⓪ research-gap 단계 — 분야 anchor 탐색 (표준 시작점)
 
-본인 주제에 대해 **"무엇이 빠져 있나"**를 먼저 조사하는 단계입니다. thesis가 아직 흐릿할 때, 또는 분야의 anchor(핵심 논문·논쟁 지점)를 모를 때 사용. thesis가 이미 잡혔다면 이 단계 **건너뛰고 ②로** 가도 됩니다.
+본인 주제에 대해 **"무엇이 빠져 있나"**를 먼저 조사하는 단계입니다. **박사생이 lit review 시작할 때처럼 — AI는 사서 역할로 후보 추천, anchor 채택은 본인이 결정**.
 
-**작업 흐름**:
+thesis가 이미 잡혔다면 이 단계 **건너뛰고 ②로** 가도 됩니다.
+
+**작업 흐름** (Hybrid):
 
 ```
-research-gap.md 작성 (분야·관심·아는 지형) → "리서치 갭 분석해줘" → research-plan.md (H-NN hypotheses)
+research-gap.md 작성 (5+6 요소 — '6) 앵커 논문 리서치 방향' 포함)
    ↓
-"리서치 진행해줘" → Consensus 검색 → search-results/research-gap.md
+"리서치 갭 분석해줘" → research-plan.md (H-NN + 사용자 검색 방향 반영)
    ↓
-PDF 다운로드 → papers/candidates/research-gap/ → "논문 처리해줘"
+"앵커 논문 찾아줘" ⭐ → anchor-candidates.md
+   AI가 narrow 검색 + abstract 평가 + 후보 추천 (채택 X)
    ↓
-analyzed/research-gap/[R].*.md ([D].*.md = 비판 frame)
+사용자: 추천 paper 다운로드 → 정독 → anchor 선별
+   anchor라 판단한 것만 → papers/candidates/research-gap/ 이동
    ↓
-"갭 리포트 만들어줘" → gap-report.md (통합 갭 진단)
+"논문 분석해줘" → analyzed/research-gap/[R][D].*.md
    ↓
-이 결과를 flow.md 작성의 입력으로 활용
+검토:
+  (a) 충분 → "갭 리포트 만들어줘" → gap-report.md → flow 단계로
+  (b) 부족 → research-gap.md '6) 앵커 논문 리서치 방향' 수정 → 다시 "앵커 논문 찾아줘"
 ```
 
 **핵심 명령 4개**:
 | 명령 | 무엇 |
 |------|------|
-| `"리서치 갭 분석해줘"` | research-gap.md → research-plan.md (H-NN 가설 발급) |
-| `"리서치 진행해줘"` | research-gap·flow 두 plan의 미해결 H/R 모두 처리 |
-| `"논문 처리해줘"` | 두 candidates 폴더 (research-gap·flow) 자동 스캔 |
-| `"갭 리포트 만들어줘"` | analyzed/research-gap/[R][D].*.md → gap-report.md 통합 |
+| `"리서치 갭 분석해줘"` | research-gap.md → research-plan.md |
+| `"앵커 논문 찾아줘"` ⭐ | narrow 검색 → anchor 후보 추천 (채택 X) |
+| `"논문 분석해줘"` | 사용자가 옮긴 anchor PDF만 정독·분석 |
+| `"갭 리포트 만들어줘"` | [R][D] 통합 → gap-report.md |
+
+**왜 광범위 검색이 아닌가**: 이전 방식은 H 1개당 20편씩 검색해서 60-85% 노이즈가 발생했습니다. anchor discovery는 *분야의 결정적 3-5편*을 찾는 것이 목표. 박사생이 advisor·peer와 함께 *narrow*하게 좁혀가는 방식을 시스템화.
+
+**6) 앵커 논문 리서치 방향이 중요한 이유**: 이 섹션이 검색의 focus를 결정합니다. anchor 부족·부적합 시 이 섹션을 수정하고 재요청 = iterative loop의 pivot. 박사생이 lit review 도중 *검색 방향 자체를 재공식화*하는 것을 시스템화.
 
 **flow 단계로 넘어갈 때**: research-gap에서 분석한 핵심 논문을 flow 작업에서 **anchor로 격상** 가능:
 ```
 "이 논문 flow anchor로 분석해줘 Smith_2024"
 ```
-→ research-gap 단계의 [R] 분석을 기반으로 flow 관점의 [A] 분석을 추가 생성.
+→ research-gap 단계의 [R][D] 분석을 기반으로 flow 관점의 [A] 분석을 추가 생성.
 
-**작성 가이드**: `skills/RESEARCH-GAP-TEMPLATE.md` 참고.
+**작성 가이드**: `skills/RESEARCH-GAP-TEMPLATE.md` 참고. 특히 §6 '앵커 논문 리서치 방향' 작성법 중요.
 
 **다음**: ② flow.md 작성 (gap-report.md를 입력으로)
 
