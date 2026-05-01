@@ -42,15 +42,28 @@ projects/{P}/research-gap/research-plan.md
 - 잠정 thesis (1개 또는 여러 개)
 - 확인하고 싶은 것 → H-01, H-02 ... 형태로 분해
 - 본인 가정·전제
+- **'6) 앵커 논문 리서치 방향'** ⭐ — 사용자가 명시한 검색 방향 (있으면 그대로 활용)
 
 가설 분해 원칙:
 - 사용자가 명시적으로 H-NN 형태로 적었다면 그대로 사용
 - 줄글로만 적었다면 *영역 단위로* 분해. 너무 잘게 쪼개지 말 것 (5–10개 권고)
 - 하나의 H는 *하나의 anchor 검색 쿼리*로 커버 가능한 단위
 
-### Step 2: 각 H에 anchor 종류 판단
+### Step 2: '6) 앵커 논문 리서치 방향' 활용 (있으면)
 
-각 H에 대해 어떤 anchor가 필요한지 판단:
+사용자가 6) 섹션에서 H별로 명시한 정보를 그대로 research-plan.md에 carry-over:
+- 사용자 seed paper (있다면) — 검색 시작점
+- 찾고 싶은 anchor 종류 — 사용자 의도 우선
+- 검색 keyword 후보 1차·2차 — 사용자가 정한 narrow query
+- 제외 조건
+- 이상적 anchor 프로필
+
+**6) 섹션이 비어있거나 부족한 H에 대해**:
+- AI가 보조로 *추정* (Step 3 anchor 종류 + Step 4 keyword 자동 생성)
+- 단 research-plan.md에 "(AI 추정 — 사용자 검토 권고)" 명시
+- 사용자가 이후 6) 섹션 보완 권장
+
+### Step 3: 각 H에 anchor 종류 판단 (사용자 명시 없을 때)
 
 | Anchor 종류 | 언제 |
 |---|---|
@@ -61,18 +74,21 @@ projects/{P}/research-gap/research-plan.md
 | **boundary** | H의 적용 범위·예외 case (예: 횡문화 EF 비교) |
 | **review** | 분야 전반 정리 (systematic review·meta-analysis) |
 
-각 H에 1–3개 종류를 배정 (보통 seminal+direct+counter).
+각 H에 1–3개 종류 추정 (보통 seminal+direct+counter). 사용자 6) 섹션이 우선.
 
-### Step 3: 검색 쿼리·기대 프로필 작성
+### Step 4: 검색 쿼리·기대 프로필 작성
 
 각 H에 대해:
-- **검색 쿼리**: Consensus에 던질 영문 쿼리 (5–8 단어, 핵심 keyword)
-- **기대 논문 프로필**: 어떤 유형/시대/저널의 논문이 우선 수집돼야 하는지
+- **1차 keyword** (사용자 6) 섹션 우선, 없으면 AI 추정): narrow 3-4 단어
+- **2차 keyword** (1차 부족 시 fallback): 다른 keyword 조합
+- **제외 조건** (사용자 6) 섹션 우선)
+- **이상적 anchor 프로필** (사용자 6) 섹션 우선)
+- **기대 논문 프로필** (보조): 유형·시대·저널
 
-검색 쿼리 작성 원칙:
-- 너무 좁지 않게 — anchor 발견 단계라 *분야 정찰* 목적
-- 너무 넓지 않게 — Consensus 결과가 분산되지 않도록
-- 본인 thesis의 핵심 keyword + 인접 분야 keyword 결합
+검색 쿼리 작성 원칙 (anchor discovery 단계):
+- **좁게** — narrow 3-4 단어 (이전 광범위 5-8 단어 X)
+- 본 thesis의 *unique* keyword 우선
+- anchor-recommender가 이 쿼리로 narrow 검색 → 5-10편 결과 → abstract 평가
 
 ### Step 4: research-plan.md 출력
 

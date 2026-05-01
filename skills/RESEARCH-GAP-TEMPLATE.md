@@ -65,6 +65,44 @@ flow.md와 마찬가지로 **자유로운 줄글**로 작성하세요. 시스템
 
 > 예: "보편적 EF가 *개념적으로* 존재한다고 가정한다. 다만 측정의 임의 규칙 의존성 때문에 직접 측정이 어렵다고 본다."
 
+### 6. 앵커 논문 리서치 방향 ⭐ (가장 중요)
+
+> **이 섹션이 anchor 검색의 focus를 결정합니다**. anchor 후보가 부적합하거나 부족할 때, 이 항목을 수정하고 재요청 = anchor 발견의 iterative loop.
+
+각 가설(H-NN)별로 *어떤 종류의 anchor를 어떻게 찾고 싶은지* 방향을 명시:
+
+```
+### H-01 — {가설 1줄 제목}
+
+**이미 알고 있는 seed paper** (있다면, 1-2편): 
+  - 예: Bailenson 2021, Tech Mind & Behavior — Zoom fatigue 4 mechanisms
+  - 예: Roseberry et al. 2014, Child Dev — Skype me video chat
+
+**찾고 싶은 anchor 종류** (한 H에 여러 종류 가능):
+  - [ ] seminal — 분야 표준 foundational anchor
+  - [ ] direct — 본 thesis와 직접 정합한 최신 empirical
+  - [ ] counter — 본 thesis에 반대되는 입장
+  - [ ] methodology — 측정·분석 표준
+  - [ ] boundary — 적용 범위·예외 case
+  - [ ] review — 분야 정리 systematic review·meta-analysis
+
+**검색 keyword 후보** (영문, 좁게 3-4 단어):
+  - 1차: "..."
+  - 2차 (1차 부족 시): "..."
+
+**제외 조건** (이런 anchor는 배제):
+  - 예: 임상 표본 only
+  - 예: 노인·성인 only (본 연구는 5-6세)
+  - 예: 단순 telehealth EF 평가 (본 thesis와 frame 다름)
+
+**이상적 anchor 프로필** (다 충족하면 ★★★):
+  - 예: 미취학 5-6세 + 매체 비교 + 생리 측정 (4 조건)
+
+### H-02 — ...
+```
+
+처음 작성 시 일부 항목 비워둬도 OK — anchor 검색 결과 본 후 채워가며 정밀화.
+
 ---
 
 ## 🚫 하지 말아야 할 것
@@ -75,18 +113,40 @@ flow.md와 마찬가지로 **자유로운 줄글**로 작성하세요. 시스템
 
 ---
 
-## 📋 작성 후 흐름
+## 📋 작성 후 흐름 (Hybrid 박사생 워크플로)
 
-1. `research-gap.md` 작성 완료 → **"리서치 갭 분석해줘"** 입력
-2. 시스템이:
-   - 줄글에서 가설 H-NN 단위로 분해
-   - 각 H에 대한 anchor 검색 계획 작성 → `research-plan.md` 생성
-3. `research-plan.md` 확인 후 **"리서치 진행해줘"** 입력
-4. 시스템이 Consensus 4-stage 파이프라인으로 anchor 검색 → `papers/search-results/research-gap.md`
-5. 사용자가 결과 보고 PDF 다운로드 → `papers/candidates/research-gap/` 에 떨어뜨림
-6. **"논문 처리해줘"** → 갭 frame으로 분석 → `papers/analyzed/research-gap/[R][D].*.md`
-7. **"갭 리포트 만들어줘"** → 통합 갭 리포트 → `research-gap/gap-report.md`
-8. 갭 리포트 보고 본인 thesis 다듬기 → `flow/flow.md` 작성 시작
+```
+1. research-gap.md 작성 (5 + 6 요소 — '앵커 논문 리서치 방향' 포함)
+       ↓
+2. "리서치 갭 분석해줘"
+       → research-plan.md 생성 (H-NN + 검색 방향 반영)
+       ↓
+3. "앵커 논문 찾아줘"
+       → AI가 H-NN별 narrow 검색 → abstract 평가 → 후보 리스트 추천
+       → research-gap/anchor-candidates.md (다운로드 안내 형식)
+       ❗ AI는 추천만 — anchor 채택 X
+       ↓
+4. 사용자: 추천 paper 모두 다운로드 → 정독
+       본인이 anchor라고 판단한 것만 → papers/candidates/research-gap/ 으로 이동
+       나머지는 폐기 또는 별도 보관
+       ↓
+5. "논문 분석해줘"
+       → AI가 옮긴 PDF만 [R][D] 정독·분석
+       ↓
+6. 사용자 검토:
+       (a) 충분 → "갭 리포트 만들어줘" → gap-report.md → flow 단계로
+       (b) 부족 → research-gap.md '6) 앵커 논문 리서치 방향' 수정
+                  (keyword·제외조건·프로필 정밀화) → step 2로 loop
+```
+
+**사용자 결정 포인트** (의사결정 부담 최소):
+- ① 작성 (5+6 요소)
+- ④ anchor 판단·이동
+- ⑥ 충분 여부 + 부족 시 6) 섹션 수정
+
+나머지는 명령만.
+
+---
 
 ---
 
