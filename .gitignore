@@ -37,3 +37,10 @@ plan.md
 
 # 개발용 설계 문서 (내부 작업 문서 — 공식 문서는 README·MANUAL·PRINCIPLES로 승격됨)
 docs/
+
+# Runtime artifacts
+.claude/
+
+# Project backups (projects/ 자체는 위에서 ignore됨)
+projects.zip
+projects.tar.gz
